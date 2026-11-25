@@ -1,0 +1,42 @@
+/** 화면(탭) 전환. 주소의 #조각으로 기억해 새로 고쳐도 같은 탭이 열린다. */
+
+export const TABS = [
+  { id: 'home', label: '홈', icon: 'icon-home' },
+  { id: 'leave', label: '연가', icon: 'icon-palm' },
+  { id: 'badges', label: '업적', icon: 'icon-medal' },
+  { id: 'card', label: '카드', icon: 'icon-camera' },
+  { id: 'settings', label: '설정', icon: 'icon-gear' },
+] as const;
+
+export type TabId = (typeof TABS)[number]['id'];
+
+function fromHash(hash: string): TabId {
+  const id = hash.replace(/^#\/?/, '');
+  return TABS.some((t) => t.id === id) ? (id as TabId) : 'home';
+}
+
+class Nav {
+  tab = $state<TabId>('home');
+
+  start(): void {
+    this.tab = fromHash(location.hash);
+    window.addEventListener('hashchange', () => {
+      this.tab = fromHash(location.hash);
+    });
+  }
+
+  go(tab: TabId): void {
+    this.tab = tab;
+    const hash = `#${tab}`;
+    if (location.hash !== hash) {
+      try {
+        history.replaceState(null, '', hash);
+      } catch {
+        // file:// 등에서 막히면 주소는 그대로 둔다
+      }
+    }
+    window.scrollTo({ top: 0 });
+  }
+}
+
+export const nav = new Nav();
