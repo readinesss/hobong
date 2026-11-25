@@ -8,7 +8,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 };
 
 // 업무망 PC의 구형 Chromium 계열(Edge/Chrome)과 iOS Safari, 삼성 인터넷을 고려한 빌드 타깃.
-const BROWSER_TARGETS = ['chrome87', 'edge88', 'firefox78', 'safari14'];
+// 문법은 이 버전에 맞춰 낮춘다. 화면이 온전하려면 Svelte가 쓰는 :where() 선택자(Chrome·Edge 88,
+// Firefox 78, Safari 14)와 flex gap(Safari 14.1)이 필요하므로 이보다 낮출 수는 없다.
+const BROWSER_TARGETS = ['chrome88', 'edge88', 'firefox78', 'safari14'];
 
 export default defineConfig({
   // 단일 HTML은 어느 경로·file:// 에서든 열리므로 상대 경로 기준으로 빌드한다.
