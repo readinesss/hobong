@@ -60,6 +60,9 @@ test.describe('캐릭터 카드', () => {
     expect(text).toContain('[호봉] 김주무관');
     expect(text).toMatch(/다음 승급 [■□]{10} \d+% \(D-37\)/);
     expect(text).toContain('readinesss.github.io/hobong');
+    // 재직기간은 연·월까지만(일수까지 적으면 카드 날짜로 임용일이 역산된다)
+    expect(text).toMatch(/재직 \d+년( \d+개월)?/);
+    expect(text).not.toContain('일째');
   });
 
   test('이미지 복사가 안 되는 환경에서는 버튼을 숨기고 저장만 제공한다', async ({ page }) => {

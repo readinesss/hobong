@@ -13,14 +13,35 @@
   const showNudge = $derived(!dismissed && changes >= NUDGE_AFTER && nav.tab !== 'settings');
 </script>
 
-{#if !app.persistent}
+{#if app.staleNotice}
+  <div class="note warn banner stack" role="alert" id="notice-stale">
+    <p>{app.staleNotice}</p>
+    <div class="btn-row">
+      <button type="button" class="btn small primary" onclick={() => location.reload()}>
+        새로 고침
+      </button>
+    </div>
+  </div>
+{:else if !app.persistent}
   <p class="note warn banner" role="status">
     이 브라우저에서는 저장이 되지 않아요(사생활 보호 창이거나 정책으로 막힘). 창을 닫기 전에
     설정에서 데이터를 내려받아 주세요.
   </p>
+{:else if !app.writable}
+  <p class="note warn banner" role="alert">
+    저장 공간이 가득 찼거나 쓰기가 막혀 있어 바꾼 내용이 저장되지 않아요. 설정에서 데이터를 내려받아
+    보관해 주세요.
+  </p>
 {:else if app.saveFailed}
   <p class="note warn banner" role="alert">
     방금 바꾼 내용을 저장하지 못했어요(저장 공간 부족 등). 설정에서 데이터를 내려받아 보관해 주세요.
+  </p>
+{/if}
+
+{#if view.profileIssues.length > 0}
+  <p class="note banner" role="status" id="notice-profile">
+    내 정보 중 확인이 필요한 값이 있어요({view.profileIssues.join(' ')}). 설정 > 내 정보에서 확인해
+    주세요. PC의 날짜·시각이 맞는지도 봐 주세요.
   </p>
 {/if}
 

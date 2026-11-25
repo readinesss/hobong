@@ -49,6 +49,7 @@ import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
 import { hasHolidayData, isSalaryConfirmed, rulesFor } from '../rules/index.ts';
 import type { UserData } from '../store/schema.ts';
+import { checkProfile } from '../store/validate.ts';
 
 export const calendar = new Calendar(rulesFor);
 
@@ -68,6 +69,18 @@ class View {
 
   profile = $derived(this.data.profile);
   maxStep = $derived(maxStepOf(this.rules.salary, this.profile.grade));
+  /**
+   * 저장된 내 정보 중 지금 기준으로 맞지 않는 값(PC 시계가 뒤로 갔거나 규정이 바뀐 경우).
+   * 저장본은 그대로 열고, 화면에서 확인을 부탁한다.
+   */
+  profileIssues = $derived(
+    Object.values(
+      checkProfile(this.profile, {
+        today: this.today,
+        maxStep: (grade) => maxStepOf(this.rules.salary, grade),
+      }),
+    ),
+  );
 
   // ── 정년 ─────────────────────────────────────────────────────────────
   retire = $derived(retirementInfo(this.rules.retirement, this.profile.birthDate));
@@ -223,7 +236,15 @@ class View {
     leave: this.leave,
     cal: calendar,
   });
-  earned = $derived(evaluateAchievements(this.achievementInput));
+  /** 업적 계산이 어떤 입력에서 실패해도 화면 전체가 비지 않게, 저장된 업적을 그대로 쓴다 */
+  earned = $derived.by(() => {
+    try {
+      return evaluateAchievements(this.achievementInput);
+    } catch (error) {
+      console.warn('업적을 계산하지 못해 저장된 기록을 그대로 씁니다.', error);
+      return { ...this.data.achievements };
+    }
+  });
   badges = $derived(achievementViews(this.achievementInput, this.earned));
   earnedCount = $derived(this.badges.filter((b) => b.at !== null).length);
 

@@ -68,11 +68,20 @@
 
   function confirm() {
     if (!ok) return;
-    const fresh = !hasExisting;
-    app.importData(ok.data);
-    if (fresh) nav.go('home');
+    const outcome = app.importData(ok.data, ok.exportedAt);
+    if (outcome === 'failed') {
+      app.toast(
+        '지금 데이터를 되돌릴 수 있게 보관하지 못해 불러오지 않았어요. 먼저 설정에서 데이터를 내려받아 주세요.',
+        'warn',
+        'icon-warn',
+        8000,
+      );
+      onclose();
+      return;
+    }
+    if (outcome === 'imported') nav.go('home');
     app.toast(
-      hasExisting
+      outcome === 'replaced'
         ? '데이터를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.'
         : '데이터를 불러왔어요. 다시 만나서 반가워요!',
       'good',

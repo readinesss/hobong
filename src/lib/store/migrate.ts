@@ -11,6 +11,8 @@
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
+ * 변환은 값을 조용히 버리거나 고치지 않는다. 옮길 수 없는 값은 그대로 넘겨 검증 단계가
+ * 이유와 함께 거부하게 한다(사용자가 무엇이 빠졌는지 모른 채 불러오는 일이 없게).
  */
 import { addDays, isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
 import { APP_ID, SCHEMA_VERSION, type Settings } from './schema.ts';
@@ -41,19 +43,16 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
   const records: Dict[] = [];
   if (Array.isArray(data.leave)) {
     data.leave.forEach((item: unknown, index: number) => {
-      if (!isDict(item) || !isValidYmd(item.date)) return;
       const id = `v1-${index + 1}`;
+      // 형식이 틀린 행도 그대로 넘긴다. 검증이 "연가 기록 N번째 항목"으로 알려 준다.
+      if (!isDict(item)) {
+        records.push({ id, date: null, hours: null, kind: null, memo: '' });
+        return;
+      }
       if (item.unit === 'half') {
         records.push({ id, date: item.date, hours: 4, kind: 'am', memo: '' });
       } else if (item.unit === 'hour') {
-        const amount = typeof item.amount === 'number' ? Math.round(item.amount) : 1;
-        records.push({
-          id,
-          date: item.date,
-          hours: Math.min(8, Math.max(1, amount)),
-          kind: 'hours',
-          memo: '',
-        });
+        records.push({ id, date: item.date, hours: item.amount, kind: 'hours', memo: '' });
       } else {
         records.push({ id, date: item.date, hours: 8, kind: 'day', memo: '' });
       }
@@ -125,7 +124,8 @@ const MIGRATIONS: Record<number, Migration> = {
 
 export type MigrateResult =
   | { ok: true; data: unknown; fromVersion: number; migrated: boolean }
-  | { ok: false; reason: string };
+  /** code 'newer': 이 앱보다 새 버전에서 만든 데이터라 읽지 않았다(손상이 아니다) */
+  | { ok: false; reason: string; code?: 'newer' };
 
 /**
  * 겉봉(envelope)을 확인하고 data를 현재 버전 형식으로 바꾼다.
@@ -145,6 +145,7 @@ export function migrateEnvelope(
   if (version > SCHEMA_VERSION) {
     return {
       ok: false,
+      code: 'newer',
       reason: `이 파일은 더 새로운 버전의 호봉에서 만든 것입니다(파일 버전 ${version}, 지원 버전 ${SCHEMA_VERSION}). 호봉을 최신 버전으로 바꾼 뒤 다시 불러와 주세요.`,
     };
   }

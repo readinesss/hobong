@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- 일부러 틀린 데이터를 손으로 만든다 */
 /**
  * 저장·불러오기 검증.
  * - 내보내기 → 초기화 → 불러오기 후 상태가 완전히 같은지
@@ -26,8 +27,10 @@ import {
 } from '../../src/lib/store/schema.ts';
 import {
   clearAll,
+  clearCorrupt,
   clearUndo,
   hasCorrupt,
+  isNewerData,
   KEYS,
   loadData,
   loadUndo,
@@ -37,7 +40,13 @@ import {
   saveData,
   saveUndo,
 } from '../../src/lib/store/storage.ts';
-import { checkProfile, cleanText, validateUserData } from '../../src/lib/store/validate.ts';
+import {
+  checkProfile,
+  cleanText,
+  graphemes,
+  isIsoInstant,
+  validateUserData,
+} from '../../src/lib/store/validate.ts';
 import { nextRaiseDate, stepOn } from '../../src/lib/calc/step.ts';
 
 const TODAY = '2026-11-25';
@@ -129,7 +138,7 @@ describe('내보내기 → 초기화 → 불러오기', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     saveData(store, parsed.data, '0.1.0', NOW);
-    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false });
+    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false, restored: false });
   });
 
   it('파일에는 파생 값이 없다(입력값과 기록만 담는다)', () => {
@@ -323,7 +332,7 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     const before = store.getItem(KEYS.data);
     expect(parseBackup('{"app":"hobong"', ctx).ok).toBe(false);
     expect(store.getItem(KEYS.data)).toBe(before);
-    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false });
+    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false, restored: false });
   });
 });
 
@@ -350,7 +359,12 @@ describe('되돌리기와 손상된 저장본', () => {
     expect(undo?.savedAt).toBe(NOW);
     saveData(store, undo?.data as UserData, '0.1.0', NOW);
     clearUndo(store);
-    expect(loadData(store, ctx)).toEqual({ status: 'ok', data: before, migrated: false });
+    expect(loadData(store, ctx)).toEqual({
+      status: 'ok',
+      data: before,
+      migrated: false,
+      restored: false,
+    });
     expect(loadUndo(store, ctx)).toBeNull();
   });
   it('읽지 못한 저장본은 버리지 않고 따로 옮겨 둔다', () => {
@@ -359,7 +373,7 @@ describe('되돌리기와 손상된 저장본', () => {
     const loaded = loadData(store, ctx);
     expect(loaded.status).toBe('corrupt');
     expect(hasCorrupt(store)).toBe(true);
-    expect(readCorrupt(store)).toContain('"profile":');
+    expect(readCorrupt(store)[0]).toContain('"profile":');
     expect(store.getItem(KEYS.data)).toBeNull();
     expect(loadData(store, ctx)).toEqual({ status: 'empty' });
     clearAll(store);
@@ -380,7 +394,18 @@ describe('되돌리기와 손상된 저장본', () => {
       },
       removeItem: () => undefined,
     }));
-    expect(quota.persistent).toBe(false);
+    // 쓰기만 막혔고 읽을 수는 있으면, 기존 데이터를 보여 줄 수 있게 그 저장소를 쓴다(쓰기 불가로 표시).
+    expect(quota).toMatchObject({ persistent: true, writable: false });
+    const unreadable = openStore(() => ({
+      getItem: () => {
+        throw new Error('SecurityError');
+      },
+      setItem: () => {
+        throw new Error('SecurityError');
+      },
+      removeItem: () => undefined,
+    }));
+    expect(unreadable).toMatchObject({ persistent: false, writable: true });
     expect(openStore(() => undefined).persistent).toBe(false);
     expect(openStore(() => memoryStore()).persistent).toBe(true);
   });
@@ -393,6 +418,213 @@ describe('되돌리기와 손상된 저장본', () => {
       removeItem: () => undefined,
     };
     expect(saveData(failing, sampleData(), '0.1.0', NOW)).toBe(false);
+  });
+});
+
+describe('저장본을 지키는 규칙', () => {
+  const sv = SCHEMA_VERSION;
+  const envelopeText = (version: number, data: unknown = sampleData()) =>
+    JSON.stringify({
+      app: 'hobong',
+      schemaVersion: version,
+      appVersion: '9.9.9',
+      exportedAt: NOW,
+      data,
+    });
+
+  it('더 새로운 버전의 저장본은 손상으로 보지 않고 그대로 둔다', () => {
+    const store = memoryStore();
+    const newer = envelopeText(sv + 1);
+    store.setItem(KEYS.data, newer);
+    const loaded = loadData(store, ctx);
+    expect(loaded.status).toBe('newer');
+    expect(store.getItem(KEYS.data)).toBe(newer);
+    expect(hasCorrupt(store)).toBe(false);
+    expect(isNewerData(store, ctx)).toBe(true);
+    // 다시 열어도 같다
+    expect(loadData(store, ctx).status).toBe('newer');
+    expect(store.getItem(KEYS.data)).toBe(newer);
+  });
+
+  it('다른 탭이 쓴 값을 읽을 때(readOnly)는 읽지 못해도 아무것도 옮기거나 지우지 않는다', () => {
+    const store = memoryStore();
+    store.setItem(KEYS.data, '{"broken":');
+    expect(loadData(store, ctx, { readOnly: true })).toMatchObject({
+      status: 'corrupt',
+      kept: false,
+    });
+    expect(store.getItem(KEYS.data)).toBe('{"broken":');
+    expect(hasCorrupt(store)).toBe(false);
+  });
+
+  it('읽지 못한 저장본이 거듭 생겨도 처음 보관본은 덮어쓰지 않는다', () => {
+    const store = memoryStore();
+    store.setItem(KEYS.data, 'first-broken-'.repeat(20));
+    loadData(store, ctx);
+    store.setItem(KEYS.data, 'x');
+    loadData(store, ctx);
+    expect(readCorrupt(store)).toEqual(['first-broken-'.repeat(20), 'x']);
+    clearCorrupt(store);
+    expect(hasCorrupt(store)).toBe(false);
+  });
+
+  it('보관에 실패하면 원래 저장본을 지우지 않는다', () => {
+    const inner = memoryStore();
+    const store = {
+      getItem: (k: string) => inner.getItem(k),
+      setItem: (k: string, v: string) => {
+        if (k.startsWith(KEYS.corrupt)) throw new Error('QuotaExceededError');
+        inner.setItem(k, v);
+      },
+      removeItem: (k: string) => inner.removeItem(k),
+    };
+    store.setItem(KEYS.data, '{"broken":');
+    expect(loadData(store, ctx)).toMatchObject({ status: 'corrupt', kept: false });
+    expect(store.getItem(KEYS.data)).toBe('{"broken":');
+  });
+
+  it('예전 사본이 옮겨 버린 저장본이 지금 읽히면 되살린다', () => {
+    const store = memoryStore();
+    const good = serializeBackup(makeEnvelope(sampleData(), '0.1.0', NOW));
+    store.setItem(KEYS.corrupt, good);
+    const loaded = loadData(store, ctx);
+    expect(loaded).toMatchObject({ status: 'ok', restored: true });
+    expect(store.getItem(KEYS.data)).toBe(good);
+    expect(hasCorrupt(store)).toBe(false);
+  });
+
+  it('저장본은 "오늘"에 따라 달라지는 검사를 하지 않는다(시계가 뒤로 가도 손상이 아니다)', () => {
+    const store = memoryStore();
+    const data = sampleData();
+    data.profile = sampleProfile({ hireDate: TODAY, gradeDate: TODAY, nextStepDate: '2031-11-25' });
+    saveData(store, data, '0.1.0', NOW);
+    const yesterday = { ...ctx, today: '2026-11-24', stored: true };
+    expect(loadData(store, yesterday).status).toBe('ok');
+    expect(store.getItem(KEYS.data)).not.toBeNull();
+    // 같은 내용을 파일로 불러오면(어제 날짜 기준) 여전히 거부한다
+    const text = store.getItem(KEYS.data) as string;
+    expect(parseBackup(text, { ...ctx, today: '2026-11-24' }).ok).toBe(false);
+  });
+});
+
+describe('불러오기 검증을 좁힌다', () => {
+  const withData = (patch: (d: Record<string, any>) => void) => {
+    const data = JSON.parse(JSON.stringify(sampleData())) as Record<string, any>;
+    patch(data);
+    return JSON.stringify({
+      app: 'hobong',
+      schemaVersion: SCHEMA_VERSION,
+      appVersion: '0.1.0',
+      exportedAt: NOW,
+      data,
+    });
+  };
+  const rejects = (patch: (d: Record<string, any>) => void) =>
+    expect(parseBackup(withData(patch), ctx).ok).toBe(false);
+  const accepts = (patch: (d: Record<string, any>) => void) =>
+    expect(parseBackup(withData(patch), ctx).ok).toBe(true);
+
+  it('기록 시각은 앱이 쓰는 형식과 범위만 받는다', () => {
+    for (const bad of [
+      '2300-01-01T00:00:00.000Z',
+      '1800-06-01T00:00:00Z',
+      '+275760-09-13T00:00:00.000Z',
+      '1',
+      '2026',
+      '(<img src=x>) 2020',
+    ])
+      rejects((d) => (d.meta.lastBackupAt = bad));
+    rejects((d) => (d.meta.createdAt = '2026'));
+    accepts((d) => (d.meta.lastBackupAt = '2026-11-25T01:30:01.788Z'));
+    accepts((d) => (d.meta.lastBackupAt = '2026-11-25T10:30:00+09:00'));
+    expect(isIsoInstant('2026-11-25T01:30:01.788Z')).toBe(true);
+  });
+
+  it('연가 기록은 종류와 시간이 맞고, 날짜가 계산할 수 있는 범위여야 한다', () => {
+    const rec = (over: Record<string, unknown>) => ({
+      id: 'z1',
+      date: '2026-03-03',
+      hours: 8,
+      kind: 'day',
+      memo: '',
+      ...over,
+    });
+    rejects((d) => d.leave.records.push(rec({ date: '1900-01-01' })));
+    rejects((d) => d.leave.records.push(rec({ date: '2200-12-31' })));
+    rejects((d) => d.leave.records.push(rec({ hours: 24, kind: 'hours' })));
+    rejects((d) => d.leave.records.push(rec({ hours: 3, kind: 'day' })));
+    rejects((d) => d.leave.records.push(rec({ hours: 8, kind: 'am' })));
+    accepts((d) => d.leave.records.push(rec({})));
+    accepts((d) =>
+      d.leave.records.push(
+        rec({ id: 'z2', hours: 4, kind: 'am' }),
+        rec({ id: 'z3', hours: 4, kind: 'pm' }),
+      ),
+    );
+    accepts((d) => d.leave.records.push(rec({ hours: 2, kind: 'hours' })));
+  });
+
+  it('근무시간은 앞뒤가 맞아야 한다(불러오기)', () => {
+    rejects(
+      (d) =>
+        (d.settings.work = {
+          start: '18:00',
+          end: '09:00',
+          lunchStart: '12:00',
+          lunchEnd: '13:00',
+        }),
+    );
+    rejects(
+      (d) =>
+        (d.settings.work = {
+          start: '09:00',
+          end: '09:00',
+          lunchStart: '09:00',
+          lunchEnd: '09:00',
+        }),
+    );
+  });
+
+  it('업적 id 는 앱이 만드는 꼴만, 개수도 제한한다', () => {
+    rejects((d) => (d.achievements = JSON.parse('{"__proto__": {"at": "2026-01-01"}}')));
+    rejects((d) => (d.achievements = { constructor: { at: '2026-01-01' } }));
+    rejects((d) => (d.achievements = { toString: { at: '2026-01-01' } }));
+    rejects((d) => {
+      d.achievements = {};
+      for (let i = 0; i < 1001; i += 1) d.achievements[`visit-${i}`] = { at: '2026-01-01' };
+    });
+    accepts(
+      (d) =>
+        (d.achievements = {
+          'evt-card': { at: '2026-01-01' },
+          'leave-half-2026': { at: '2026-05-01' },
+        }),
+    );
+  });
+
+  it('호봉을 확인한 날은 임용일보다 앞설 수 없다', () => {
+    rejects((d) => (d.profile.stepAsOf = '1900-01-01'));
+    accepts((d) => (d.profile.stepAsOf = '2026-11-20'));
+    // 저장본에서는 임용일로 올려 읽는다
+    const text = withData((d) => (d.profile.stepAsOf = '1990-01-01'));
+    const stored = parseBackup(text, { ...ctx, stored: true });
+    expect(stored.ok && stored.data.profile.stepAsOf).toBe(sampleProfile().hireDate);
+  });
+
+  it('결합 이모지는 쪼개지 않고, 보이지 않는 조작 문자는 지운다', () => {
+    expect(cleanText('🧑‍💻주무관', 12)).toBe('🧑‍💻주무관');
+    expect(cleanText('a\u200bb\u202ec', 12)).toBe('abc');
+    expect(graphemes('🧑‍💻가').length).toBe(2);
+  });
+
+  it('v1 변환은 틀린 연가 행을 숨기지 않고 거부한다', () => {
+    const v1 = JSON.parse(
+      readFileSync(join(process.cwd(), 'tests/fixtures/backup-v1.json'), 'utf8'),
+    );
+    v1.data.leave.push({ date: '2026-02-30', unit: 'day' });
+    const parsed = parseBackup(JSON.stringify(v1), ctx);
+    expect(parsed.ok).toBe(false);
+    expect(!parsed.ok && parsed.details.join(' ')).toContain('연가 기록 4번째');
   });
 });
 

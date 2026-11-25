@@ -10,6 +10,7 @@ import { buildRegistry, resolveRules, RulesError } from '../../src/lib/rules/res
 import { SECTION_KEYS, type RulesFile, type SourceRef } from '../../src/lib/rules/types.ts';
 import { dayOfWeek, isValidYmd } from '../../src/lib/calc/date.ts';
 import { promotedStep } from '../../src/lib/calc/promotion.ts';
+import { LIMITS } from '../../src/lib/store/schema.ts';
 
 const ROOT = process.cwd();
 const DATA_DIR = join(ROOT, 'data');
@@ -424,6 +425,11 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(d).toContain('재직기간은 연가사용 직전일을 기준으로 계산함');
     expect(d).toContain('반일연가 1회는 4시간으로 계산');
     expect(r2026.leave.units).toMatchObject({ hoursPerDay: 8, halfDayHours: 4 });
+    // 저장 형식 검증이 쓰는 값과 같아야 한다(검증은 규정 파일에 기대지 않는다)
+    expect(r2026.leave.units).toMatchObject({
+      hoursPerDay: LIMITS.leaveHoursPerDay,
+      halfDayHours: LIMITS.leaveHalfDayHours,
+    });
     expect(r2026.leave.compensation.maxDays).toBe(20);
     expect(r2026.leave.longService.tiers.map((x) => [x.fromYears, x.days])).toEqual([
       [5, 3],

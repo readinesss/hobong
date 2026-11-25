@@ -3,7 +3,15 @@
  * - 날짜·상태로 정해지는 업적(일정, 호봉)은 저장하지 않고 매번 다시 계산한다.
  * - 한 번 얻으면 남는 업적(행동, 연도별 연가, 출근 도장)은 사용자 데이터에 달성일과 함께 남긴다.
  */
-import { addDays, diffDays, formatKorean, todayYmd, yearOf, type Ymd } from './calc/date.ts';
+import {
+  addDays,
+  diffDays,
+  formatKorean,
+  isValidYmd,
+  todayYmd,
+  yearOf,
+  type Ymd,
+} from './calc/date.ts';
 import type { Calendar } from './calc/calendar.ts';
 import type { LeaveSummary } from './calc/leave.ts';
 import type { Milestone } from './calc/milestones.ts';
@@ -116,16 +124,21 @@ export function longRestEnd(
 ): Ymd | null {
   const leaveDays = fullDayLeaveDates(records, hoursPerDay);
   const isOff = (d: Ymd) => leaveDays.has(d) || !cal.isWorkday(d);
+  const MAX_RUN = 60;
   let best: Ymd | null = null;
+  // 이미 살펴본 쉬는 구간의 끝. 그 안의 날은 다시 보지 않는다(연가가 수천 건이어도 한 번씩만 걷는다).
+  let coveredUntil: Ymd | null = null;
   for (const day of [...leaveDays].sort()) {
+    if (coveredUntil !== null && day <= coveredUntil) continue;
     let start = day;
-    while (isOff(addDays(start, -1))) start = addDays(start, -1);
+    for (let i = 0; i < MAX_RUN && isOff(addDays(start, -1)); i += 1) start = addDays(start, -1);
     let end = day;
     let length = diffDays(start, day) + 1;
-    while (isOff(addDays(end, 1)) && length < 60) {
+    while (length < MAX_RUN && isOff(addDays(end, 1))) {
       end = addDays(end, 1);
       length += 1;
     }
+    coveredUntil = end;
     if (length >= minDays && end <= today && (best === null || end < best)) best = end;
   }
   return best;
@@ -185,8 +198,18 @@ export function evaluateAchievements(input: AchievementInput): Record<string, { 
     'evt-payday',
     cal.payday(year, Number(today.slice(5, 7)), data.settings.payday) === today ? today : null,
   );
-  sticky('evt-backup', data.meta.lastBackupAt ? todayYmd(new Date(data.meta.lastBackupAt)) : null);
+  sticky('evt-backup', backupDay(data.meta.lastBackupAt, today));
   return out;
+}
+
+/** 마지막 내려받기 시각 → 백업 배지 날짜. 읽을 수 없으면 없음, 앞날이면(시계 차이) 오늘 */
+function backupDay(lastBackupAt: string | null, today: Ymd): Ymd | null {
+  if (!lastBackupAt) return null;
+  const time = Date.parse(lastBackupAt);
+  if (!Number.isFinite(time)) return null;
+  const day = todayYmd(new Date(time));
+  if (!isValidYmd(day)) return null;
+  return day > today ? today : day;
 }
 
 export function isStickyId(id: string): boolean {

@@ -8,7 +8,7 @@
     downloadBlob,
     shareFile,
   } from '../lib/app/files.ts';
-  import { formatDday, formatNumber, formatSpan, formatWon } from '../lib/app/format.ts';
+  import { formatDday, formatSpan, formatWon } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
@@ -55,11 +55,8 @@
         ? { ratio: view.raiseProgress.ratio, dday: formatDday(view.today, view.nextRaise.date) }
         : null,
     facts: [
-      ...(card.showTenure
-        ? [
-            `재직 ${formatSpan({ ...view.tenure, days: 0 })} · ${formatNumber(view.career.daysServed)}일째`,
-          ]
-        : []),
+      // 일수까지 적으면 카드 날짜에서 임용일이 하루 단위로 역산되므로 연·월까지만 쓴다.
+      ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
       ...(card.showRetirement
         ? [
             `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}%)`,
@@ -260,7 +257,7 @@
             onchange={(e) => setCard({ showTenure: e.currentTarget.checked })}
           />
           <span class="box" aria-hidden="true"></span>
-          <span>재직기간</span>
+          <span>재직기간 <span class="cap muted">임용 시기를 짐작할 수 있어요</span></span>
         </label>
         <label class="switch">
           <input

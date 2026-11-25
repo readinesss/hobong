@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { rulesFor } from '../../src/lib/rules/index.ts';
 import { Calendar } from '../../src/lib/calc/calendar.ts';
+import { addDays } from '../../src/lib/calc/date.ts';
 import { summarizeLeave } from '../../src/lib/calc/leave.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
 import { maxStepOf } from '../../src/lib/calc/salary.ts';
@@ -66,6 +67,25 @@ const rec = (date: string, hours = 8, kind: LeaveRecord['kind'] = 'day'): LeaveR
   hours,
   kind,
   memo: '',
+});
+
+describe('연속 휴식 계산', () => {
+  it('연속 근무일 연가가 수천 건이어도 빠르게 끝난다', () => {
+    const records: LeaveRecord[] = [];
+    let d = '2000-01-03';
+    while (records.length < 5000) {
+      if (cal.isWorkday(d)) records.push(rec(d));
+      d = addDays(d, 1);
+    }
+    const started = performance.now();
+    expect(longRestEnd(cal, records, 8, '2026-11-25')).not.toBeNull();
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+  it('날짜 범위 끝의 연가에서도 예외가 나지 않는다', () => {
+    expect(() =>
+      longRestEnd(cal, [rec('1930-01-02'), rec('2150-12-30')], 8, '2026-11-25'),
+    ).not.toThrow();
+  });
 });
 
 describe('업적', () => {

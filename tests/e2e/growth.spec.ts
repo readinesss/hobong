@@ -131,10 +131,11 @@ test.describe('승급과 시간의 흐름', () => {
     await page.clock.setFixedTime(new Date('2027-02-01T10:00:00+09:00'));
     await page.reload();
     await tick(page, 3000);
-    for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
-      await page.getByRole('dialog').getByRole('button').last().click();
-      await tick(page);
-    }
+    // 두 달 만에 열었으므로 복귀 정산 창이 뜬다. 뜰 때까지 기다렸다가 닫는다.
+    const back = page.getByRole('dialog');
+    await expect(back).toContainText('만이에요');
+    await back.getByRole('button', { name: '확인' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByText('정년퇴직일(2026. 12. 31.)이 지났어요')).toBeVisible();
     // 퇴직 뒤에도 호봉이 오르거나 번 돈이 쌓이지 않는다
     await expect(page.locator('#status')).toContainText('9급 29호봉');

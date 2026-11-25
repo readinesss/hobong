@@ -37,7 +37,7 @@ export type ParseResult =
       exportedAt: string | null;
       appVersion: string | null;
     }
-  | { ok: false; reason: string; details: string[] };
+  | { ok: false; reason: string; details: string[]; code?: 'newer' };
 
 /** 백업 파일 내용(문자열)을 읽어 현재 버전의 사용자 데이터로 만든다 */
 export function parseBackup(text: string, ctx: ParseContext): ParseResult {
@@ -63,7 +63,11 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
     };
   }
   const migrated = migrateEnvelope(parsed, ctx.defaultSettings, ctx.nowIso);
-  if (!migrated.ok) return { ok: false, reason: migrated.reason, details: [] };
+  if (!migrated.ok) {
+    return migrated.code
+      ? { ok: false, reason: migrated.reason, details: [], code: migrated.code }
+      : { ok: false, reason: migrated.reason, details: [] };
+  }
   const checked = validateUserData(migrated.data, ctx);
   if (!checked.ok) {
     return {

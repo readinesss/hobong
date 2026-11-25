@@ -57,14 +57,26 @@ for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
 }
 
 // 스크립트: 네트워크로 나가는 API를 쓰지 않아야 한다(CSP가 막지만 코드에도 없어야 한다).
+// 하위 리소스 요청은 CSP가 막지만, 다른 페이지로 이동하거나 새 창을 여는 것은 CSP(메타 태그)로
+// 막을 수 없으므로 여기서 막는다. 식별자 자체가 나오지 않아야 통과한다(fetch?.() 같은 우회 표기 포함).
 const forbiddenApis = [
-  /\bfetch\s*\(/,
+  /\bfetch\b/,
   /\bXMLHttpRequest\b/,
-  /\bWebSocket\s*\(/,
-  /\bEventSource\s*\(/,
-  /\bsendBeacon\s*\(/,
-  /\bimportScripts\s*\(/,
+  /\bWebSocket\b/,
+  /\bEventSource\b/,
+  /\bsendBeacon\b/,
+  /\bimportScripts\b/,
   /\bserviceWorker\s*\.\s*register\b/,
+  /\bRTCPeerConnection\b/,
+  /\bWebTransport\b/,
+  /\bnew\s+(?:Shared)?Worker\b/,
+  /(?<![\w.$])import\s*\(/,
+  /\bwindow\s*\.\s*open\s*\(/,
+  /(?<![\w.$])open\s*\(/,
+  /\blocation\s*\.\s*(?:assign|replace)\s*\(/,
+  /\blocation\s*(?:\.\s*href\s*)?=(?!=)/,
+  /\.ping\s*=/,
+  /\b_blank\b/,
 ];
 for (const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
   for (const re of forbiddenApis) {

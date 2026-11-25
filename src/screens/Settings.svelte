@@ -29,6 +29,11 @@
   let confirmUndo = $state(false);
   let showBackupText = $state(false);
   let backupText = $state('');
+  /** backupText 를 만든 시각(복사에 성공하면 이 시각으로 내려받은 것으로 기록한다) */
+  let backupAt = $state('');
+  /** 초기화 확인창에서 "먼저 내려받기"를 누른 뒤, 파일이 생긴 것을 확인했는지 */
+  let resetDownloaded = $state(false);
+  let resetConfirmed = $state(false);
   let workError = $state('');
   let showLicenses = $state(false);
 
@@ -74,28 +79,47 @@
   }
 
   // ── 데이터 ───────────────────────────────────────────────────────────
-  function download() {
-    const text = app.exportText();
-    if (caps.download && downloadText(text, backupFileName(view.today))) {
-      app.markBackedUp();
+  function download(): boolean {
+    const { text, at } = app.exportBackup();
+    const fileName = backupFileName(view.today);
+    if (caps.download && downloadText(text, fileName)) {
+      app.markBackedUp(at);
+      // 브라우저는 저장이 끝났는지 알려 주지 않는다. 단정하지 않고 확인을 부탁한다.
       app.toast(
-        '데이터를 내려받았어요. 급여·인사 정보가 들어 있으니 보관에 주의해 주세요.',
+        `내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 급여·인사 정보가 들어 있으니 보관에 주의해 주세요.`,
         'good',
         'icon-save',
-        6000,
+        8000,
+        { label: '파일이 안 생겼어요', run: () => openBackupText() },
       );
-    } else {
-      backupText = text;
-      showBackupText = true;
+      return true;
     }
+    backupText = text;
+    backupAt = at;
+    showBackupText = true;
+    return false;
   }
   function openBackupText() {
-    backupText = app.exportText();
+    const { text, at } = app.exportBackup();
+    backupText = text;
+    backupAt = at;
     showBackupText = true;
   }
+  function downloadBeforeReset() {
+    if (download()) resetDownloaded = true;
+  }
+  function downloadCorrupt() {
+    const copies = app.corruptCopies();
+    copies.forEach((raw, i) => {
+      const suffix = copies.length > 1 ? `-${i + 1}` : '';
+      downloadText(raw, `hobong-unreadable-${view.today.replace(/-/g, '')}${suffix}.json`);
+    });
+    corruptDownloaded = true;
+  }
+  let corruptDownloaded = $state(false);
   async function copyBackup() {
     if (await copyText(backupText)) {
-      app.markBackedUp();
+      app.markBackedUp(backupAt);
       app.toast(
         '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
         'good',
@@ -113,6 +137,8 @@
   }
   function reset() {
     confirmReset = false;
+    resetDownloaded = false;
+    resetConfirmed = false;
     app.reset();
     nav.go('home');
   }
@@ -355,9 +381,39 @@
         백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에 두지
         말고, 메신저로 보낼 때도 주의해 주세요.
       </p>
+      {#if !hosted}
+        <p class="note" id="set-file-origin">
+          파일(hobong.html)로 열어 쓰면 같은 PC·같은 브라우저로 여는 다른 HTML 파일과 저장소를 함께
+          써요. 출처를 모르는 HTML 파일은 같은 브라우저로 열지 말고, 예전 hobong.html 사본은 지워
+          주세요.
+        </p>
+      {/if}
       <button type="button" class="btn small ghost link" onclick={openBackupText}>
         파일 저장이 안 되나요? 글자로 보기
       </button>
+
+      {#if app.corruptKept}
+        <div class="well stack" id="set-corrupt">
+          <p>
+            예전에 읽지 못해 따로 옮겨 둔 데이터가 있어요. 내려받아 두면 나중에 새 버전에서 다시
+            불러올 수 있어요.
+          </p>
+          <div class="btn-row">
+            <button type="button" class="btn small" onclick={downloadCorrupt}>
+              <Icon name="icon-download" /> 읽지 못한 데이터 내려받기
+            </button>
+            {#if corruptDownloaded}
+              <button
+                type="button"
+                class="btn small ghost"
+                onclick={() => app.discardCorruptCopies()}
+              >
+                <Icon name="icon-trash" /> 따로 둔 데이터 지우기
+              </button>
+            {/if}
+          </div>
+        </div>
+      {/if}
 
       {#if app.undoSavedAt}
         <div class="well stack">
@@ -376,7 +432,15 @@
 
       <hr class="rule" />
       <div class="btn-row">
-        <button type="button" class="btn danger" onclick={() => (confirmReset = true)}>
+        <button
+          type="button"
+          class="btn danger"
+          onclick={() => {
+            resetDownloaded = false;
+            resetConfirmed = false;
+            confirmReset = true;
+          }}
+        >
           <Icon name="icon-trash" /> 모두 지우고 처음부터
         </button>
       </div>
@@ -538,13 +602,27 @@
         되돌릴 수 없어요.
       </p>
       <p class="note">먼저 데이터를 내려받아 두면 나중에 다시 불러올 수 있어요.</p>
+      {#if resetDownloaded}
+        <label class="switch">
+          <input type="checkbox" bind:checked={resetConfirmed} />
+          <span class="box" aria-hidden="true"></span>
+          <span>백업 파일이 저장된 것을 확인했어요</span>
+        </label>
+      {/if}
     </div>
     {#snippet actions()}
       <button type="button" class="btn" data-autofocus onclick={() => (confirmReset = false)}>
         취소
       </button>
-      <button type="button" class="btn" onclick={download}>먼저 내려받기</button>
-      <button type="button" class="btn danger" onclick={reset}>모두 지우기</button>
+      <button type="button" class="btn" onclick={downloadBeforeReset}>먼저 내려받기</button>
+      <button
+        type="button"
+        class="btn danger"
+        onclick={reset}
+        disabled={resetDownloaded && !resetConfirmed}
+      >
+        모두 지우기
+      </button>
     {/snippet}
   </Modal>
 {/if}

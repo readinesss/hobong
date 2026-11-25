@@ -143,4 +143,11 @@ export const LIMITS = {
   minBirthYear: 1930,
   minHireAge: 15,
   maxNextStepYears: 5,
+  maxAchievements: 1000,
+  /** 연가 날짜가 들어올 수 있는 해(날짜 계산이 앞뒤로 여유 있게 다루는 범위) */
+  minLeaveYear: 1930,
+  maxLeaveYear: 2150,
+  /** 규정 데이터의 leave.units 와 같은 값이다(테스트가 확인한다). 저장 형식 검증은 규정 파일에 기대지 않는다 */
+  leaveHoursPerDay: 8,
+  leaveHalfDayHours: 4,
 } as const;

@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { APP_URL, collectErrors, makeSeed, onboard, openApp, ROOT, tick } from './helpers.ts';
@@ -48,6 +50,50 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
     );
     expect(loaded).toEqual([]);
     expect(errors).toEqual([]);
+  });
+
+  test('쓰는 동안 다른 페이지로 이동하거나 새 창을 열지 않는다', async ({ page }) => {
+    const popups: string[] = [];
+    page.on('popup', (popup) => popups.push(popup.url()));
+    const navigations: string[] = [];
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url().split('#')[0] ?? '');
+    });
+    await openApp(page, { seed: makeSeed() });
+    for (const tab of TABS) {
+      await page
+        .getByRole('navigation', { name: '화면 이동' })
+        .getByRole('link', { name: tab })
+        .click();
+      await tick(page, 800);
+    }
+    // 카드 저장·데이터 내려받기도 해 본다(내려받기는 이동이 아니다)
+    const nav = page.getByRole('navigation', { name: '화면 이동' });
+    await nav.getByRole('link', { name: '카드' }).click();
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'PNG로 저장' }).click(),
+    ]);
+    await nav.getByRole('link', { name: '설정' }).click();
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: '데이터 내려받기' }).click(),
+    ]);
+    await tick(page, 800);
+    expect(popups).toEqual([]);
+    expect(new Set(navigations)).toEqual(new Set([APP_URL]));
+  });
+
+  test('다른 페이지 안(iframe)에서는 열리지 않는다', async ({ page }) => {
+    const host = join(mkdtempSync(join(tmpdir(), 'hobong-frame-')), 'host.html');
+    writeFileSync(
+      host,
+      `<!doctype html><iframe src="${APP_URL}#settings" width="600" height="400"></iframe>`,
+    );
+    await page.goto(pathToFileURL(host).href);
+    const frame = page.frameLocator('iframe');
+    await expect(frame.getByText('다른 페이지 안에서는 열리지 않아요')).toBeVisible();
+    await expect(frame.getByRole('button', { name: '모두 지우고 처음부터' })).toHaveCount(0);
   });
 
   test('빌드 결과는 파일 하나이고, 외부 통신을 막는 보안 정책(CSP)이 들어 있다', async ({

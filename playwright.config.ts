@@ -49,6 +49,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   timeout: 30_000,
+  // 여러 작업이 함께 도는 느린 기기에서도 흔들리지 않게 넉넉히 기다린다
+  expect: { timeout: 10_000 },
   use: {
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',

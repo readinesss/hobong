@@ -1,6 +1,8 @@
 <script lang="ts">
   import { app } from '../lib/app/state.svelte.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
+  import { downloadText } from '../lib/app/files.ts';
+  import { formatInstant } from '../lib/app/format.ts';
   import { yearOf } from '../lib/calc/date.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { rulesFor } from '../lib/rules/index.ts';
@@ -21,9 +23,28 @@
     app.createProfile(profile, { payday });
   }
 
+  // 읽지 못해 따로 옮겨 둔 데이터: 내려받거나 글자로 볼 수 있게 한다.
+  let corruptDownloaded = $state(false);
+  let showCorruptText = $state(false);
+  const corruptCopies = $derived(app.corruptKept ? app.corruptCopies() : []);
+  function downloadCorrupt() {
+    const day = clock.today.replace(/-/g, '');
+    corruptCopies.forEach((raw, i) => {
+      const suffix = corruptCopies.length > 1 ? `-${i + 1}` : '';
+      downloadText(raw, `hobong-unreadable-${day}${suffix}.json`);
+    });
+    corruptDownloaded = true;
+  }
+
+  function undoImport() {
+    if (app.undoImport()) app.toast('불러오기 전 상태로 되돌렸어요.', 'good', 'icon-undo');
+    else app.toast('되돌릴 수 있는 상태가 없어요.', 'warn', 'icon-warn');
+  }
+
   function onDrop(event: DragEvent) {
     event.preventDefault();
     dragging = false;
+    if (app.newerNotice) return;
     const file = event.dataTransfer?.files?.[0];
     if (file) {
       dropped = file;
@@ -69,24 +90,89 @@
             </p>
           </div>
 
-          {#if app.corruptNotice}
-            <div class="note warn" role="alert">
-              <p>이 브라우저에 있던 데이터를 읽지 못했어요. ({app.corruptNotice})</p>
-              <p>내려받아 둔 백업 파일이 있다면 "데이터 불러오기"로 이어서 쓸 수 있어요.</p>
+          {#if app.newerNotice}
+            <div class="note warn stack" role="alert" id="welcome-newer">
+              <p>
+                이 브라우저에는 더 새 버전의 호봉에서 저장한 데이터가 있어요. 지금 연 호봉(또는
+                hobong.html 파일)은 예전 버전이라, 데이터를 건드리지 않도록 아무것도 하지 않아요.
+              </p>
+              <p>새 버전의 호봉으로 열어 주세요. 데이터는 그대로 남아 있어요.</p>
             </div>
-          {/if}
+          {:else}
+            {#if app.corruptKept}
+              <div class="note warn stack" role="alert" id="welcome-corrupt">
+                <p>
+                  이 브라우저에 저장돼 있던 데이터를 읽지 못해 따로 옮겨 두었어요. 지우지 않았으니
+                  내려받아 보관해 두세요.
+                </p>
+                {#if app.corruptNotice}<p class="cap muted">
+                    읽지 못한 까닭: {app.corruptNotice}
+                  </p>{/if}
+                <div class="btn-row">
+                  <button type="button" class="btn small" onclick={downloadCorrupt}>
+                    <Icon name="icon-download" /> 읽지 못한 데이터 내려받기
+                  </button>
+                  <button
+                    type="button"
+                    class="btn small ghost"
+                    onclick={() => (showCorruptText = !showCorruptText)}
+                    aria-expanded={showCorruptText}
+                  >
+                    글자로 보기
+                  </button>
+                  {#if corruptDownloaded}
+                    <button
+                      type="button"
+                      class="btn small ghost"
+                      onclick={() => app.discardCorruptCopies()}
+                    >
+                      따로 둔 데이터 지우기
+                    </button>
+                  {/if}
+                </div>
+                {#if showCorruptText}
+                  {#each corruptCopies as raw, i (i)}
+                    <textarea
+                      class="input mono"
+                      readonly
+                      rows="6"
+                      aria-label="읽지 못한 데이터 {i + 1}">{raw}</textarea
+                    >
+                  {/each}
+                {/if}
+                <p class="cap muted">
+                  내려받아 둔 백업 파일이 있다면 "데이터 불러오기"로 이어서 쓸 수 있어요.
+                </p>
+              </div>
+            {/if}
 
-          <div class="choices">
-            <button type="button" class="btn primary choice" onclick={() => (step = 'form')}>
-              <Icon name="icon-egg" scale={2} />
-              <span>새로 시작</span>
-            </button>
-            <button type="button" class="btn choice" onclick={() => (importing = true)}>
-              <Icon name="icon-upload" scale={2} />
-              <span>데이터 불러오기</span>
-            </button>
-          </div>
-          <p class="cap muted center">백업 파일을 이 화면에 끌어다 놓아도 돼요.</p>
+            {#if app.undoSavedAt}
+              <div class="note stack" id="welcome-undo">
+                <p>
+                  불러오기 직전 상태가 보관돼 있어요. <span class="cap muted">
+                    ({formatInstant(app.undoSavedAt)})
+                  </span>
+                </p>
+                <div class="btn-row">
+                  <button type="button" class="btn small" onclick={undoImport}>
+                    <Icon name="icon-undo" /> 불러오기 전으로 되돌리기
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+            <div class="choices">
+              <button type="button" class="btn primary choice" onclick={() => (step = 'form')}>
+                <Icon name="icon-egg" scale={2} />
+                <span>새로 시작</span>
+              </button>
+              <button type="button" class="btn choice" onclick={() => (importing = true)}>
+                <Icon name="icon-upload" scale={2} />
+                <span>데이터 불러오기</span>
+              </button>
+            </div>
+            <p class="cap muted center">백업 파일을 이 화면에 끌어다 놓아도 돼요.</p>
+          {/if}
 
           <ul class="facts cap">
             <li>
@@ -138,6 +224,11 @@
 {/if}
 
 <style>
+  .mono {
+    font-family: monospace;
+    font-size: 12px;
+    width: 100%;
+  }
   .welcome {
     min-height: 100vh;
     min-height: 100dvh;
