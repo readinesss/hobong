@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "canvas": { "w": 48, "h": 48 },
+  "palette": ["#1a1c2c", "#5d275d", "#b13e53", "#ef7d57", "#ffcd75", "#a7f070", "#38b764", "#257179", "#29366f", "#3b5dc9", "#41a6f6", "#73eff7", "#f4f4f4", "#94b0c2", "#566c86", "#333c57"],
+  "paletteName": "Sweetie 16 (GrafxKid)",
+  "notes": [
+    "직급 = 기본 형태(forms), 호봉 = 소품·색·이펙트(items, tints, effects). 그림을 새로 그리지 않고 이 파일의 숫자만 바꿔 단계를 조정할 수 있다.",
+    "같은 slot에는 조건을 만족하는 것 중 minStep이 가장 큰 소품 하나만 붙는다.",
+    "tints의 remap은 팔레트 인덱스 치환이다(키와 값 모두 0~15)."
+  ],
+  "forms": [
+    { "id": "egg", "name": "알봉이", "grades": [9], "body": "body-egg", "blurb": "막 깨어났다. 세상이 다 신기하다." },
+    { "id": "chick", "name": "솜봉이", "grades": [8], "body": "body-chick", "blurb": "솜털이 보송하다. 일이 손에 붙기 시작한다." },
+    { "id": "fledgling", "name": "깃봉이", "grades": [7], "body": "body-fledgling", "blurb": "첫 깃이 났다. 제법 날갯짓을 한다." },
+    { "id": "bird", "name": "날봉이", "grades": [6], "body": "body-bird", "blurb": "날개에 힘이 붙었다. 뒤를 봐줄 줄 안다." },
+    { "id": "phoenix", "name": "봉황", "grades": [5, 4, 3, 2, 1], "body": "body-phoenix", "blurb": "오색 깃이 다 자랐다." }
+  ],
+  "items": [
+    {
+      "id": "lanyard", "name": "공무원증", "sprite": "item-lanyard", "slot": "neck", "minStep": 1,
+      "blurb": "첫 출근 날 목에 건 것.",
+      "tints": [
+        { "minStep": 1, "name": "파랑 줄", "remap": {} },
+        { "minStep": 4, "name": "초록 줄", "remap": { "9": 6 } },
+        { "minStep": 8, "name": "빨강 줄", "remap": { "9": 2 } }
+      ]
+    },
+    { "id": "mug", "name": "머그컵", "sprite": "item-mug", "slot": "handR", "minStep": 3, "blurb": "자리에 내 컵이 생겼다." },
+    { "id": "glasses", "name": "안경", "sprite": "item-glasses", "slot": "face", "minStep": 6, "blurb": "규정집 글씨가 작다." },
+    { "id": "folder", "name": "결재판", "sprite": "item-folder", "slot": "handL", "minStep": 9, "blurb": "들고 다닐 서류가 늘었다." },
+    {
+      "id": "tie", "name": "넥타이", "sprite": "item-tie", "slot": "neck", "minStep": 12,
+      "blurb": "보고 들어갈 일이 늘었다.",
+      "tints": [
+        { "minStep": 12, "name": "빨강 넥타이", "remap": {} },
+        { "minStep": 18, "name": "파랑 넥타이", "remap": { "2": 9, "1": 8 } },
+        { "minStep": 24, "name": "금빛 넥타이", "remap": { "2": 4, "1": 3 } }
+      ]
+    },
+    { "id": "stamp", "name": "도장", "sprite": "item-stamp", "slot": "handR", "minStep": 16, "blurb": "이제 찍어 주는 쪽이다." },
+    { "id": "crest", "name": "금빛 깃", "sprite": "item-crest-gold", "slot": "head", "minStep": 20, "blurb": "스무 번째 깃은 금빛이다." }
+  ],
+  "effects": [
+    { "id": "sparkle", "name": "반짝이", "sprite": "fx-sparkle", "minStep": 28, "blurb": "오래 닦은 것에서 나는 빛." }
+  ],
+  "shadow": "shadow",
+  "eyes": { "default": "eyes-open", "blink": "eyes-blink" },
+  "moods": {
+    "work": { "label": "근무 중", "eyes": "eyes-open", "items": [], "fx": [], "hide": [] },
+    "lunch": { "label": "점심시간", "eyes": "eyes-happy", "items": [], "fx": [], "hide": ["handL"] },
+    "off": { "label": "쉬는 중", "eyes": "eyes-happy", "items": [], "fx": [], "hide": ["handL", "handR"] },
+    "sleep": { "label": "자는 중", "eyes": "eyes-sleep", "items": ["item-nightcap"], "fx": ["fx-zzz"], "hide": ["head", "face", "handL", "handR"] },
+    "vacation": { "label": "연가 중", "eyes": "eyes-happy", "items": ["item-sunglasses", "item-strawhat", "item-lei"], "fx": [], "hide": ["neck", "face", "head", "handL", "handR"] },
+    "tired": { "label": "쉬고 싶다", "eyes": "eyes-tired", "items": [], "fx": ["fx-sweat"], "hide": [] },
+    "payday": { "label": "봉급날", "eyes": "eyes-sparkle", "items": [], "fx": ["fx-coin"], "hide": [] },
+    "celebrate": { "label": "축하합니다", "eyes": "eyes-happy", "items": ["item-partyhat"], "fx": ["fx-confetti"], "hide": ["head"] }
+  },
+  "tiredAfterDays": 90,
+  "sleepHours": { "from": 22, "to": 6 },
+  "egg": "egg-hatch"
+}

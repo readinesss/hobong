@@ -200,7 +200,7 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     expect(reason({ app: 'hobong', schemaVersion: 2 })).toContain('데이터가 없습니다');
   });
   it('BOM이 붙은 파일은 그대로 읽는다', () => {
-    expect(reason(`﻿${JSON.stringify(good())}`)).toBe('OK');
+    expect(reason(`\ufeff${JSON.stringify(good())}`)).toBe('OK');
   });
   it('내 정보가 틀린 파일', () => {
     const cases: [(env: ReturnType<typeof good>) => void, string][] = [
@@ -250,7 +250,7 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     const env = good();
     env.data.extra = { evil: true };
     env.data.profile.__proto__ = { polluted: true };
-    env.data.profile.nickname = '  호\u0000봉‮이  ';
+    env.data.profile.nickname = '  호\u0000봉\u202e이  ';
     env.data.leave.records[0].memo = `${'가'.repeat(60)}<script>`;
     const parsed = parseBackup(JSON.stringify(env), ctx);
     expect(parsed.ok).toBe(true);

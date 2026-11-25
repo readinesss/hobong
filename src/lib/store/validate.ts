@@ -25,7 +25,7 @@ function isDict(value: unknown): value is Dict {
 
 // 제어 문자와 글자 방향 조작 문자를 지운다(표시 깨짐 방지).
 // eslint-disable-next-line no-control-regex
-const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g;
+const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 export function cleanText(value: unknown, max: number): string {
   if (typeof value !== 'string') return '';

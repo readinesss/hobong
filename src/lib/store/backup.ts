@@ -50,7 +50,7 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   let parsed: unknown;
   try {
     // 파일 앞의 BOM은 무시한다(메모장으로 다시 저장한 경우).
-    parsed = JSON.parse(text.replace(/^﻿/, ''));
+    parsed = JSON.parse(text.replace(/^\ufeff/, ''));
   } catch {
     return {
       ok: false,
