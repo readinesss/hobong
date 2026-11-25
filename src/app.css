@@ -387,8 +387,9 @@ canvas {
 }
 
 .btn.small {
-  min-height: 36px;
-  min-width: 36px;
+  /* 테두리(바깥 3px씩)를 더하면 44px: 작은 버튼도 손가락으로 누를 수 있어야 한다 */
+  min-height: 38px;
+  min-width: 38px;
   padding: 3px 9px 6px;
 }
 
@@ -551,6 +552,7 @@ textarea.input {
 }
 
 .switch {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -560,11 +562,16 @@ textarea.input {
   -webkit-user-select: none;
 }
 
+/* 진짜 체크박스를 줄 전체에 투명하게 덮어, 어디를 눌러도 체크박스가 눌리게 한다 */
 .switch input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .switch .box {

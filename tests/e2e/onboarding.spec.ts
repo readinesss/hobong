@@ -1,0 +1,100 @@
+import { expect, test } from '@playwright/test';
+import { collectErrors, fillDate, onboard, openApp, storedData, tick } from './helpers.ts';
+
+test.describe('첫 화면과 입력 폼', () => {
+  test('"새로 시작"과 "데이터 불러오기"가 나란히 있다', async ({ page }) => {
+    await openApp(page);
+    const start = page.getByRole('button', { name: '새로 시작' });
+    const load = page.getByRole('button', { name: '데이터 불러오기' });
+    await expect(start).toBeVisible();
+    await expect(load).toBeVisible();
+    const a = await start.boundingBox();
+    const b = await load.boundingBox();
+    expect(a && b && Math.abs(a.y - b.y) < 4).toBe(true);
+    await expect(page.getByText('외부로 나가는 통신이 없어요')).toBeVisible();
+    await expect(page.getByText('실수령액과 달라요')).toBeVisible();
+  });
+
+  test('빈 폼은 넘어가지 않고 고칠 곳을 알려준다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await expect(page.getByText('닉네임을 넣어 주세요.')).toBeVisible();
+    await expect(page.getByText('생년월일을 넣어 주세요.')).toBeVisible();
+    await expect(page.getByText('임용일을 넣어 주세요.')).toBeVisible();
+    await expect(page.getByText('다음 승급일을 넣어 주세요.')).toBeVisible();
+    expect(await storedData(page)).toBeNull();
+  });
+
+  test('잘못된 날짜를 거른다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByLabel('닉네임').fill('테스트');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await fillDate(page, '임용일', '2027-01-01'); // 오늘(2026-11-25)보다 뒤
+    await fillDate(page, '다음 승급일', '2027-03-01');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await expect(page.getByText('임용일은 오늘이거나 오늘보다 앞이어야 해요.')).toBeVisible();
+    expect(await storedData(page)).toBeNull();
+  });
+
+  test('입력을 마치면 알이 깨어나고 대시보드가 계산값을 보여준다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await openApp(page);
+    await onboard(page);
+
+    // 9급 3호봉 봉급(2026년 봉급표)
+    await expect(page.locator('#status')).toContainText('9급 3호봉');
+    await expect(page.locator('#wallet')).toContainText('2,168,000원');
+    await expect(page.locator('#wallet')).toContainText('2026년 봉급표');
+    // 다음 승급: 2027-03-01 → D-96, 4호봉(+26,000원)
+    await expect(page.locator('#growth')).toContainText('D-96');
+    await expect(page.locator('#growth')).toContainText('3호봉 → 4호봉');
+    await expect(page.locator('#growth')).toContainText('+26,000원');
+    // 정년: 1996-04-12생 → 2056-06-30
+    await expect(page.locator('#career')).toContainText('2056. 6. 30.');
+    // 근속승진(9급 5년 6개월): 2024-03-04 → 2029-09-04
+    await expect(page.locator('#growth')).toContainText('2029. 9. 4.');
+    // 대우공무원(4년 뒤 처음 오는 1일): 2028-04-01
+    await expect(page.locator('#growth')).toContainText('2028. 4. 1.');
+    // 연가: 재직 2년 8개월 → 15일
+    await expect(page.locator('#leave-mini')).toContainText('15일');
+    // 봉급날(기본 25일)
+    await expect(page.locator('#today')).toContainText('D-DAY');
+
+    const data = await storedData(page);
+    expect(data?.profile).toMatchObject({
+      nickname: '김주무관',
+      birthDate: '1996-04-12',
+      hireDate: '2024-03-04',
+      gradeDate: '2024-03-04',
+      grade: 9,
+      step: 3,
+      nextStepDate: '2027-03-01',
+    });
+    expect(data?.settings.payday).toBe(25);
+    // 저장본에는 계산값이 없다
+    expect(JSON.stringify(data)).not.toContain('2168000');
+    expect(errors).toEqual([]);
+  });
+
+  test('새로 고쳐도 그대로 이어진다', async ({ page }) => {
+    await openApp(page);
+    await onboard(page);
+    await page.reload();
+    await tick(page);
+    await expect(page.locator('#status')).toContainText('9급 3호봉');
+    await expect(page.getByRole('button', { name: '새로 시작' })).toHaveCount(0);
+  });
+
+  test('"모르겠어요" 버튼이 다음 승급일을 어림해 넣는다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await fillDate(page, '임용일', '2024-03-04');
+    // 1년 뒤(2025-03-04) 이후 처음 오는 1일 = 2025-04-01 → 오늘보다 뒤가 될 때까지 1년씩: 2027-04-01
+    await page.getByRole('button', { name: /모르겠어요/ }).click();
+    await expect(page.getByLabel('다음 승급일 연도')).toHaveValue('2027');
+    await expect(page.getByLabel('다음 승급일 월')).toHaveValue('4');
+    await expect(page.getByLabel('다음 승급일 일')).toHaveValue('1');
+  });
+});

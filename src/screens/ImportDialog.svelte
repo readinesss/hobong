@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { nav } from '../lib/app/nav.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { readFileText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
@@ -67,7 +68,9 @@
 
   function confirm() {
     if (!ok) return;
+    const fresh = !hasExisting;
     app.importData(ok.data);
+    if (fresh) nav.go('home');
     app.toast(
       hasExisting ? '데이터를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.' : '데이터를 불러왔어요. 다시 만나서 반가워요!',
       'good',

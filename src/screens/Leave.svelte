@@ -154,6 +154,7 @@
 </script>
 
 <div class="page">
+  <div class="col">
   <Win title="올해 연가" icon="icon-palm" id="leave-summary" area="summary">
     {#snippet aside()}{leave.year}년{/snippet}
     <div class="stack wide">
@@ -252,49 +253,12 @@
       </div>
     </div>
   </section>
-
+  </div>
+  <div class="col">
   <Win title="달력" icon="icon-calendar" id="leave-calendar" area="calendar">
     <LeaveCalendar {month} {selected} onselect={select} onmonth={(m) => (month = m)} />
     {#if listYear !== leave.year}
       <p class="note">{listYear}년 날짜의 기록은 {listYear}년 장부에 들어가요. 위의 남은 연가는 {leave.year}년 기준이에요.</p>
-    {/if}
-  </Win>
-
-  <Win title="월별 사용" icon="icon-list" id="leave-months" area="months">
-    {#snippet aside()}{leave.year}년{/snippet}
-    <div class="months" role="img" aria-label="월별 연가 사용. {leave.byMonth.map((h, i) => `${i + 1}월 ${formatLeaveHours(h, hpd)}`).join(', ')}">
-      {#each leave.byMonth as h, i (i)}
-        <div class="m">
-          <span class="cap val">{h > 0 ? (h % hpd === 0 ? h / hpd : (h / hpd).toFixed(1)) : ''}</span>
-          <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
-          <span class="cap muted">{i + 1}</span>
-        </div>
-      {/each}
-    </div>
-    <p class="cap muted">단위: 일. 가장 많이 쓴 달은 {monthName(leave.byMonth.indexOf(Math.max(...leave.byMonth)))}{Math.max(...leave.byMonth) === 0 ? ' — 아직 없어요' : ''}.</p>
-  </Win>
-
-  <Win title="기록" icon="icon-document" id="leave-records" area="records">
-    {#snippet aside()}{listYear}년 · {yearRecords.length}건{/snippet}
-    {#if yearRecords.length === 0}
-      <p class="muted">{listYear}년 기록이 아직 없어요. 달력에서 날짜를 고르고 "1일"을 눌러 보세요.</p>
-    {:else}
-      <ul class="records">
-        {#each yearRecords as record (record.id)}
-          <li>
-            <div class="grow stack">
-              <span>
-                {formatKorean(record.date)}
-                {#if record.date > view.today}<span class="tag">예정</span>{/if}
-              </span>
-              <span class="cap muted">{kindLabel(record.kind, record.hours)}{record.memo ? ` · ${record.memo}` : ''}</span>
-            </div>
-            <button type="button" class="btn small" onclick={() => remove(record.id)} aria-label="{formatMonthDay(record.date)} 기록 지우기">
-              <Icon name="icon-trash" />
-            </button>
-          </li>
-        {/each}
-      </ul>
     {/if}
   </Win>
 
@@ -323,8 +287,47 @@
     {/if}
     <p class="cap muted">공휴일과 주말 사이에 낀 평일(1~2일)을 찾아요.</p>
   </Win>
+  </div>
+  <div class="col c3">
+  <Win title="기록" icon="icon-document" id="leave-records" area="records">
+    {#snippet aside()}{listYear}년 · {yearRecords.length}건{/snippet}
+    {#if yearRecords.length === 0}
+      <p class="muted">{listYear}년 기록이 아직 없어요. 달력에서 날짜를 고르고 "1일"을 눌러 보세요.</p>
+    {:else}
+      <ul class="records">
+        {#each yearRecords as record (record.id)}
+          <li>
+            <div class="grow stack">
+              <span>
+                {formatKorean(record.date)}
+                {#if record.date > view.today}<span class="tag">예정</span>{/if}
+              </span>
+              <span class="cap muted">{kindLabel(record.kind, record.hours)}{record.memo ? ` · ${record.memo}` : ''}</span>
+            </div>
+            <button type="button" class="btn small" onclick={() => remove(record.id)} aria-label="{formatMonthDay(record.date)} 기록 지우기">
+              <Icon name="icon-trash" />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </Win>
 
-  <section class="about" style="grid-area:about">
+  <Win title="월별 사용" icon="icon-list" id="leave-months" area="months">
+    {#snippet aside()}{leave.year}년{/snippet}
+    <div class="months" role="img" aria-label="월별 연가 사용. {leave.byMonth.map((h, i) => `${i + 1}월 ${formatLeaveHours(h, hpd)}`).join(', ')}">
+      {#each leave.byMonth as h, i (i)}
+        <div class="m">
+          <span class="cap val">{h > 0 ? (h % hpd === 0 ? h / hpd : (h / hpd).toFixed(1)) : ''}</span>
+          <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
+          <span class="cap muted">{i + 1}</span>
+        </div>
+      {/each}
+    </div>
+    <p class="cap muted">단위: 일. 가장 많이 쓴 달은 {monthName(leave.byMonth.indexOf(Math.max(...leave.byMonth)))}{Math.max(...leave.byMonth) === 0 ? ' — 아직 없어요' : ''}.</p>
+  </Win>
+  </div>
+  <section class="about">
     <p class="note">
       공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요. 연가 일수는 재직기간으로만 계산하고(복무규정 제15조),
       휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
@@ -480,29 +483,45 @@
     width: 100%;
   }
   .about {
+    grid-area: about;
     display: grid;
     gap: 9px;
+  }
+  .col {
+    display: contents;
   }
   @media (min-width: 720px) {
     .page {
       gap: 12px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-areas:
-        'summary calendar'
-        'entry calendar'
-        'records months'
-        'records bridges'
-        'about about';
+      grid-template-areas: none;
+    }
+    .col {
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+      align-content: start;
+    }
+    .col :global(.win) {
+      grid-area: auto !important;
+    }
+    .c3 {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .about {
+      grid-area: auto;
+      grid-column: 1 / -1;
     }
   }
   @media (min-width: 1100px) {
     .page {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
-      grid-template-areas:
-        'summary calendar records'
-        'entry calendar records'
-        'months bridges records'
-        'about about about';
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
+    }
+    .c3 {
+      grid-column: auto;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

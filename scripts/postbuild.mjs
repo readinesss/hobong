@@ -30,17 +30,43 @@ let html = readFileSync(INDEX, 'utf8');
 const extra = listFiles(DIST).filter((f) => f !== 'index.html' && f !== 'hobong.html');
 if (extra.length > 0) fail(`dist에 index.html 외의 파일이 있습니다: ${extra.join(', ')}`);
 
-// (2) 외부 참조 검증: 리소스를 불러오는 속성·구문에 URL이 없어야 한다.
-const resourcePatterns = [
+// (2) 외부 참조 검증
+// 마크업: 리소스를 불러오는 속성이 없어야 한다(인라인 data: 는 허용).
+const markup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+const markupPatterns = [
   /<script\b[^>]*\bsrc\s*=/i,
   /<link\b[^>]*\bhref\s*=/i,
   /<(?:img|audio|video|source|iframe|embed|object)\b[^>]*\b(?:src|data)\s*=\s*["']?(?!data:|blob:)/i,
-  /url\(\s*["']?(?!data:|#)[^)"']/i,
-  /@import\b/i,
 ];
-for (const re of resourcePatterns) {
+for (const re of markupPatterns) {
   const m = html.match(re);
   if (m) fail(`외부 리소스 참조가 남아 있습니다: ${m[0].slice(0, 120)}`);
+}
+if (/<script\b[^>]*\bsrc\s*=/i.test(markup)) fail('외부 스크립트 태그가 있습니다.');
+
+// 스타일: url()은 data: 만, @import 는 금지.
+for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+  const css = m[1];
+  const badUrl = css.match(/url\(\s*["']?(?!data:|#)[^)"']{0,80}/i);
+  if (badUrl) fail(`스타일에 외부 url()이 있습니다: ${badUrl[0]}`);
+  if (/@import\b/i.test(css)) fail('스타일에 @import 가 있습니다.');
+}
+
+// 스크립트: 네트워크로 나가는 API를 쓰지 않아야 한다(CSP가 막지만 코드에도 없어야 한다).
+const forbiddenApis = [
+  /\bfetch\s*\(/,
+  /\bXMLHttpRequest\b/,
+  /\bWebSocket\s*\(/,
+  /\bEventSource\s*\(/,
+  /\bsendBeacon\s*\(/,
+  /\bimportScripts\s*\(/,
+  /\bserviceWorker\s*\.\s*register\b/,
+];
+for (const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const re of forbiddenApis) {
+    const hit = m[1].match(re);
+    if (hit) fail(`스크립트에 네트워크 API 사용이 있습니다: ${hit[0]}`);
+  }
 }
 
 // (3) CSP 주입

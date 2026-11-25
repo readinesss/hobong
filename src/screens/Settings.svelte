@@ -1,6 +1,7 @@
 <script lang="ts">
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
+  import { nav } from '../lib/app/nav.svelte.ts';
   import { APP_VERSION, app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
@@ -99,6 +100,7 @@
   function reset() {
     confirmReset = false;
     app.reset();
+    nav.go('home');
   }
 </script>
 
