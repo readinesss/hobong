@@ -1,0 +1,96 @@
+# 규정 데이터 점검: 매달 한 번 data/<연도>.json 이 낡지 않았는지 확인하고,
+# 손봐야 할 것이 있으면 이슈로 알린다(같은 건으로 열린 이슈가 있으면 다시 만들지 않는다).
+#
+#   - 해가 바뀌었는데 그 해 파일이 없거나 봉급표가 확정 전일 때
+#   - 7월 이후 다음 해 공휴일(월력요항)이 아직 없을 때
+#   - 원문을 마지막으로 확인한 지 반년이 넘었을 때
+#
+# 판단 기준은 src/lib/rules/freshness.ts, 갱신 방법은 docs/DATA.md 에 있다.
+name: 규정 데이터 점검
+
+on:
+  schedule:
+    # 매달 2일 09:23 (한국 시각)
+    - cron: '23 0 2 * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '기준일 (비우면 오늘, 예: 2027-01-04)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rules-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: 점검 후 이슈 등록
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: 점검
+        id: check
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+        run: |
+          if [ -n "$INPUT_DATE" ]; then
+            node scripts/rules-check.mjs --date "$INPUT_DATE" --summary
+            node scripts/rules-check.mjs --date "$INPUT_DATE" --json > findings.json
+          else
+            node scripts/rules-check.mjs --summary
+            node scripts/rules-check.mjs --json > findings.json
+          fi
+          echo "count=$(jq '.findings | length' findings.json)" >> "$GITHUB_OUTPUT"
+
+      - name: 이슈 등록
+        if: ${{ steps.check.outputs.count != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "규정 데이터" --color "0e8a16" \
+            --description "data/<연도>.json 의 값·근거 갱신" --force
+          today="$(jq -r '.today' findings.json)"
+          jq -c '.findings[]' findings.json | while read -r finding; do
+            id="$(jq -r '.id' <<<"$finding")"
+            title="[규정 데이터] $(jq -r '.title' <<<"$finding")"
+            marker="<!-- rules-watch:${id} -->"
+            # 같은 건으로 열린 이슈가 있으면 건너뛴다(본문에 심어 둔 표식으로 찾는다).
+            existing="$(gh issue list --state open --label "규정 데이터" --limit 200 --json number,body \
+              --jq "[.[] | select(.body | contains(\"rules-watch:${id} \"))][0].number // empty")"
+            if [ -n "$existing" ]; then
+              echo "이미 열려 있음: #${existing} ${title}"
+              continue
+            fi
+            {
+              echo "$marker"
+              echo "$(jq -r '.detail' <<<"$finding")"
+              echo ""
+              echo "- 기준일: ${today}"
+              echo "- 구분: $(jq -r 'if .level == "action" then "지금 계산에 영향이 있습니다" else "미리 준비할 일입니다" end' <<<"$finding")"
+              echo ""
+              echo "### 할 일"
+              echo ""
+              echo "- [ ] 국가법령정보센터 등 원문에서 값을 확인한다 (기억이나 추정으로 넣지 않는다)"
+              echo "- [ ] \`data/$(jq -r '.year' <<<"$finding").json\` 에 값과 근거(법령·조항·시행일)를 넣는다"
+              echo "- [ ] 발췌본을 \`docs/sources/<연도>/\` 에 남긴다"
+              echo "- [ ] \`npm test\` 로 데이터 검증 테스트를 통과시킨다"
+              echo ""
+              echo "자세한 순서는 [docs/DATA.md](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/DATA.md) 에 있습니다."
+              echo ""
+              echo "_이 이슈는 월간 점검 워크플로가 자동으로 만들었습니다._"
+            } > body.md
+            gh issue create --title "$title" --label "규정 데이터" --body-file body.md
+          done

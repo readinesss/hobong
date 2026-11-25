@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sprites:preview": "node scripts/sprites-preview.mjs",
-    "verify": "npm run lint && npm run check && npm run test && npm run build"
+    "rules:check": "node scripts/rules-check.mjs",
+    "verify": "npm run lint && npm run format:check && npm run check && npm run test && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

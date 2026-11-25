@@ -1,0 +1,35 @@
+# 의존성 자동 갱신. 실행 시점에 쓰이는 라이브러리는 없다(전부 개발·빌드 도구).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    labels: ['의존성']
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      toolchain:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    ignore:
+      # svelte-check·typescript-eslint 가 TypeScript 7을 지원할 때까지 6.x 에 머문다.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: '09:00'
+      timezone: Asia/Seoul
+    labels: ['의존성']
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions:
+        patterns: ['*']

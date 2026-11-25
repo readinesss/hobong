@@ -1,0 +1,69 @@
+name: 법령·규정 변경 제보
+description: 봉급표, 연가 일수, 공휴일 등 규정 값이 바뀌었거나 틀렸을 때
+title: '[규정] '
+labels: ['규정 데이터']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이 서비스의 규정 값은 코드가 아니라 `data/<연도>.json` 에 **근거 법령·조항·시행일**과 함께 들어 있습니다.
+        원문으로 확인한 값만 넣기 때문에, 근거를 함께 알려 주시면 빨리 반영할 수 있습니다.
+  - type: dropdown
+    id: section
+    attributes:
+      label: 어떤 값인가요?
+      options:
+        - 봉급표
+        - 승급·승진 시 호봉
+        - 연가 일수·연가보상비
+        - 승진소요최저연수·근속승진·대우공무원
+        - 수당(정근수당·명절휴가비 등)
+        - 공휴일·임시공휴일
+        - 보수 지급일·근무시간
+        - 정년·시보
+        - 그 밖의 것
+    validations:
+      required: true
+  - type: input
+    id: year
+    attributes:
+      label: 적용 연도
+      placeholder: '예) 2027'
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: 지금 값과 바뀐(올바른) 값
+      placeholder: |
+        지금: 9급 1호봉 0,000,000원
+        바뀐 값: 9급 1호봉 0,000,000원
+    validations:
+      required: true
+  - type: input
+    id: law
+    attributes:
+      label: 근거 법령과 조항
+      placeholder: '예) 공무원보수규정 별표 3 (대통령령 제00000호, 2027. 1. 0. 개정)'
+    validations:
+      required: true
+  - type: input
+    id: effective
+    attributes:
+      label: 시행일
+      placeholder: '예) 2027-01-01'
+    validations:
+      required: false
+  - type: input
+    id: url
+    attributes:
+      label: 원문 주소
+      description: 국가법령정보센터(law.go.kr) 주소가 가장 좋습니다.
+    validations:
+      required: false
+  - type: textarea
+    id: note
+    attributes:
+      label: 덧붙일 말
+    validations:
+      required: false

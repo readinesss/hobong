@@ -1,0 +1,46 @@
+# 코드 보안 점검(CodeQL). 공개 저장소에서는 무료로 돌고, 결과는 Security 탭에 쌓인다.
+name: CodeQL
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  pull_request:
+  schedule:
+    # 매주 월요일 03:41 (한국 시각 12:41)
+    - cron: '41 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: 분석 (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

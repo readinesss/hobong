@@ -1,0 +1,21 @@
+[
+  { "name": "버그", "color": "d73a4a", "description": "계산이나 화면이 잘못 동작해요" },
+  { "name": "기능 제안", "color": "a2eeef", "description": "이런 기능이 있으면 좋겠어요" },
+  { "name": "규정 데이터", "color": "0e8a16", "description": "data/<연도>.json 의 값·근거 갱신" },
+  {
+    "name": "법령 확인 필요",
+    "color": "fbca04",
+    "description": "원문으로 확인하지 못했거나 해석이 필요한 값"
+  },
+  { "name": "디자인", "color": "f9d0c4", "description": "픽셀아트·화면·캐릭터" },
+  { "name": "접근성", "color": "5319e7", "description": "키보드·화면 낭독기·대비·터치 크기" },
+  { "name": "문서", "color": "0075ca", "description": "README·가이드·기획 문서" },
+  { "name": "v2", "color": "c5def5", "description": "MVP 이후에 다룰 일" },
+  { "name": "보류", "color": "cfd3d7", "description": "검토했지만 지금은 하지 않기로 한 일" },
+  { "name": "의존성", "color": "0366d6", "description": "라이브러리·액션 버전 올리기" },
+  {
+    "name": "설정",
+    "color": "bfdadc",
+    "description": "저장소 관리자가 GitHub 설정에서 해야 하는 일"
+  }
+]

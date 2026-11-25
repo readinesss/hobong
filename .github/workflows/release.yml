@@ -1,0 +1,113 @@
+# 릴리스: 단일 HTML(hobong.html)을 GitHub Release에 붙인다.
+# 업무망처럼 사이트에 접속할 수 없는 곳에서는 이 파일 하나만 받아 열면 된다.
+#
+# 두 가지 방법
+#   1) Actions 탭 → "릴리스" → Run workflow → 버전 입력(예: 0.1.0)
+#   2) git tag v0.1.0 && git push origin v0.1.0
+# 버전은 package.json 의 version 과 같아야 한다.
+name: 릴리스
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '버전 (package.json 의 version 과 같게, 예: 0.1.0)'
+        required: true
+        type: string
+      prerelease:
+        description: '사전 릴리스로 표시'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 빌드 후 릴리스 만들기
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 버전 확인
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v${INPUT_VERSION#v}"
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::버전 형식이 올바르지 않습니다: $tag (예: v0.1.0)"
+            exit 1
+          fi
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::릴리스 버전($tag)이 package.json 의 version($pkg)과 다릅니다. package.json 을 먼저 고쳐 주세요."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+
+      - name: 검증 (린트 · 타입 · 단위 테스트 · 빌드)
+        run: npm run verify
+
+      - name: 브라우저 검증
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      - name: 릴리스 파일 준비
+        run: |
+          mkdir release
+          cp dist/hobong.html release/hobong.html
+          (cd release && sha256sum hobong.html > SHA256SUMS.txt)
+          {
+            echo "## 받는 방법"
+            echo ""
+            echo "아래 **hobong.html** 한 파일만 내려받아 브라우저로 열면 됩니다. 설치도, 인터넷 연결도 필요 없습니다."
+            echo "입력한 값은 그 브라우저 안에만 저장되고 어디로도 보내지 않습니다."
+            echo ""
+            echo "| 파일 | 크기 | SHA-256 |"
+            echo "| --- | --- | --- |"
+            echo "| \`hobong.html\` | $(du -h release/hobong.html | cut -f1) | \`$(cut -d' ' -f1 release/SHA256SUMS.txt)\` |"
+            echo ""
+            echo "> 규정 값은 \`data/<연도>.json\` 에 근거 법령과 함께 들어 있습니다. 금액은 봉급표 기준 추정치이며 실제 지급액과 다를 수 있습니다."
+            echo ""
+          } > release/NOTES.md
+
+      - name: 릴리스 만들기
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease && '--prerelease' || '' }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG 릴리스가 이미 있습니다."
+            exit 1
+          fi
+          # 직접 쓴 안내 뒤에 변경 내역이 자동으로 이어 붙는다.
+          gh release create "$TAG" release/hobong.html release/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "호봉 $TAG" \
+            --notes-file release/NOTES.md \
+            --generate-notes \
+            $PRERELEASE

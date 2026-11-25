@@ -1,0 +1,37 @@
+# .github/labels.json 에 적힌 라벨을 저장소에 맞춘다(없으면 만들고, 있으면 색·설명을 고친다).
+# 라벨을 지우지는 않는다.
+name: 라벨 맞추기
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/labels.json'
+      - '.github/workflows/labels.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: 라벨 맞추기
+    if: ${{ github.ref_name == github.event.repository.default_branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 라벨 만들기·고치기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            gh label create "$(jq -r '.name' <<<"$label")" \
+              --color "$(jq -r '.color' <<<"$label")" \
+              --description "$(jq -r '.description' <<<"$label")" \
+              --force
+          done

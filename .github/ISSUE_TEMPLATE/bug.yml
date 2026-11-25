@@ -1,0 +1,66 @@
+name: 버그 제보
+description: 계산 결과나 화면이 이상할 때
+title: '[버그] '
+labels: ['버그']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제보해 주셔서 고맙습니다.
+        **실명·소속·생년월일 같은 개인정보는 적지 마세요.** 날짜가 필요하면 비슷한 가짜 날짜로 바꿔 적어 주세요.
+  - type: textarea
+    id: what
+    attributes:
+      label: 무슨 일이 있었나요?
+      description: 무엇을 했더니 어떻게 됐는지 적어 주세요.
+      placeholder: '예) 임용일을 2월 29일로 넣었더니 다음 승급일이 3월 2일로 나옵니다.'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 어떻게 되어야 하나요?
+      description: 근거(법령·조항, 인사 담당자의 안내 등)가 있다면 함께 적어 주세요.
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: 다시 일으키는 방법
+      placeholder: |
+        1. 새로 시작
+        2. 직급 9급, 호봉 3 …
+    validations:
+      required: false
+  - type: dropdown
+    id: where
+    attributes:
+      label: 어디에서 열었나요?
+      options:
+        - 사이트(GitHub Pages)
+        - 내려받은 hobong.html 파일
+        - 잘 모르겠어요
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: 브라우저와 기기
+      placeholder: '예) 엣지 141 / 윈도우 11, 사파리 / 아이폰'
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      description: 설정 화면 맨 아래에 적혀 있습니다.
+      placeholder: '예) 0.1.0'
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 확인
+      options:
+        - label: 개인정보(실명, 소속, 실제 생년월일 등)를 적지 않았습니다.
+          required: true

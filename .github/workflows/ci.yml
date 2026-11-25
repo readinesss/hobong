@@ -1,0 +1,109 @@
+# 푸시와 PR마다: 린트 → 타입 → 단위 테스트 → 단일 HTML 빌드 → 브라우저 검증.
+# 빌드 산출물(hobong.html 한 파일)은 실행 결과의 Artifacts에서 내려받을 수 있다.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 린트 · 타입 · 단위 테스트 · 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 린트
+        run: npm run lint
+
+      - name: 포맷 검사
+        run: npm run format:check
+
+      - name: 타입 검사
+        run: npm run check
+
+      - name: 단위 테스트 (계산 · 규정 데이터 · 저장 · 캐릭터)
+        run: npm test
+
+      - name: 규정 데이터 점검
+        run: node scripts/rules-check.mjs --summary
+
+      - name: 단일 HTML 빌드 (외부 참조 검사 + CSP 주입)
+        run: npm run build
+
+      - name: 산출물 요약
+        run: |
+          {
+            echo "### 단일 HTML"
+            echo ""
+            echo "| 파일 | 크기 | SHA-256 |"
+            echo "| --- | --- | --- |"
+            echo "| \`hobong.html\` | $(du -h dist/hobong.html | cut -f1) | \`$(sha256sum dist/hobong.html | cut -d' ' -f1)\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 단일 HTML 올리기
+        uses: actions/upload-artifact@v7
+        with:
+          name: hobong-html
+          path: dist/hobong.html
+          if-no-files-found: error
+
+  e2e:
+    name: 브라우저 검증 (${{ matrix.browser }})
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 브라우저 설치 (${{ matrix.browser }})
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: 빌드
+        run: npm run build
+
+      # 빌드한 dist/index.html 을 file:// 로 열어 확인한다(서버 없음, 외부 요청 0건).
+      - name: 종단 테스트
+        run: npx playwright test
+        env:
+          E2E_BROWSERS: ${{ matrix.browser }}
+
+      - name: 실패 보고서 올리기
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
