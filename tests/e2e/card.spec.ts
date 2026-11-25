@@ -49,7 +49,10 @@ test.describe('캐릭터 카드', () => {
     // 글자 카드에는 금액을 켜도 넣지 않는다
     await page.getByLabel(/월 봉급/).check();
     await expect(text).not.toContainText('2,226,100');
-    expect((await storedData(page))?.settings.card).toMatchObject({ showSalary: true, showRetirement: true });
+    expect((await storedData(page))?.settings.card).toMatchObject({
+      showSalary: true,
+      showRetirement: true,
+    });
   });
 
   test('글자 카드에 진행 막대와 서비스 주소가 들어간다', async ({ page }) => {

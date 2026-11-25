@@ -84,7 +84,9 @@
   });
 
   const monthHolidays = $derived(
-    cells.filter((c): c is Cell => c !== null && c.holiday !== null).map((c) => `${c.day}일 ${c.holiday}`),
+    cells
+      .filter((c): c is Cell => c !== null && c.holiday !== null)
+      .map((c) => `${c.day}일 ${c.holiday}`),
   );
 
   function move(delta: number) {

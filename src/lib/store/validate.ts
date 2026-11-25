@@ -74,7 +74,8 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   const birth = raw.birthDate;
   if (!isValidYmd(birth)) errors.birthDate = '생년월일을 넣어 주세요.';
   else if (birth > today) errors.birthDate = '생년월일이 오늘보다 뒤예요.';
-  else if (Number(birth.slice(0, 4)) < LIMITS.minBirthYear) errors.birthDate = '생년월일을 다시 확인해 주세요.';
+  else if (Number(birth.slice(0, 4)) < LIMITS.minBirthYear)
+    errors.birthDate = '생년월일을 다시 확인해 주세요.';
 
   const hire = raw.hireDate;
   if (!isValidYmd(hire)) errors.hireDate = '임용일을 넣어 주세요.';
@@ -88,30 +89,36 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
 
   const gradeDate = raw.gradeDate;
   if (!isValidYmd(gradeDate)) errors.gradeDate = '현 직급 임용일을 넣어 주세요.';
-  else if (gradeDate > today) errors.gradeDate = '현 직급 임용일은 오늘이거나 오늘보다 앞이어야 해요.';
-  else if (isValidYmd(hire) && gradeDate < hire) errors.gradeDate = '현 직급 임용일이 최초 임용일보다 앞이에요.';
+  else if (gradeDate > today)
+    errors.gradeDate = '현 직급 임용일은 오늘이거나 오늘보다 앞이어야 해요.';
+  else if (isValidYmd(hire) && gradeDate < hire)
+    errors.gradeDate = '현 직급 임용일이 최초 임용일보다 앞이에요.';
 
   const step = raw.step;
-  if (typeof step !== 'number' || !Number.isInteger(step) || step < 1) errors.step = '호봉을 넣어 주세요.';
+  if (typeof step !== 'number' || !Number.isInteger(step) || step < 1)
+    errors.step = '호봉을 넣어 주세요.';
   else if (isGrade(grade) && step > ctx.maxStep(grade)) {
     errors.step = `${grade}급은 ${ctx.maxStep(grade)}호봉까지 있어요.`;
   }
 
   const next = raw.nextStepDate;
   if (!isValidYmd(next)) errors.nextStepDate = '다음 승급일을 넣어 주세요.';
-  else if (isValidYmd(hire) && next <= hire) errors.nextStepDate = '다음 승급일이 임용일보다 뒤여야 해요.';
+  else if (isValidYmd(hire) && next <= hire)
+    errors.nextStepDate = '다음 승급일이 임용일보다 뒤여야 해요.';
   else if (next > addMonthsClamped(today, LIMITS.maxNextStepYears * 12)) {
     errors.nextStepDate = '다음 승급일이 너무 먼 미래예요.';
   }
 
   const overrides = raw.overrides;
-  if (overrides !== undefined && !isDict(overrides)) errors.longServiceDate = '예외 보정 값의 형식이 틀렸어요.';
+  if (overrides !== undefined && !isDict(overrides))
+    errors.longServiceDate = '예외 보정 값의 형식이 틀렸어요.';
   if (isDict(overrides)) {
     for (const key of ['longServiceDate', 'seniorDate'] as const) {
       const v = overrides[key];
       if (v === null || v === undefined || v === '') continue;
       if (!isValidYmd(v)) errors[key] = '날짜를 다시 확인해 주세요.';
-      else if (isValidYmd(gradeDate) && v < gradeDate) errors[key] = '현 직급 임용일보다 뒤여야 해요.';
+      else if (isValidYmd(gradeDate) && v < gradeDate)
+        errors[key] = '현 직급 임용일보다 뒤여야 해요.';
     }
   }
   return errors;
@@ -128,7 +135,10 @@ export function toProfile(raw: Dict): Profile {
     gradeDate: raw.gradeDate as Ymd,
     step: raw.step as number,
     nextStepDate: raw.nextStepDate as Ymd,
-    overrides: { longServiceDate: pick(overrides.longServiceDate), seniorDate: pick(overrides.seniorDate) },
+    overrides: {
+      longServiceDate: pick(overrides.longServiceDate),
+      seniorDate: pick(overrides.seniorDate),
+    },
   };
 }
 
@@ -148,7 +158,8 @@ function checkSettings(raw: unknown, errors: string[]): Settings | null {
   else {
     for (const key of ['start', 'end', 'lunchStart', 'lunchEnd'] as const) {
       const v = work[key];
-      if (typeof v !== 'string' || parseHm(v) === null) errors.push(`설정: 근무시간(${key}) 형식이 틀렸습니다.`);
+      if (typeof v !== 'string' || parseHm(v) === null)
+        errors.push(`설정: 근무시간(${key}) 형식이 틀렸습니다.`);
       else times[key] = v;
     }
   }
@@ -157,7 +168,8 @@ function checkSettings(raw: unknown, errors: string[]): Settings | null {
   }
   if (typeof raw.reduceMotion !== 'boolean') errors.push('설정: 움직임 줄이기 값이 틀렸습니다.');
   if (typeof raw.hideAmounts !== 'boolean') errors.push('설정: 금액 가리기 값이 틀렸습니다.');
-  if (raw.tabTitle !== 'default' && raw.tabTitle !== 'countdown') errors.push('설정: 탭 제목 값이 틀렸습니다.');
+  if (raw.tabTitle !== 'default' && raw.tabTitle !== 'countdown')
+    errors.push('설정: 탭 제목 값이 틀렸습니다.');
   const card = raw.card;
   let cardOut: CardSettings | null = null;
   if (!isDict(card)) errors.push('설정: 카드 설정이 없습니다.');
@@ -240,7 +252,13 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
 
   const grantOverrideHours: Record<string, number> = {};
   for (const [year, hours] of Object.entries(raw.grantOverrideHours)) {
-    if (!/^\d{4}$/.test(year) || typeof hours !== 'number' || !Number.isInteger(hours) || hours < 0 || hours > 8 * 100) {
+    if (
+      !/^\d{4}$/.test(year) ||
+      typeof hours !== 'number' ||
+      !Number.isInteger(hours) ||
+      hours < 0 ||
+      hours > 8 * 100
+    ) {
       errors.push(`연가 부여일수 수정값(${year})이 틀렸습니다.`);
       bad += 1;
       continue;
@@ -339,6 +357,14 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
   }
   return {
     ok: true,
-    value: { profile: toProfile(raw.profile as Dict), settings, leave, achievements, character, visits, meta },
+    value: {
+      profile: toProfile(raw.profile as Dict),
+      settings,
+      leave,
+      achievements,
+      character,
+      visits,
+      meta,
+    },
   };
 }

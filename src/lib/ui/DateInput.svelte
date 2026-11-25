@@ -15,7 +15,17 @@
     required?: boolean;
   }
 
-  let { id, label, value = $bindable(''), onchange, hint, error, min, max, required = false }: Props = $props();
+  let {
+    id,
+    label,
+    value = $bindable(''),
+    onchange,
+    hint,
+    error,
+    min,
+    max,
+    required = false,
+  }: Props = $props();
 
   let year = $state('');
   let month = $state('');
@@ -25,7 +35,8 @@
   let dayEl = $state<HTMLInputElement>();
   let nativeEl = $state<HTMLInputElement>();
 
-  const canPick = typeof HTMLInputElement !== 'undefined' && 'showPicker' in HTMLInputElement.prototype;
+  const canPick =
+    typeof HTMLInputElement !== 'undefined' && 'showPicker' in HTMLInputElement.prototype;
 
   // 바깥에서 값이 바뀌면 세 칸에 반영한다(안에서 치는 중인 값과 같으면 그대로 둔다).
   $effect(() => {
@@ -49,7 +60,12 @@
     const yy = Number(y);
     const mm = Number(m);
     const dd = Number(d);
-    if (!(mm >= 1 && mm <= 12) || !(yy >= 1900 && yy <= 2200) || !(dd >= 1 && dd <= daysInMonth(yy, mm))) return '';
+    if (
+      !(mm >= 1 && mm <= 12) ||
+      !(yy >= 1900 && yy <= 2200) ||
+      !(dd >= 1 && dd <= daysInMonth(yy, mm))
+    )
+      return '';
     return formatYmd({ y: yy, m: mm, d: dd });
   }
 
@@ -138,7 +154,9 @@
 </script>
 
 <div class="field">
-  <span class="label" id="{id}-label">{label}{#if required}<span class="cap muted">필수</span>{/if}</span>
+  <span class="label" id="{id}-label">
+    {label}{#if required}<span class="cap muted">필수</span>{/if}
+  </span>
   <div class="date" role="group" aria-labelledby="{id}-label" aria-describedby={describedBy}>
     <input
       bind:this={yearEl}
@@ -188,7 +206,12 @@
       onkeydown={(e) => onBackspace(e, day, monthEl)}
     />
     {#if canPick}
-      <button type="button" class="btn small pick" onclick={openPicker} aria-label="{label} 달력에서 고르기">
+      <button
+        type="button"
+        class="btn small pick"
+        onclick={openPicker}
+        aria-label="{label} 달력에서 고르기"
+      >
         <Icon name="icon-calendar" />
       </button>
       <input

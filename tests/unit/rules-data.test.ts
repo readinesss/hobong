@@ -124,7 +124,9 @@ describe('값의 일관성', () => {
     }
     for (let step = 0; step < 23; step += 1) {
       for (let i = 1; i < grades.length; i += 1) {
-        expect(table[grades[i] as '9'][step]).toBeGreaterThan(table[grades[i - 1] as '9'][step] as number);
+        expect(table[grades[i] as '9'][step]).toBeGreaterThan(
+          table[grades[i - 1] as '9'][step] as number,
+        );
       }
     }
     expect(grades.map((g) => table[g].length)).toEqual([31, 31, 31, 32, 30, 28, 27, 25, 23]);
@@ -145,7 +147,8 @@ describe('값의 일관성', () => {
 
   it('정근수당 지급률은 근무연수에 따라 오른다', () => {
     const tiers = r2026.allowances.diligence.tiers;
-    for (let i = 1; i < tiers.length; i += 1) expect(tiers[i]?.rate).toBeGreaterThan(tiers[i - 1]?.rate as number);
+    for (let i = 1; i < tiers.length; i += 1)
+      expect(tiers[i]?.rate).toBeGreaterThan(tiers[i - 1]?.rate as number);
     expect(tiers[tiers.length - 1]).toEqual({ underYears: null, rate: 0.5 });
   });
 
@@ -180,14 +183,35 @@ describe('값의 일관성', () => {
     expect(items.filter((h) => h.tag === 'seollal')).toHaveLength(1);
     expect(items.filter((h) => h.tag === 'chuseok')).toHaveLength(1);
     // 고정 공휴일
-    for (const md of ['01-01', '03-01', '05-01', '05-05', '06-06', '07-17', '08-15', '10-03', '10-09', '12-25']) {
+    for (const md of [
+      '01-01',
+      '03-01',
+      '05-01',
+      '05-05',
+      '06-06',
+      '07-17',
+      '08-15',
+      '10-03',
+      '10-09',
+      '12-25',
+    ]) {
       expect(dates, `${year}-${md}`).toContain(`${year}-${md}`);
     }
   });
 
   it('대체공휴일 규칙(관공서공휴일규정 제3조)과 목록이 맞는다', () => {
     // 토·일과 겹치면 대체공휴일이 생기는 날(설·추석 연휴는 일요일만, 현충일·1월 1일은 대상 아님)
-    const substitutable = ['3·1절', '노동절', '어린이날', '부처님 오신 날', '제헌절', '광복절', '개천절', '한글날', '기독탄신일'];
+    const substitutable = [
+      '3·1절',
+      '노동절',
+      '어린이날',
+      '부처님 오신 날',
+      '제헌절',
+      '광복절',
+      '개천절',
+      '한글날',
+      '기독탄신일',
+    ];
     for (const year of [2026, 2027]) {
       const items = resolveRules(registry, year).holidays.items;
       const names = items.map((h) => h.name);
@@ -196,7 +220,9 @@ describe('값의 일관성', () => {
         // 2026년 노동절·제헌절 규정은 5월부터 시행이라 그 전 날짜에는 영향이 없다(둘 다 금요일).
         if (substitutable.includes(item.name)) {
           const needs = dow === 0 || dow === 6;
-          expect(names.includes(`대체공휴일(${item.name})`), `${item.date} ${item.name}`).toBe(needs);
+          expect(names.includes(`대체공휴일(${item.name})`), `${item.date} ${item.name}`).toBe(
+            needs,
+          );
         }
         if (item.tag === 'seollal' || item.tag === 'chuseok' || item.name.endsWith('연휴')) {
           const base = item.name.replace(' 연휴', '');
@@ -221,7 +247,10 @@ describe('법령 원문 발췌본과 대조', () => {
       const re = /\d{1,3}(?:,\d{3})+/g;
       let match: RegExpExecArray | null;
       while ((match = re.exec(line)) !== null) {
-        cells.push({ end: match.index + match[0].length, value: Number(match[0].replace(/,/g, '')) });
+        cells.push({
+          end: match.index + match[0].length,
+          value: Number(match[0].replace(/,/g, '')),
+        });
       }
       rows.push({ step: Number(m[1]), cells });
     }
@@ -234,7 +263,8 @@ describe('법령 원문 발췌본과 대조', () => {
       for (const cell of row.cells) {
         let best = 0;
         columnEnds.forEach((end, i) => {
-          if (Math.abs(end - cell.end) < Math.abs((columnEnds[best] as number) - cell.end)) best = i;
+          if (Math.abs(end - cell.end) < Math.abs((columnEnds[best] as number) - cell.end))
+            best = i;
         });
         expect(Math.abs((columnEnds[best] as number) - cell.end)).toBeLessThanOrEqual(2);
         const list = out[grades[best] as string] as number[];
@@ -257,8 +287,12 @@ describe('법령 원문 발췌본과 대조', () => {
   const snap = (name: string) => readFileSync(join(ROOT, 'docs/sources/2026', name), 'utf8');
   it('정년·시보', () => {
     const t = snap('state-officials-act.txt');
-    expect(t).toContain('공무원의 정년은 다른 법률에 특별한 규정이 있는 경우를 제외하고는 60세로 한다');
-    expect(t).toContain('1월부터 6월 사이에 있으면 6월 30일에, 7월부터 12월 사이에 있으면 12월 31일에');
+    expect(t).toContain(
+      '공무원의 정년은 다른 법률에 특별한 규정이 있는 경우를 제외하고는 60세로 한다',
+    );
+    expect(t).toContain(
+      '1월부터 6월 사이에 있으면 6월 30일에, 7월부터 12월 사이에 있으면 12월 31일에',
+    );
     expect(t).toContain('6급 이하의 공무원을 신규 채용하는 경우에는 6개월간');
     expect(t).toContain('5급 공무원');
     expect(r2026.probation.monthsByGrade).toEqual({ '5': 12, '6': 6, '7': 6, '8': 6, '9': 6 });
@@ -281,7 +315,9 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(t).toContain(
       '[제15조제1항 표] 재직기간 연가 일수 / 1개월 이상 1년 미만 11 / 1년 이상 3년 미만 15 / 3년 이상 4년 미만 16 / 4년 이상 5년 미만 17 / 5년 이상 6년 미만 20 / 6년 이상 21',
     );
-    expect(t).toContain('[제16조제6항 표] 재직기간 미리 사용하게 할 수 있는 최대 연가 / 1년 미만 5 / 1년 이상 2년 미만 6 / 2년 이상 3년 미만 7 / 3년 이상 4년 미만 8 / 4년 이상 10');
+    expect(t).toContain(
+      '[제16조제6항 표] 재직기간 미리 사용하게 할 수 있는 최대 연가 / 1년 미만 5 / 1년 이상 2년 미만 6 / 2년 이상 3년 미만 7 / 3년 이상 4년 미만 8 / 4년 이상 10',
+    );
     expect(t).toContain('반일 연가 2회는 연가 1일로 계산한다');
     expect(t).toContain('누계 8시간을 연가 1일로 계산한다');
     expect(t).toContain('15일 이상은 1개월로 계산하고, 15일 미만은 산입하지 아니하며');
@@ -295,8 +331,17 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(d).toContain('반일연가 1회는 4시간으로 계산');
     expect(r2026.leave.units).toMatchObject({ hoursPerDay: 8, halfDayHours: 4 });
     expect(r2026.leave.compensation.maxDays).toBe(20);
-    expect(r2026.leave.longService.tiers.map((x) => [x.fromYears, x.days])).toEqual([[5, 3], [10, 5], [20, 7]]);
-    expect(r2026.workHours).toMatchObject({ start: '09:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' });
+    expect(r2026.leave.longService.tiers.map((x) => [x.fromYears, x.days])).toEqual([
+      [5, 3],
+      [10, 5],
+      [20, 7],
+    ]);
+    expect(r2026.workHours).toMatchObject({
+      start: '09:00',
+      end: '18:00',
+      lunchStart: '12:00',
+      lunchEnd: '13:00',
+    });
   });
   it('승진소요최저연수·근속승진·대우공무원', () => {
     const t = snap('appointment-decree.txt');
@@ -312,10 +357,24 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(rule).toContain('가. 5급 및 4급 : 7년 이상');
     expect(rule).toContain('나. 9급부터 6급까지 : 4년 이상');
     expect(rule).toContain('다음 월 1일에 일괄 발령');
-    expect(r2026.promotion.minService.monthsByGrade).toEqual({ '9': 12, '8': 12, '7': 12, '6': 24, '5': 36, '4': 36 });
+    expect(r2026.promotion.minService.monthsByGrade).toEqual({
+      '9': 12,
+      '8': 12,
+      '7': 12,
+      '6': 24,
+      '5': 36,
+      '4': 36,
+    });
     expect(r2026.promotion.longService.monthsByGrade).toEqual({ '9': 66, '8': 84, '7': 132 });
     expect(r2026.promotion.longService.reviewLeadDays).toBe(5);
-    expect(r2026.promotion.seniorTreatment.monthsByGrade).toEqual({ '9': 48, '8': 48, '7': 48, '6': 48, '5': 84, '4': 84 });
+    expect(r2026.promotion.seniorTreatment.monthsByGrade).toEqual({
+      '9': 48,
+      '8': 48,
+      '7': 48,
+      '6': 48,
+      '5': 84,
+      '4': 84,
+    });
   });
   it('수당', () => {
     const t = snap('allowance-reg-articles.txt');
@@ -336,7 +395,14 @@ describe('법령 원문 발췌본과 대조', () => {
     expectRate('10년 미만', 45);
     expectRate('10년 이상', 50);
     expect(r2026.allowances.diligence.tiers.map((x) => [x.underYears, x.rate])).toEqual([
-      [2, 0.1], [5, 0.2], [6, 0.25], [7, 0.3], [8, 0.35], [9, 0.4], [10, 0.45], [null, 0.5],
+      [2, 0.1],
+      [5, 0.2],
+      [6, 0.25],
+      [7, 0.3],
+      [8, 0.35],
+      [9, 0.4],
+      [10, 0.45],
+      [null, 0.5],
     ]);
     expect(r2026.allowances.seniorTreatment.rate).toBe(0.041);
     expect(r2026.allowances.holidayBonus.rate).toBe(0.6);

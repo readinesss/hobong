@@ -18,7 +18,12 @@ import {
   type ParseContext,
 } from '../../src/lib/store/backup.ts';
 import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
-import { SCHEMA_VERSION, type Grade, type Profile, type UserData } from '../../src/lib/store/schema.ts';
+import {
+  SCHEMA_VERSION,
+  type Grade,
+  type Profile,
+  type UserData,
+} from '../../src/lib/store/schema.ts';
 import {
   clearAll,
   clearUndo,
@@ -67,7 +72,13 @@ function sampleData(): UserData {
     hideAmounts: true,
     tabTitle: 'countdown',
     work: { start: '08:30', end: '17:30', lunchStart: '11:30', lunchEnd: '12:30' },
-    card: { ratio: 'portrait', showSalary: true, showRetirement: false, showTenure: true, showBadges: false },
+    card: {
+      ratio: 'portrait',
+      showSalary: true,
+      showRetirement: false,
+      showTenure: true,
+      showBadges: false,
+    },
   };
   data.leave = {
     records: [
@@ -80,7 +91,12 @@ function sampleData(): UserData {
   data.achievements = { hire: { at: '2020-01-01' }, 'first-leave': { at: '2026-03-03' } };
   data.character = { seenForms: ['egg', 'chick'], lastGrade: 8, lastStep: 6 };
   data.visits = { days: ['2026-11-23', '2026-11-24', '2026-11-25'], lastVisit: '2026-11-24' };
-  data.meta = { createdAt: '2026-01-05T00:00:00.000Z', updatedAt: NOW, lastBackupAt: null, changesSinceBackup: 7 };
+  data.meta = {
+    createdAt: '2026-01-05T00:00:00.000Z',
+    updatedAt: NOW,
+    lastBackupAt: null,
+    changesSinceBackup: 7,
+  };
   return data;
 }
 
@@ -155,7 +171,10 @@ describe('구버전(v1) 파일 변환', () => {
       { id: 'v1-3', date: '2026-05-04', hours: 2, kind: 'hours', memo: '' },
     ]);
     expect(parsed.data.leave.grantOverrideHours).toEqual({ '2026': 128 });
-    expect(parsed.data.achievements).toEqual({ hire: { at: '2026-06-15' }, probation: { at: '2026-06-15' } });
+    expect(parsed.data.achievements).toEqual({
+      hire: { at: '2026-06-15' },
+      probation: { at: '2026-06-15' },
+    });
     expect(parsed.data.settings).toEqual({ ...defaultSettings(R), theme: 'dark' });
     expect(parsed.data.character).toEqual({ seenForms: [], lastGrade: 9, lastStep: 4 });
     expect(parsed.data.meta.createdAt).toBe('2026-02-01T00:00:00.000Z');
@@ -189,7 +208,9 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     expect(reason('{"app":"hobong","schemaVersion":2,"data":{')).toContain('손상');
     expect(reason('<html></html>')).toContain('손상');
     expect(reason([])).toContain('호봉 데이터 파일이 아닙니다');
-    expect(reason({ app: 'other', schemaVersion: 2, data: {} })).toContain('호봉 데이터 파일이 아닙니다');
+    expect(reason({ app: 'other', schemaVersion: 2, data: {} })).toContain(
+      '호봉 데이터 파일이 아닙니다',
+    );
     expect(reason('null')).toContain('호봉 데이터 파일이 아닙니다');
     expect(reason('x'.repeat(MAX_BACKUP_BYTES + 1))).toContain('너무 큽니다');
   });
@@ -277,7 +298,12 @@ describe('되돌리기와 손상된 저장본', () => {
     const before = sampleData();
     saveData(store, before, '0.1.0', NOW);
     const incoming = sampleData();
-    incoming.profile = sampleProfile({ nickname: '새사람', grade: 7, gradeDate: '2025-01-01', step: 3 });
+    incoming.profile = sampleProfile({
+      nickname: '새사람',
+      grade: 7,
+      gradeDate: '2025-01-01',
+      step: 3,
+    });
     // 불러오기: 직전 상태 보관 → 덮어쓰기
     expect(saveUndo(store, before, '0.1.0', NOW)).toBe(true);
     saveData(store, incoming, '0.1.0', NOW);
@@ -340,19 +366,28 @@ describe('입력 폼 검사', () => {
   it('올바른 입력은 오류가 없다', () => {
     expect(checkProfile(base, ctx)).toEqual({});
     expect(checkProfile({ ...base, gradeDate: base.hireDate, grade: 9 }, ctx)).toEqual({});
-    expect(checkProfile({ ...base, hireDate: TODAY, gradeDate: TODAY, nextStepDate: '2027-11-01' }, ctx)).toEqual({});
+    expect(
+      checkProfile({ ...base, hireDate: TODAY, gradeDate: TODAY, nextStepDate: '2027-11-01' }, ctx),
+    ).toEqual({});
   });
   it('항목별 오류', () => {
     expect(checkProfile({ ...base, nickname: '   ' }, ctx).nickname).toBeDefined();
     expect(checkProfile({ ...base, nickname: '가'.repeat(13) }, ctx).nickname).toContain('12자');
     expect(checkProfile({ ...base, birthDate: '2030-01-01' }, ctx).birthDate).toBeDefined();
     expect(checkProfile({ ...base, birthDate: '1900-01-01' }, ctx).birthDate).toBeDefined();
-    expect(checkProfile({ ...base, birthDate: '2010-01-01' }, ctx).hireDate).toContain('너무 일러요');
+    expect(checkProfile({ ...base, birthDate: '2010-01-01' }, ctx).hireDate).toContain(
+      '너무 일러요',
+    );
     expect(checkProfile({ ...base, hireDate: '2026-11-26' }, ctx).hireDate).toBeDefined();
     expect(checkProfile({ ...base, grade: 9, step: 32 }, ctx).step).toContain('31호봉');
     expect(checkProfile({ ...base, grade: 6, step: 32 }, ctx).step).toBeUndefined();
-    expect(checkProfile({ ...base, nextStepDate: '2040-01-01' }, ctx).nextStepDate).toContain('너무 먼');
-    expect(checkProfile({ ...base, overrides: { longServiceDate: '2020-01-01', seniorDate: null } }, ctx).longServiceDate).toBeDefined();
+    expect(checkProfile({ ...base, nextStepDate: '2040-01-01' }, ctx).nextStepDate).toContain(
+      '너무 먼',
+    );
+    expect(
+      checkProfile({ ...base, overrides: { longServiceDate: '2020-01-01', seniorDate: null } }, ctx)
+        .longServiceDate,
+    ).toBeDefined();
     expect(checkProfile(null, ctx).nickname).toBeDefined();
   });
   it('문자열 다듬기', () => {

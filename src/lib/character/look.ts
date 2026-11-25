@@ -4,7 +4,8 @@
  */
 import type { Grade } from '../store/schema.ts';
 
-export type MoodId = 'work' | 'lunch' | 'off' | 'sleep' | 'vacation' | 'tired' | 'payday' | 'celebrate';
+export type MoodId =
+  'work' | 'lunch' | 'off' | 'sleep' | 'vacation' | 'tired' | 'payday' | 'celebrate';
 
 export interface FormRule {
   id: string;
@@ -160,7 +161,12 @@ export function unlockList(rules: CharacterRules): Unlock[] {
     out.push({ step: item.minStep, name: item.name, kind: 'item', blurb: item.blurb });
     for (const tint of item.tints ?? []) {
       if (tint.minStep > item.minStep) {
-        out.push({ step: tint.minStep, name: tint.name, kind: 'tint', blurb: `${item.name}의 색이 바뀐다.` });
+        out.push({
+          step: tint.minStep,
+          name: tint.name,
+          kind: 'tint',
+          blurb: `${item.name}의 색이 바뀐다.`,
+        });
       }
     }
   }
@@ -196,7 +202,8 @@ export function decideMood(rules: CharacterRules, input: MoodInput): MoodId {
   if (input.celebrating) return 'celebrate';
   if (input.leaveHoursToday >= input.halfDayHours) return 'vacation';
   const { from, to } = rules.sleepHours;
-  const sleeping = from > to ? input.hour >= from || input.hour < to : input.hour >= from && input.hour < to;
+  const sleeping =
+    from > to ? input.hour >= from || input.hour < to : input.hour >= from && input.hour < to;
   if (sleeping) return 'sleep';
   if (input.isPayday) return 'payday';
   if (input.phase === 'off' || input.phase === 'after' || input.phase === 'before') return 'off';

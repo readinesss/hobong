@@ -71,7 +71,16 @@ function rect(ctx: Ctx, x: number, y: number, w: number, h: number, color: strin
 }
 
 /** 모서리가 한 칸 접힌 도트 테두리(안쪽을 채우고 바깥에 u 두께의 막대 네 개) */
-function frame(ctx: Ctx, x: number, y: number, w: number, h: number, fill: string, u = 2, line = INK): void {
+function frame(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fill: string,
+  u = 2,
+  line = INK,
+): void {
   rect(ctx, x, y, w, h, fill);
   rect(ctx, x, y - u, w, u, line);
   rect(ctx, x, y + h, w, u, line);
@@ -130,10 +139,24 @@ function icon(ctx: Ctx, name: string, x: number, y: number, scale = 1, ink = INK
 }
 
 /** 칸 단위로 채우는 진행 막대 */
-function bar(ctx: Ctx, x: number, y: number, w: number, h: number, ratio: number, cells: number, fill: string): void {
+function bar(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  ratio: number,
+  cells: number,
+  fill: string,
+): void {
   frame(ctx, x, y, w, h, PANEL2);
   const clamped = Math.min(1, Math.max(0, ratio));
-  const filled = clamped <= 0 ? 0 : clamped >= 1 ? cells : Math.min(cells - 1, Math.max(1, Math.round(clamped * cells)));
+  const filled =
+    clamped <= 0
+      ? 0
+      : clamped >= 1
+        ? cells
+        : Math.min(cells - 1, Math.max(1, Math.round(clamped * cells)));
   const cell = w / cells;
   for (let i = 0; i < filled; i += 1) {
     const x0 = Math.round(x + i * cell);
@@ -173,7 +196,15 @@ function badgeRow(ctx: Ctx, model: CardModel, x: number, y: number, max: number)
   if (rest > 0) text(ctx, `+${rest}`, x + 4 + shown.length * (size + gap), y + 6, 12, MUTED);
 }
 
-function stage(ctx: Ctx, model: CardModel, x: number, y: number, w: number, h: number, withBubble: boolean): void {
+function stage(
+  ctx: Ctx,
+  model: CardModel,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  withBubble: boolean,
+): void {
   frame(ctx, x, y, w, h, SKY);
   rect(ctx, x, y + h - 18, w, 18, GROUND);
   const pose = poseOf(model.look, { tick: 0 });
@@ -293,7 +324,12 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
   // 켠 항목과 뱃지: 남은 높이만큼만
   const rowsLeft = () => Math.floor((footerY - 4 - y) / 18);
   const wantBadges = model.badges.length > 0;
-  const factLines = packFacts(ctx, model.facts, inner, Math.max(0, rowsLeft() - (wantBadges && rowsLeft() > 1 ? 1 : 0)));
+  const factLines = packFacts(
+    ctx,
+    model.facts,
+    inner,
+    Math.max(0, rowsLeft() - (wantBadges && rowsLeft() > 1 ? 1 : 0)),
+  );
   for (const line of factLines) {
     text(ctx, line, left, y, 12, MUTED);
     y += 18;
@@ -319,10 +355,15 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
 
 /** 이미지가 막힌 메신저용 글자 카드(금액은 넣지 않는다) */
 export function textCard(model: CardModel, cells = 10): string {
-  const lines = [`[${model.siteName}] ${model.nickname} · ${model.formName}`, `${model.grade}급 ${model.step}호봉`];
+  const lines = [
+    `[${model.siteName}] ${model.nickname} · ${model.formName}`,
+    `${model.grade}급 ${model.step}호봉`,
+  ];
   if (model.raise) {
     const filled = Math.round(Math.min(1, Math.max(0, model.raise.ratio)) * cells);
-    lines.push(`다음 승급 ${'■'.repeat(filled)}${'□'.repeat(cells - filled)} ${Math.round(model.raise.ratio * 100)}% (${model.raise.dday})`);
+    lines.push(
+      `다음 승급 ${'■'.repeat(filled)}${'□'.repeat(cells - filled)} ${Math.round(model.raise.ratio * 100)}% (${model.raise.dday})`,
+    );
   }
   for (const fact of model.facts) {
     if (!fact.includes('봉급')) lines.push(fact);

@@ -87,7 +87,10 @@ test.describe('데이터 내려받기·불러오기', () => {
 
     const broken = tempFile('broken.json', SEED.slice(0, 200));
     const other = tempFile('other.json', JSON.stringify({ hello: 'world' }));
-    const newer = tempFile('newer.json', JSON.stringify({ ...JSON.parse(SEED), schemaVersion: 99 }));
+    const newer = tempFile(
+      'newer.json',
+      JSON.stringify({ ...JSON.parse(SEED), schemaVersion: 99 }),
+    );
 
     await page.getByRole('button', { name: '데이터 불러오기' }).click();
     const dialog = page.getByRole('dialog');

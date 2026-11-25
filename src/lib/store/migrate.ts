@@ -45,7 +45,13 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
         records.push({ id, date: item.date, hours: 4, kind: 'am', memo: '' });
       } else if (item.unit === 'hour') {
         const amount = typeof item.amount === 'number' ? Math.round(item.amount) : 1;
-        records.push({ id, date: item.date, hours: Math.min(8, Math.max(1, amount)), kind: 'hours', memo: '' });
+        records.push({
+          id,
+          date: item.date,
+          hours: Math.min(8, Math.max(1, amount)),
+          kind: 'hours',
+          memo: '',
+        });
       } else {
         records.push({ id, date: item.date, hours: 8, kind: 'day', memo: '' });
       }
@@ -54,7 +60,8 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
   const grantOverrideHours: Dict = {};
   if (isDict(data.leaveGrantDays)) {
     for (const [year, days] of Object.entries(data.leaveGrantDays)) {
-      if (typeof days === 'number' && Number.isFinite(days)) grantOverrideHours[year] = Math.round(days * 8);
+      if (typeof days === 'number' && Number.isFinite(days))
+        grantOverrideHours[year] = Math.round(days * 8);
     }
   }
   const achievements: Dict = {};
@@ -63,7 +70,8 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
       if (typeof id === 'string') achievements[id] = { at: exportedDay };
     }
   }
-  const theme = data.theme === 'light' || data.theme === 'dark' ? data.theme : ctx.defaultSettings.theme;
+  const theme =
+    data.theme === 'light' || data.theme === 'dark' ? data.theme : ctx.defaultSettings.theme;
   const createdAt = typeof data.createdAt === 'string' ? data.createdAt : ctx.exportedAt;
   return {
     profile: {
@@ -82,7 +90,12 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
     achievements,
     character: { seenForms: [], lastGrade: data.grade, lastStep: data.step },
     visits: { days: [], lastVisit: null },
-    meta: { createdAt, updatedAt: ctx.exportedAt, lastBackupAt: ctx.exportedAt, changesSinceBackup: 0 },
+    meta: {
+      createdAt,
+      updatedAt: ctx.exportedAt,
+      lastBackupAt: ctx.exportedAt,
+      changesSinceBackup: 0,
+    },
   };
 }
 
@@ -99,7 +112,11 @@ export type MigrateResult =
  * 겉봉(envelope)을 확인하고 data를 현재 버전 형식으로 바꾼다.
  * 결과 data는 아직 검증 전이므로 validateUserData를 거쳐야 한다.
  */
-export function migrateEnvelope(envelope: unknown, defaults: Settings, nowIso: string): MigrateResult {
+export function migrateEnvelope(
+  envelope: unknown,
+  defaults: Settings,
+  nowIso: string,
+): MigrateResult {
   if (!isDict(envelope)) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
   if (envelope.app !== APP_ID) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
   const version = envelope.schemaVersion;
@@ -125,7 +142,10 @@ export function migrateEnvelope(envelope: unknown, defaults: Settings, nowIso: s
     try {
       data = step(data, { defaultSettings: defaults, exportedAt });
     } catch {
-      return { ok: false, reason: `버전 ${v} 데이터를 변환하다 실패했습니다. 파일이 손상됐을 수 있습니다.` };
+      return {
+        ok: false,
+        reason: `버전 ${v} 데이터를 변환하다 실패했습니다. 파일이 손상됐을 수 있습니다.`,
+      };
     }
   }
   return { ok: true, data, fromVersion: version, migrated: version !== SCHEMA_VERSION };

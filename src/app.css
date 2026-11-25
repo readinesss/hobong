@@ -45,7 +45,8 @@
 
   --u: 3px;
   --font-body: 'Galmuri14', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  --font-cap: 'Galmuri11', 'Galmuri14', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-cap:
+    'Galmuri11', 'Galmuri14', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
 
   --tabbar-h: 60px;
   --rail-w: 0px;
@@ -81,9 +82,10 @@
   --stage-ground: #a7c2d2;
   --bubble: #ffffff;
   --frame:
-    0 calc(var(--u) * -1) 0 0 var(--line), 0 var(--u) 0 0 var(--line), calc(var(--u) * -1) 0 0 0 var(--line),
-    var(--u) 0 0 0 var(--line);
-  --drop: var(--u) calc(var(--u) * 2) 0 0 var(--shadow), calc(var(--u) * 2) var(--u) 0 0 var(--shadow);
+    0 calc(var(--u) * -1) 0 0 var(--line), 0 var(--u) 0 0 var(--line),
+    calc(var(--u) * -1) 0 0 0 var(--line), var(--u) 0 0 0 var(--line);
+  --drop:
+    var(--u) calc(var(--u) * 2) 0 0 var(--shadow), calc(var(--u) * 2) var(--u) 0 0 var(--shadow);
 }
 
 /* 야근 모드(어두운 테마) */

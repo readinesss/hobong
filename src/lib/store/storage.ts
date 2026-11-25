@@ -94,7 +94,12 @@ export function loadData(store: KeyValueStore, ctx: ParseContext): LoadResult {
   return { status: 'ok', data: parsed.data, migrated: parsed.migrated };
 }
 
-export function saveData(store: KeyValueStore, data: UserData, appVersion: string, nowIso: string): boolean {
+export function saveData(
+  store: KeyValueStore,
+  data: UserData,
+  appVersion: string,
+  nowIso: string,
+): boolean {
   return write(store, KEYS.data, serializeBackup(makeEnvelope(data, appVersion, nowIso)));
 }
 
@@ -105,7 +110,12 @@ export interface UndoSnapshot {
 }
 
 /** 덮어쓰기 직전 상태를 보관한다 */
-export function saveUndo(store: KeyValueStore, data: UserData, appVersion: string, nowIso: string): boolean {
+export function saveUndo(
+  store: KeyValueStore,
+  data: UserData,
+  appVersion: string,
+  nowIso: string,
+): boolean {
   return write(store, KEYS.undo, serializeBackup(makeEnvelope(data, appVersion, nowIso)));
 }
 

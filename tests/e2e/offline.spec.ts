@@ -14,24 +14,38 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
     await openApp(page);
     await onboard(page);
     for (const tab of TABS) {
-      await page.getByRole('navigation', { name: '화면 이동' }).getByRole('link', { name: tab }).click();
+      await page
+        .getByRole('navigation', { name: '화면 이동' })
+        .getByRole('link', { name: tab })
+        .click();
       await tick(page, 1500);
     }
     // 연가 기록, 카드 그리기까지 해 본다
-    await page.getByRole('navigation', { name: '화면 이동' }).getByRole('link', { name: '연가' }).click();
+    await page
+      .getByRole('navigation', { name: '화면 이동' })
+      .getByRole('link', { name: '연가' })
+      .click();
     await page.locator('#leave-entry').getByRole('button', { name: '오전 반일' }).click();
-    await page.getByRole('navigation', { name: '화면 이동' }).getByRole('link', { name: '카드' }).click();
+    await page
+      .getByRole('navigation', { name: '화면 이동' })
+      .getByRole('link', { name: '카드' })
+      .click();
     await tick(page, 1500);
 
-    const external = requests.filter((url) => !url.startsWith('data:') && !url.startsWith('blob:') && url !== APP_URL);
+    const external = requests.filter(
+      (url) => !url.startsWith('data:') && !url.startsWith('blob:') && url !== APP_URL,
+    );
     expect(external).toEqual([]);
     expect(requests.filter((url) => url === APP_URL)).toHaveLength(1);
     expect(errors).toEqual([]);
   });
 
-  test('빌드 결과는 파일 하나이고, 외부 통신을 막는 보안 정책(CSP)이 들어 있다', async ({ page }) => {
+  test('빌드 결과는 파일 하나이고, 외부 통신을 막는 보안 정책(CSP)이 들어 있다', async ({
+    page,
+  }) => {
     const html = readFileSync(join(ROOT, 'dist', 'index.html'), 'utf8');
-    const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
+    const csp =
+      /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("connect-src 'none'");
     expect(csp).toContain('font-src data:');

@@ -54,7 +54,9 @@
       </div>
       <p class="big earn"><Money value={earn.today} /></p>
       <p class="cap muted">
-        이번 달 <Money value={earn.month} />{!hidden && status.workday ? ` · 근무 1초에 약 ${earn.perSecond.toFixed(1)}원` : ''}
+        이번 달 <Money value={earn.month} />{!hidden && status.workday
+          ? ` · 근무 1초에 약 ${earn.perSecond.toFixed(1)}원`
+          : ''}
       </p>
     </div>
 
@@ -89,7 +91,8 @@
         {#if view.nextHoliday}
           <strong class="num">{formatDday(view.today, view.nextHoliday.date)}</strong>
           <span class="cap muted">
-            {view.nextHoliday.name} · {formatMonthDay(view.nextHoliday.date)}{view.nextHoliday.restDays >= 3
+            {view.nextHoliday.name} · {formatMonthDay(view.nextHoliday.date)}{view.nextHoliday
+              .restDays >= 3
               ? ` · ${view.nextHoliday.restDays}일 연휴`
               : ''}
           </span>
@@ -100,7 +103,8 @@
       </li>
     </ul>
     <p class="cap muted">
-      월 봉급을 이번 달 근무일 {formatNumber(earn.workdays)}일과 하루 근무시간에 나눠 근무시간 동안 쌓이는 것으로 본 추정치예요.
+      월 봉급을 이번 달 근무일 {formatNumber(earn.workdays)}일과 하루 근무시간에 나눠 근무시간 동안
+      쌓이는 것으로 본 추정치예요.
     </p>
   </div>
 </Win>

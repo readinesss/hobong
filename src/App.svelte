@@ -42,20 +42,23 @@
     const isTyping = (el: EventTarget | null) =>
       el instanceof HTMLElement &&
       (el.tagName === 'TEXTAREA' ||
-        (el.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button'].includes((el as HTMLInputElement).type)));
+        (el.tagName === 'INPUT' &&
+          !['checkbox', 'radio', 'file', 'button'].includes((el as HTMLInputElement).type)));
     const onFocusIn = (event: FocusEvent) => {
       if (!isTyping(event.target)) return;
       document.documentElement.setAttribute('data-typing', '');
       const el = event.target as HTMLElement;
       if (window.matchMedia('(max-width: 719px)').matches) {
         setTimeout(() => {
-          if (document.activeElement === el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          if (document.activeElement === el)
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 320);
       }
     };
     const onFocusOut = () => {
       setTimeout(() => {
-        if (!isTyping(document.activeElement)) document.documentElement.removeAttribute('data-typing');
+        if (!isTyping(document.activeElement))
+          document.documentElement.removeAttribute('data-typing');
       }, 60);
     };
     document.addEventListener('focusin', onFocusIn);
@@ -66,7 +69,8 @@
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       if (!app.data || document.documentElement.hasAttribute('data-modal')) return;
       const target = event.target;
-      if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+        return;
       const index = Number(event.key) - 1;
       const tab = TABS[index];
       if (Number.isInteger(index) && tab) {
@@ -92,7 +96,9 @@
   });
   $effect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1a1c2c' : '#29366f');
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', dark ? '#1a1c2c' : '#29366f');
   });
 
   // 움직임 줄이기
@@ -136,7 +142,12 @@
       if (fresh.length === 0 && !removed) return;
       app.recordAchievements(earned);
       if (fresh.length > 3) {
-        app.toast(`뱃지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`, 'good', 'icon-medal', 5000);
+        app.toast(
+          `뱃지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`,
+          'good',
+          'icon-medal',
+          5000,
+        );
       } else {
         for (const id of fresh) {
           const badge = view.badges.find((b) => b.id === id);
@@ -184,7 +195,9 @@
           <span class="cap sub">공무원 상태창</span>
         </div>
       </div>
-      <span class="tag gold basis" title="규정 데이터 기준 연도">{view.salary.tableYear}년 기준</span>
+      <span class="tag gold basis" title="규정 데이터 기준 연도">
+        {view.salary.tableYear}년 기준
+      </span>
     </header>
 
     <nav class="tabs no-print" aria-label="화면 이동">
@@ -224,8 +237,10 @@
       {/if}
       <footer class="foot cap muted">
         <p>
-          {view.rules.target.label} 기준 · 규정 확인일 {view.rules.meta.verifiedAt.replaceAll('-', '. ')}. · 공식 인사·급여 시스템의
-          기록이 기준이며 이 화면은 참고용입니다.
+          {view.rules.target.label} 기준 · 규정 확인일 {view.rules.meta.verifiedAt.replaceAll(
+            '-',
+            '. ',
+          )}. · 공식 인사·급여 시스템의 기록이 기준이며 이 화면은 참고용입니다.
         </p>
       </footer>
     </main>
@@ -299,7 +314,8 @@
     width: 100%;
     max-width: 1320px;
     margin: 0 auto;
-    padding: 12px calc(9px + var(--safe-r)) calc(var(--tabbar-h) + var(--safe-b) + 24px) calc(9px + var(--safe-l));
+    padding: 12px calc(9px + var(--safe-r)) calc(var(--tabbar-h) + var(--safe-b) + 24px)
+      calc(9px + var(--safe-l));
     outline: none;
   }
   .foot {

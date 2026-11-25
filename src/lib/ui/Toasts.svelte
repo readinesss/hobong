@@ -20,7 +20,12 @@
           {toast.action.label}
         </button>
       {/if}
-      <button type="button" class="btn ghost small" onclick={() => app.dismissToast(toast.id)} aria-label="알림 닫기">
+      <button
+        type="button"
+        class="btn ghost small"
+        onclick={() => app.dismissToast(toast.id)}
+        aria-label="알림 닫기"
+      >
         <Icon name="icon-close" />
       </button>
     </div>

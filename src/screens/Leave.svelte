@@ -65,7 +65,13 @@
 
   function add(kind: LeaveKind) {
     const entry = { date: selected, kind, hours: kind === 'hours' ? hours : 0 };
-    const problem = checkNewLeave(rules, calendar, view.data.leave.records, view.profile.hireDate, entry);
+    const problem = checkNewLeave(
+      rules,
+      calendar,
+      view.data.leave.records,
+      view.profile.hireDate,
+      entry,
+    );
     if (problem) {
       message = problem;
       return;
@@ -155,186 +161,277 @@
 
 <div class="page">
   <div class="col">
-  <Win title="올해 연가" icon="icon-palm" id="leave-summary" area="summary">
-    {#snippet aside()}{leave.year}년{/snippet}
-    <div class="stack wide">
-      <div class="kv">
-        <span>남은 연가</span>
-        <strong class="big" class:warn={leave.remainingHours < 0}>{formatLeaveHours(leave.remainingHours, hpd)}</strong>
-      </div>
-      <Progress
-        value={leave.rate}
-        label="올해 연가 사용률"
-        valueText="{Math.round(leave.rate * 100)}% 사용"
-        cells={Math.max(4, Math.min(24, Math.round(leave.grantedHours / hpd)))}
-      />
-      <dl class="stack">
+    <Win title="올해 연가" icon="icon-palm" id="leave-summary" area="summary">
+      {#snippet aside()}{leave.year}년{/snippet}
+      <div class="stack wide">
         <div class="kv">
-          <dt>부여</dt>
-          <dd>
-            {formatLeaveHours(leave.grantedHours, hpd)}
-            <span class="cap muted">{leave.overridden ? '(직접 수정)' : '(재직기간으로 계산)'}</span>
-          </dd>
+          <span>남은 연가</span>
+          <strong class="big" class:warn={leave.remainingHours < 0}>
+            {formatLeaveHours(leave.remainingHours, hpd)}
+          </strong>
         </div>
-        <div class="kv">
-          <dt>사용</dt>
-          <dd>
-            {formatLeaveHours(leave.usedHours, hpd)}
-            {#if leave.plannedHours > 0}<span class="cap muted">(예정 {formatLeaveHours(leave.plannedHours, hpd)} 포함)</span>{/if}
-          </dd>
-        </div>
-        <div class="kv"><dt>사용률</dt><dd class="num">{Math.round(leave.rate * 100)}%</dd></div>
-      </dl>
-      {#if leave.nextChange}
-        <p class="note">
-          {formatKorean(leave.nextChange.date)}부터 재직기간이 늘어 올해 연가가 {formatLeaveHours(leave.nextChange.hours, hpd)}로
-          늘어요.
-        </p>
-      {/if}
-      {#if leave.grantedHours === 0 && !leave.overridden}
-        <p class="note">임용 후 1개월이 지나면 연가가 생겨요.</p>
-      {/if}
-      {#if leave.remainingHours < 0}
-        <p class="note warn">
-          부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요(복무규정 제16조).
-        </p>
-      {/if}
-      <div class="btn-row">
-        <button type="button" class="btn small" onclick={openGrant}>
-          <Icon name="icon-pencil" /> 부여 일수 고치기
-        </button>
-      </div>
-      <p class="cap muted">가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.</p>
-    </div>
-  </Win>
-
-  <section class="win" id="leave-entry" style="grid-area:entry" bind:this={entryEl} aria-labelledby="leave-entry-title">
-    <header class="win-title">
-      <Icon name="icon-plus" />
-      <h2 id="leave-entry-title">연가 기록하기</h2>
-    </header>
-    <div class="win-body stack wide">
-      <div class="picked">
-        <span class="muted">고른 날</span>
-        <strong>{selParts.m}월 {selParts.d}일 ({weekdayName(selected)})</strong>
-        {#if selected === view.today}<span class="tag blue">오늘</span>{:else if selected > view.today}<span class="tag">예정</span>{/if}
-        {#if selectedHours > 0}<span class="tag gold">{formatLeaveHours(selectedHours, hpd)} 기록됨</span>{/if}
-      </div>
-      {#if !selectedIsWorkday}
-        <p class="note">
-          {calendar.holidayName(selected) ?? '토요일·일요일'}은(는) 쉬는 날이라 연가를 쓰지 않아도 돼요. 아래 달력에서 다른 날을 골라 주세요.
-        </p>
-      {/if}
-      <div class="units">
-        <button type="button" class="btn primary" onclick={() => add('day')} disabled={!selectedIsWorkday}>1일</button>
-        <button type="button" class="btn" onclick={() => add('am')} disabled={!selectedIsWorkday}>오전 반일</button>
-        <button type="button" class="btn" onclick={() => add('pm')} disabled={!selectedIsWorkday}>오후 반일</button>
-      </div>
-      <div class="hours">
-        <Stepper id="leave-hours" label="시간 연가" bind:value={hours} min={1} max={hpd - 1} unit="시간" />
-        <button type="button" class="btn" onclick={() => add('hours')} disabled={!selectedIsWorkday}>{hours}시간 기록</button>
-      </div>
-      <div class="field">
-        <label for="leave-memo">메모 <span class="cap muted">선택</span></label>
-        <input
-          id="leave-memo"
-          class="input"
-          type="text"
-          maxlength={LIMITS.memoMax}
-          autocomplete="off"
-          placeholder="예: 가족 여행"
-          bind:value={memo}
+        <Progress
+          value={leave.rate}
+          label="올해 연가 사용률"
+          valueText="{Math.round(leave.rate * 100)}% 사용"
+          cells={Math.max(4, Math.min(24, Math.round(leave.grantedHours / hpd)))}
         />
+        <dl class="stack">
+          <div class="kv">
+            <dt>부여</dt>
+            <dd>
+              {formatLeaveHours(leave.grantedHours, hpd)}
+              <span class="cap muted">
+                {leave.overridden ? '(직접 수정)' : '(재직기간으로 계산)'}
+              </span>
+            </dd>
+          </div>
+          <div class="kv">
+            <dt>사용</dt>
+            <dd>
+              {formatLeaveHours(leave.usedHours, hpd)}
+              {#if leave.plannedHours > 0}<span class="cap muted">
+                  (예정 {formatLeaveHours(leave.plannedHours, hpd)} 포함)
+                </span>{/if}
+            </dd>
+          </div>
+          <div class="kv">
+            <dt>사용률</dt>
+            <dd class="num">{Math.round(leave.rate * 100)}%</dd>
+          </div>
+        </dl>
+        {#if leave.nextChange}
+          <p class="note">
+            {formatKorean(leave.nextChange.date)}부터 재직기간이 늘어 올해 연가가 {formatLeaveHours(
+              leave.nextChange.hours,
+              hpd,
+            )}로 늘어요.
+          </p>
+        {/if}
+        {#if leave.grantedHours === 0 && !leave.overridden}
+          <p class="note">임용 후 1개월이 지나면 연가가 생겨요.</p>
+        {/if}
+        {#if leave.remainingHours < 0}
+          <p class="note warn">
+            부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요(복무규정
+            제16조).
+          </p>
+        {/if}
+        <div class="btn-row">
+          <button type="button" class="btn small" onclick={openGrant}>
+            <Icon name="icon-pencil" /> 부여 일수 고치기
+          </button>
+        </div>
+        <p class="cap muted">가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.</p>
       </div>
-      {#if message}<p class="note warn" role="alert">{message}</p>{/if}
-      <div class="btn-row">
-        <button type="button" class="btn small" onclick={() => select(firstWorkdayFrom(view.today))}>오늘로</button>
-        <button type="button" class="btn small" onclick={openRange}><Icon name="icon-calendar" /> 여러 날 한꺼번에</button>
+    </Win>
+
+    <section
+      class="win"
+      id="leave-entry"
+      style="grid-area:entry"
+      bind:this={entryEl}
+      aria-labelledby="leave-entry-title"
+    >
+      <header class="win-title">
+        <Icon name="icon-plus" />
+        <h2 id="leave-entry-title">연가 기록하기</h2>
+      </header>
+      <div class="win-body stack wide">
+        <div class="picked">
+          <span class="muted">고른 날</span>
+          <strong>{selParts.m}월 {selParts.d}일 ({weekdayName(selected)})</strong>
+          {#if selected === view.today}<span class="tag blue">
+              오늘
+            </span>{:else if selected > view.today}<span class="tag">예정</span>{/if}
+          {#if selectedHours > 0}<span class="tag gold">
+              {formatLeaveHours(selectedHours, hpd)} 기록됨
+            </span>{/if}
+        </div>
+        {#if !selectedIsWorkday}
+          <p class="note">
+            {calendar.holidayName(selected) ?? '토요일·일요일'}은(는) 쉬는 날이라 연가를 쓰지 않아도
+            돼요. 아래 달력에서 다른 날을 골라 주세요.
+          </p>
+        {/if}
+        <div class="units">
+          <button
+            type="button"
+            class="btn primary"
+            onclick={() => add('day')}
+            disabled={!selectedIsWorkday}
+          >
+            1일
+          </button>
+          <button type="button" class="btn" onclick={() => add('am')} disabled={!selectedIsWorkday}>
+            오전 반일
+          </button>
+          <button type="button" class="btn" onclick={() => add('pm')} disabled={!selectedIsWorkday}>
+            오후 반일
+          </button>
+        </div>
+        <div class="hours">
+          <Stepper
+            id="leave-hours"
+            label="시간 연가"
+            bind:value={hours}
+            min={1}
+            max={hpd - 1}
+            unit="시간"
+          />
+          <button
+            type="button"
+            class="btn"
+            onclick={() => add('hours')}
+            disabled={!selectedIsWorkday}
+          >
+            {hours}시간 기록
+          </button>
+        </div>
+        <div class="field">
+          <label for="leave-memo">메모 <span class="cap muted">선택</span></label>
+          <input
+            id="leave-memo"
+            class="input"
+            type="text"
+            maxlength={LIMITS.memoMax}
+            autocomplete="off"
+            placeholder="예: 가족 여행"
+            bind:value={memo}
+          />
+        </div>
+        {#if message}<p class="note warn" role="alert">{message}</p>{/if}
+        <div class="btn-row">
+          <button
+            type="button"
+            class="btn small"
+            onclick={() => select(firstWorkdayFrom(view.today))}
+          >
+            오늘로
+          </button>
+          <button type="button" class="btn small" onclick={openRange}>
+            <Icon name="icon-calendar" /> 여러 날 한꺼번에
+          </button>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
   </div>
   <div class="col">
-  <Win title="달력" icon="icon-calendar" id="leave-calendar" area="calendar">
-    <LeaveCalendar {month} {selected} onselect={select} onmonth={(m) => (month = m)} />
-    {#if listYear !== leave.year}
-      <p class="note">{listYear}년 날짜의 기록은 {listYear}년 장부에 들어가요. 위의 남은 연가는 {leave.year}년 기준이에요.</p>
-    {/if}
-  </Win>
+    <Win title="달력" icon="icon-calendar" id="leave-calendar" area="calendar">
+      <LeaveCalendar {month} {selected} onselect={select} onmonth={(m) => (month = m)} />
+      {#if listYear !== leave.year}
+        <p class="note">
+          {listYear}년 날짜의 기록은 {listYear}년 장부에 들어가요. 위의 남은 연가는 {leave.year}년
+          기준이에요.
+        </p>
+      {/if}
+    </Win>
 
-  <Win title="징검다리 찾기" icon="icon-bridge" id="leave-bridges" area="bridges">
-    {#if bridges.length === 0}
-      <p class="muted">가까운 징검다리 연휴가 없어요.</p>
-    {:else}
-      <ul class="bridges">
-        {#each bridges as bridge (bridge.leaveDates.join())}
-          <li class="well">
-            <div class="kv">
-              <strong>{bridge.totalDays}일 연휴</strong>
-              <span class="cap muted">{formatMonthDay(bridge.from)} ~ {formatMonthDay(bridge.to)}</span>
-            </div>
-            <p class="cap muted">
-              {bridge.leaveDates.map((d) => formatMonthDay(d)).join(', ')}에 연가 {bridge.leaveDates.length}일 · {bridge.holidayNames.join(', ')}
-            </p>
-            {#if bridge.alreadyTaken}
-              <span class="tag gold">이미 기록함</span>
-            {:else}
-              <button type="button" class="btn small" onclick={() => pickBridge(bridge.leaveDates)}>이 날 고르기</button>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    <p class="cap muted">공휴일과 주말 사이에 낀 평일(1~2일)을 찾아요.</p>
-  </Win>
+    <Win title="징검다리 찾기" icon="icon-bridge" id="leave-bridges" area="bridges">
+      {#if bridges.length === 0}
+        <p class="muted">가까운 징검다리 연휴가 없어요.</p>
+      {:else}
+        <ul class="bridges">
+          {#each bridges as bridge (bridge.leaveDates.join())}
+            <li class="well">
+              <div class="kv">
+                <strong>{bridge.totalDays}일 연휴</strong>
+                <span class="cap muted">
+                  {formatMonthDay(bridge.from)} ~ {formatMonthDay(bridge.to)}
+                </span>
+              </div>
+              <p class="cap muted">
+                {bridge.leaveDates.map((d) => formatMonthDay(d)).join(', ')}에 연가 {bridge
+                  .leaveDates.length}일 · {bridge.holidayNames.join(', ')}
+              </p>
+              {#if bridge.alreadyTaken}
+                <span class="tag gold">이미 기록함</span>
+              {:else}
+                <button
+                  type="button"
+                  class="btn small"
+                  onclick={() => pickBridge(bridge.leaveDates)}
+                >
+                  이 날 고르기
+                </button>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <p class="cap muted">공휴일과 주말 사이에 낀 평일(1~2일)을 찾아요.</p>
+    </Win>
   </div>
   <div class="col c3">
-  <Win title="기록" icon="icon-document" id="leave-records" area="records">
-    {#snippet aside()}{listYear}년 · {yearRecords.length}건{/snippet}
-    {#if yearRecords.length === 0}
-      <p class="muted">{listYear}년 기록이 아직 없어요. 달력에서 날짜를 고르고 "1일"을 눌러 보세요.</p>
-    {:else}
-      <ul class="records">
-        {#each yearRecords as record (record.id)}
-          <li>
-            <div class="grow stack">
-              <span>
-                {formatKorean(record.date)}
-                {#if record.date > view.today}<span class="tag">예정</span>{/if}
-              </span>
-              <span class="cap muted">{kindLabel(record.kind, record.hours)}{record.memo ? ` · ${record.memo}` : ''}</span>
-            </div>
-            <button type="button" class="btn small" onclick={() => remove(record.id)} aria-label="{formatMonthDay(record.date)} 기록 지우기">
-              <Icon name="icon-trash" />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </Win>
+    <Win title="기록" icon="icon-document" id="leave-records" area="records">
+      {#snippet aside()}{listYear}년 · {yearRecords.length}건{/snippet}
+      {#if yearRecords.length === 0}
+        <p class="muted">
+          {listYear}년 기록이 아직 없어요. 달력에서 날짜를 고르고 "1일"을 눌러 보세요.
+        </p>
+      {:else}
+        <ul class="records">
+          {#each yearRecords as record (record.id)}
+            <li>
+              <div class="grow stack">
+                <span>
+                  {formatKorean(record.date)}
+                  {#if record.date > view.today}<span class="tag">예정</span>{/if}
+                </span>
+                <span class="cap muted">
+                  {kindLabel(record.kind, record.hours)}{record.memo ? ` · ${record.memo}` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                class="btn small"
+                onclick={() => remove(record.id)}
+                aria-label="{formatMonthDay(record.date)} 기록 지우기"
+              >
+                <Icon name="icon-trash" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </Win>
 
-  <Win title="월별 사용" icon="icon-list" id="leave-months" area="months">
-    {#snippet aside()}{leave.year}년{/snippet}
-    <div class="months" role="img" aria-label="월별 연가 사용. {leave.byMonth.map((h, i) => `${i + 1}월 ${formatLeaveHours(h, hpd)}`).join(', ')}">
-      {#each leave.byMonth as h, i (i)}
-        <div class="m">
-          <span class="cap val">{h > 0 ? (h % hpd === 0 ? h / hpd : (h / hpd).toFixed(1)) : ''}</span>
-          <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
-          <span class="cap muted">{i + 1}</span>
-        </div>
-      {/each}
-    </div>
-    <p class="cap muted">단위: 일. 가장 많이 쓴 달은 {monthName(leave.byMonth.indexOf(Math.max(...leave.byMonth)))}{Math.max(...leave.byMonth) === 0 ? ' — 아직 없어요' : ''}.</p>
-  </Win>
+    <Win title="월별 사용" icon="icon-list" id="leave-months" area="months">
+      {#snippet aside()}{leave.year}년{/snippet}
+      <div
+        class="months"
+        role="img"
+        aria-label="월별 연가 사용. {leave.byMonth
+          .map((h, i) => `${i + 1}월 ${formatLeaveHours(h, hpd)}`)
+          .join(', ')}"
+      >
+        {#each leave.byMonth as h, i (i)}
+          <div class="m">
+            <span class="cap val">
+              {h > 0 ? (h % hpd === 0 ? h / hpd : (h / hpd).toFixed(1)) : ''}
+            </span>
+            <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
+            <span class="cap muted">{i + 1}</span>
+          </div>
+        {/each}
+      </div>
+      <p class="cap muted">
+        단위: 일. 가장 많이 쓴 달은 {monthName(
+          leave.byMonth.indexOf(Math.max(...leave.byMonth)),
+        )}{Math.max(...leave.byMonth) === 0 ? ' — 아직 없어요' : ''}.
+      </p>
+    </Win>
   </div>
   <section class="about">
     <p class="note">
-      공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요. 연가 일수는 재직기간으로만 계산하고(복무규정 제15조),
-      휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
+      공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요. 연가 일수는
+      재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
     </p>
     <p class="note">
-      연가보상비 1일 단가: {view.data.settings.hideAmounts ? '●●,●●●원' : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × 86% ÷ 30,
-      수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관 방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
+      연가보상비 1일 단가: {view.data.settings.hideAmounts
+        ? '●●,●●●원'
+        : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × 86% ÷ 30, 수당규정 제18조의5). 보상 일수와
+      지급 여부는 권장연가 등 기관 방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
     </p>
   </section>
 </div>
@@ -342,10 +439,20 @@
 {#if showGrant}
   <Modal title="올해 부여 일수 고치기" icon="icon-pencil" onclose={() => (showGrant = false)}>
     <div class="stack wide">
-      <p>가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 e-사람에 나온 일수를 그대로 넣어 주세요.</p>
+      <p>
+        가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 e-사람에
+        나온 일수를 그대로 넣어 주세요.
+      </p>
       <div class="grant">
         <Stepper id="grant-days" label="일" bind:value={grantDays} min={0} max={60} unit="일" />
-        <Stepper id="grant-hours" label="시간" bind:value={grantHours} min={0} max={hpd - 1} unit="시간" />
+        <Stepper
+          id="grant-hours"
+          label="시간"
+          bind:value={grantHours}
+          min={0}
+          max={hpd - 1}
+          unit="시간"
+        />
       </div>
       <p class="cap muted">재직기간으로 계산한 값: {formatLeaveHours(leave.autoHours, hpd)}</p>
     </div>
@@ -362,18 +469,29 @@
   <Modal title="여러 날 한꺼번에" icon="icon-calendar" onclose={() => (showRange = false)}>
     <div class="stack wide">
       <DateInput id="range-from" label="첫날" bind:value={rangeFrom} />
-      <DateInput id="range-to" label="마지막 날" bind:value={rangeTo} min={rangeFrom || undefined} />
+      <DateInput
+        id="range-to"
+        label="마지막 날"
+        bind:value={rangeTo}
+        min={rangeFrom || undefined}
+      />
       {#if rangeFrom && rangeTo && rangeTo < rangeFrom}
         <p class="note warn" role="alert">마지막 날이 첫날보다 앞이에요.</p>
       {:else if rangeFrom && rangeTo}
         <p class="note">
-          토요일·일요일·공휴일과 이미 기록한 날은 빼고 <strong>{rangeDays.length}일</strong>을 1일 연가로 기록해요.
+          토요일·일요일·공휴일과 이미 기록한 날은 빼고 <strong>{rangeDays.length}일</strong>을 1일
+          연가로 기록해요.
         </p>
       {/if}
     </div>
     {#snippet actions()}
       <button type="button" class="btn" onclick={() => (showRange = false)}>취소</button>
-      <button type="button" class="btn primary" onclick={saveRange} disabled={rangeDays.length === 0}>
+      <button
+        type="button"
+        class="btn primary"
+        onclick={saveRange}
+        disabled={rangeDays.length === 0}
+      >
         {rangeDays.length}일 기록
       </button>
     {/snippet}

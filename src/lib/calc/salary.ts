@@ -74,10 +74,19 @@ export interface RaiseInfo {
 }
 
 /** 다음 정기승급(호봉 승급)으로 오르는 봉급. 최고 호봉이면 null */
-export function nextStepRaise(rules: RulesProvider, profile: PayProfile, today: Ymd): RaiseInfo | null {
+export function nextStepRaise(
+  rules: RulesProvider,
+  profile: PayProfile,
+  today: Ymd,
+): RaiseInfo | null {
   const now = salaryOn(rules, profile, today);
   const r = rules(yearOf(today));
-  const date = nextRaiseDate(profile, today, maxStepOf(r.salary, profile.grade), r.stepRaise.periodMonths);
+  const date = nextRaiseDate(
+    profile,
+    today,
+    maxStepOf(r.salary, profile.grade),
+    r.stepRaise.periodMonths,
+  );
   if (!date) return null;
   const after = salaryOn(rules, profile, date);
   // 같은 봉급표 안에서의 차이를 보여준다(연도가 바뀌어도 인상률은 알 수 없으므로).
@@ -135,7 +144,11 @@ function sumSalary(
  * 과거 봉급표, 승진 전 직급, 휴직·감액 기간은 반영하지 않는다.
  * 월 중 임용·월 중 승급은 그 달의 일수로 일할계산한다(보수규정 제22조).
  */
-export function cumulativeSalary(rules: RulesProvider, profile: PayProfile, today: Ymd): CumulativeSalary {
+export function cumulativeSalary(
+  rules: RulesProvider,
+  profile: PayProfile,
+  today: Ymd,
+): CumulativeSalary {
   const r = rules(yearOf(today));
   const total = sumSalary(r.salary, r.stepRaise.periodMonths, profile, profile.hireDate, today);
   return {

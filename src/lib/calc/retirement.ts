@@ -47,5 +47,11 @@ export function careerProgress(
   const daysLeft = Math.max(0, diffDays(today, retireDate));
   const retired = today > retireDate;
   const ratio = Math.min(1, Math.max(0, (elapsed + fractionOfToday) / totalDays));
-  return { daysServed: Math.min(daysServed, totalDays), daysLeft, totalDays, ratio: retired ? 1 : ratio, retired };
+  return {
+    daysServed: Math.min(daysServed, totalDays),
+    daysLeft,
+    totalDays,
+    ratio: retired ? 1 : ratio,
+    retired,
+  };
 }

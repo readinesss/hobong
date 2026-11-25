@@ -14,7 +14,8 @@
 
 {#if !app.persistent}
   <p class="note warn banner" role="status">
-    이 브라우저에서는 저장이 되지 않아요(사생활 보호 창이거나 정책으로 막힘). 창을 닫기 전에 설정에서 데이터를 내려받아 주세요.
+    이 브라우저에서는 저장이 되지 않아요(사생활 보호 창이거나 정책으로 막힘). 창을 닫기 전에
+    설정에서 데이터를 내려받아 주세요.
   </p>
 {:else if app.saveFailed}
   <p class="note warn banner" role="alert">
@@ -24,18 +25,23 @@
 
 {#if view.holidayDataMissing}
   <p class="note banner" role="status">
-    {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 호봉을 최신 버전으로 바꿔 주세요.
+    {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 호봉을 최신
+    버전으로 바꿔 주세요.
   </p>
 {/if}
 
 {#if showNudge}
   <div class="note banner nudge" role="status">
     <p>
-      {neverBackedUp ? '아직 데이터를 내려받은 적이 없어요.' : `마지막으로 내려받은 뒤 ${changes}번 바뀌었어요.`}
+      {neverBackedUp
+        ? '아직 데이터를 내려받은 적이 없어요.'
+        : `마지막으로 내려받은 뒤 ${changes}번 바뀌었어요.`}
       업무용 PC는 브라우저 저장소가 지워질 수 있으니 파일로 보관해 두세요.
     </p>
     <div class="btn-row">
-      <button type="button" class="btn small primary" onclick={() => nav.go('settings')}>내려받으러 가기</button>
+      <button type="button" class="btn small primary" onclick={() => nav.go('settings')}>
+        내려받으러 가기
+      </button>
       <button type="button" class="btn small" onclick={() => (dismissed = true)}>나중에</button>
     </div>
   </div>

@@ -6,9 +6,22 @@ import { addDays, diffDays, todayYmd, yearOf, type Ymd } from '../calc/date.ts';
 import { maxStepOf } from '../calc/salary.ts';
 import { stepOn } from '../calc/step.ts';
 import { rulesFor } from '../rules/index.ts';
-import { makeEnvelope, parseBackup, serializeBackup, type ParseContext, type ParseResult } from '../store/backup.ts';
+import {
+  makeEnvelope,
+  parseBackup,
+  serializeBackup,
+  type ParseContext,
+  type ParseResult,
+} from '../store/backup.ts';
 import { defaultSettings, newUserData } from '../store/defaults.ts';
-import type { Grade, LeaveKind, LeaveRecord, Profile, Settings, UserData } from '../store/schema.ts';
+import type {
+  Grade,
+  LeaveKind,
+  LeaveRecord,
+  Profile,
+  Settings,
+  UserData,
+} from '../store/schema.ts';
 import {
   clearAll,
   clearUndo,
@@ -56,7 +69,9 @@ export interface Celebration {
 function newId(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 12);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0'))
+    .join('')
+    .slice(0, 12);
 }
 
 class AppStore {
@@ -116,7 +131,12 @@ class AppStore {
 
   #persist(): void {
     if (!this.#store || !this.data) return;
-    const ok = saveData(this.#store, $state.snapshot(this.data) as UserData, APP_VERSION, new Date().toISOString());
+    const ok = saveData(
+      this.#store,
+      $state.snapshot(this.data) as UserData,
+      APP_VERSION,
+      new Date().toISOString(),
+    );
     this.saveFailed = !ok;
   }
 
@@ -149,7 +169,8 @@ class AppStore {
       if (!d.visits.days.includes(today)) {
         d.visits.days.push(today);
         d.visits.days.sort();
-        if (d.visits.days.length > LIMITS.maxVisitDays) d.visits.days.splice(0, d.visits.days.length - LIMITS.maxVisitDays);
+        if (d.visits.days.length > LIMITS.maxVisitDays)
+          d.visits.days.splice(0, d.visits.days.length - LIMITS.maxVisitDays);
       }
     }, false);
   }
@@ -164,7 +185,12 @@ class AppStore {
     const now = new Date();
     const today = todayYmd(now);
     const rules = rulesFor(yearOf(today));
-    const data = newUserData(profile, { ...defaultSettings(rules), ...settings }, now.toISOString(), today);
+    const data = newUserData(
+      profile,
+      { ...defaultSettings(rules), ...settings },
+      now.toISOString(),
+      today,
+    );
     data.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.grade));
     this.data = data;
     this.#persist();
@@ -205,7 +231,13 @@ class AppStore {
     if (!data || this.celebration) return;
     const { lastGrade, lastStep } = data.character;
     if (grade === lastGrade && step > lastStep) {
-      this.celebration = { kind: 'step', fromGrade: lastGrade, fromStep: lastStep, toGrade: grade, toStep: step };
+      this.celebration = {
+        kind: 'step',
+        fromGrade: lastGrade,
+        fromStep: lastStep,
+        toGrade: grade,
+        toStep: step,
+      };
     } else if (grade !== lastGrade || step !== lastStep) {
       // 직급이 바뀌었거나 호봉이 내려간 경우(직접 수정)는 조용히 맞춘다.
       this.acknowledgeGrowth(grade, step);
@@ -234,7 +266,9 @@ class AppStore {
         };
         d.leave.records.push(record);
       }
-      d.leave.records.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
+      d.leave.records.sort((a, b) =>
+        a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1,
+      );
     });
   }
 
@@ -252,7 +286,9 @@ class AppStore {
     this.commit((d) => {
       if (d.leave.records.some((r) => r.id === record.id)) return;
       d.leave.records.push(record);
-      d.leave.records.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
+      d.leave.records.sort((a, b) =>
+        a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1,
+      );
     });
   }
 
@@ -294,7 +330,9 @@ class AppStore {
   /** 백업 파일 내용. 내려받기에 성공하면 markBackedUp을 부른다 */
   exportText(): string {
     if (!this.data) return '';
-    return serializeBackup(makeEnvelope($state.snapshot(this.data) as UserData, APP_VERSION, new Date().toISOString()));
+    return serializeBackup(
+      makeEnvelope($state.snapshot(this.data) as UserData, APP_VERSION, new Date().toISOString()),
+    );
   }
 
   markBackedUp(): void {
@@ -353,7 +391,13 @@ class AppStore {
 
   // ── 알림 ─────────────────────────────────────────────────────────────
 
-  toast(text: string, kind: Toast['kind'] = 'info', icon?: string, ms = 3200, action?: ToastAction): void {
+  toast(
+    text: string,
+    kind: Toast['kind'] = 'info',
+    icon?: string,
+    ms = 3200,
+    action?: ToastAction,
+  ): void {
     const id = (this.#toastSeq += 1);
     this.toasts.push({ id, text, kind, icon, action });
     if (this.toasts.length > 4) this.toasts.splice(0, this.toasts.length - 4);

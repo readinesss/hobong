@@ -234,7 +234,8 @@ export function checkNewLeave(
     return '같은 날에 같은 종류의 연가가 이미 있어요.';
   }
   const total = sameDay.reduce((sum, r) => sum + r.hours, 0) + hours;
-  if (total > perDay) return `하루에 ${perDay}시간을 넘길 수 없어요. (이미 ${total - hours}시간 기록됨)`;
+  if (total > perDay)
+    return `하루에 ${perDay}시간을 넘길 수 없어요. (이미 ${total - hours}시간 기록됨)`;
   return null;
 }
 

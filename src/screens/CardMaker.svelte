@@ -1,11 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { canvasToBlob, copyImage, copyText, detectCapabilities, downloadBlob, shareFile } from '../lib/app/files.ts';
+  import {
+    canvasToBlob,
+    copyImage,
+    copyText,
+    detectCapabilities,
+    downloadBlob,
+    shareFile,
+  } from '../lib/app/files.ts';
   import { formatDday, formatNumber, formatSpan, formatWon } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
-  import { CARD_SIZES, drawCard, ensureCardFonts, EXPORT_SCALE, textCard, type CardModel } from '../lib/card/render.ts';
+  import {
+    CARD_SIZES,
+    drawCard,
+    ensureCardFonts,
+    EXPORT_SCALE,
+    textCard,
+    type CardModel,
+  } from '../lib/card/render.ts';
   import { resolveLook } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/config.ts';
@@ -41,9 +55,15 @@
         ? { ratio: view.raiseProgress.ratio, dday: formatDday(view.today, view.nextRaise.date) }
         : null,
     facts: [
-      ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })} · ${formatNumber(view.career.daysServed)}일째`] : []),
+      ...(card.showTenure
+        ? [
+            `재직 ${formatSpan({ ...view.tenure, days: 0 })} · ${formatNumber(view.career.daysServed)}일째`,
+          ]
+        : []),
       ...(card.showRetirement
-        ? [`정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}%)`]
+        ? [
+            `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}%)`,
+          ]
         : []),
       ...(card.showSalary ? [`월 봉급 ${formatWon(view.salary.amount)}`] : []),
     ],
@@ -140,7 +160,12 @@
         app.toast('카드를 복사했어요. 메신저에 붙여넣어 보세요.', 'good', 'icon-copy');
         done();
       } else {
-        app.toast('이 브라우저에서는 이미지 복사가 막혀 있어요. 저장을 이용해 주세요.', 'warn', 'icon-warn', 5000);
+        app.toast(
+          '이 브라우저에서는 이미지 복사가 막혀 있어요. 저장을 이용해 주세요.',
+          'warn',
+          'icon-warn',
+          5000,
+        );
       }
     } finally {
       busy = false;
@@ -220,12 +245,20 @@
       <fieldset class="stack">
         <legend class="muted">카드에 담을 것</legend>
         <label class="switch">
-          <input type="checkbox" checked={card.showBadges} onchange={(e) => setCard({ showBadges: e.currentTarget.checked })} />
+          <input
+            type="checkbox"
+            checked={card.showBadges}
+            onchange={(e) => setCard({ showBadges: e.currentTarget.checked })}
+          />
           <span class="box" aria-hidden="true"></span>
           <span>뱃지</span>
         </label>
         <label class="switch">
-          <input type="checkbox" checked={card.showTenure} onchange={(e) => setCard({ showTenure: e.currentTarget.checked })} />
+          <input
+            type="checkbox"
+            checked={card.showTenure}
+            onchange={(e) => setCard({ showTenure: e.currentTarget.checked })}
+          />
           <span class="box" aria-hidden="true"></span>
           <span>재직기간</span>
         </label>
@@ -239,7 +272,11 @@
           <span>정년 D-day <span class="cap muted">나이를 짐작할 수 있어요</span></span>
         </label>
         <label class="switch">
-          <input type="checkbox" checked={card.showSalary} onchange={(e) => setCard({ showSalary: e.currentTarget.checked })} />
+          <input
+            type="checkbox"
+            checked={card.showSalary}
+            onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
+          />
           <span class="box" aria-hidden="true"></span>
           <span>월 봉급 <span class="cap muted">금액이 그대로 보여요</span></span>
         </label>
@@ -261,7 +298,9 @@
           </button>
         {/if}
       </div>
-      <button type="button" class="btn small ghost link" onclick={openImage}>저장이 안 되나요? 이미지로 열기</button>
+      <button type="button" class="btn small ghost link" onclick={openImage}>
+        저장이 안 되나요? 이미지로 열기
+      </button>
       {#if !caps.copyImage}
         <p class="cap muted">이 브라우저에서는 이미지 복사를 쓸 수 없어 저장만 제공해요.</p>
       {/if}
@@ -272,7 +311,9 @@
     <div class="stack wide">
       <pre class="well textcard">{text}</pre>
       <div class="btn-row">
-        <button type="button" class="btn" onclick={copyTextCard}><Icon name="icon-copy" /> 글자로 복사</button>
+        <button type="button" class="btn" onclick={copyTextCard}>
+          <Icon name="icon-copy" /> 글자로 복사
+        </button>
       </div>
       <p class="cap muted">이미지를 붙일 수 없는 메신저용이에요. 금액은 넣지 않아요.</p>
     </div>
@@ -300,7 +341,9 @@
   <Modal title="글자 카드" icon="icon-text" onclose={() => (showText = false)}>
     <div class="stack wide">
       <p>복사가 막혀 있어요. 아래 글자를 직접 골라 복사해 주세요.</p>
-      <textarea class="input" readonly rows="6" onfocus={(e) => e.currentTarget.select()}>{text}</textarea>
+      <textarea class="input" readonly rows="6" onfocus={(e) => e.currentTarget.select()}
+        >{text}</textarea
+      >
     </div>
   </Modal>
 {/if}

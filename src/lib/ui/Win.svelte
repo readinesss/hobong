@@ -19,7 +19,12 @@
   const headingId = $derived(id ? `${id}-title` : undefined);
 </script>
 
-<section class="win" {id} aria-labelledby={headingId} style={area ? `grid-area:${area}` : undefined}>
+<section
+  class="win"
+  {id}
+  aria-labelledby={headingId}
+  style={area ? `grid-area:${area}` : undefined}
+>
   <header class="win-title">
     {#if icon}<Icon name={icon} />{/if}
     <svelte:element this={`h${level}`} id={headingId}>{title}</svelte:element>

@@ -14,7 +14,14 @@ import {
   longRestEnd,
   type AchievementInput,
 } from '../../src/lib/achievements.ts';
-import { categoriesFor, hashString, lineFor, LINES, welcomeLine, type LineContext } from '../../src/lib/lines.ts';
+import {
+  categoriesFor,
+  hashString,
+  lineFor,
+  LINES,
+  welcomeLine,
+  type LineContext,
+} from '../../src/lib/lines.ts';
 import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
 import type { LeaveRecord, UserData } from '../../src/lib/store/schema.ts';
 
@@ -107,7 +114,15 @@ describe('업적', () => {
 
   it('출근 도장과 백업', () => {
     const data = makeData();
-    data.visits.days = ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-23', '2026-11-24', '2026-11-25'];
+    data.visits.days = [
+      '2026-11-17',
+      '2026-11-18',
+      '2026-11-19',
+      '2026-11-20',
+      '2026-11-23',
+      '2026-11-24',
+      '2026-11-25',
+    ];
     data.meta.lastBackupAt = '2026-11-20T03:00:00.000Z';
     const earned = evaluateAchievements(inputOf(data));
     expect(earned['visit-7']).toEqual({ at: '2026-11-25' });
@@ -127,12 +142,18 @@ describe('업적', () => {
   it('연가를 붙여 길게 쉰 날', () => {
     // 2026-12-24(목) 연가 + 12/25(금, 기독탄신일) + 주말 = 4일 → 12/28(월)도 쉬면 5일
     expect(longRestEnd(cal, [rec('2026-12-24')], 8, '2027-01-10')).toBeNull();
-    expect(longRestEnd(cal, [rec('2026-12-24'), rec('2026-12-28')], 8, '2027-01-10')).toBe('2026-12-28');
+    expect(longRestEnd(cal, [rec('2026-12-24'), rec('2026-12-28')], 8, '2027-01-10')).toBe(
+      '2026-12-28',
+    );
     // 아직 끝나지 않은 휴식은 세지 않는다
     expect(longRestEnd(cal, [rec('2026-12-24'), rec('2026-12-28')], 8, '2026-12-26')).toBeNull();
     // 반일은 하루를 쉰 것이 아니다
-    expect(longRestEnd(cal, [rec('2026-12-24'), rec('2026-12-28', 4, 'am')], 8, '2027-01-10')).toBeNull();
-    expect([...fullDayLeaveDates([rec('2026-03-03', 4, 'am'), rec('2026-03-03', 4, 'pm')], 8)]).toEqual(['2026-03-03']);
+    expect(
+      longRestEnd(cal, [rec('2026-12-24'), rec('2026-12-28', 4, 'am')], 8, '2027-01-10'),
+    ).toBeNull();
+    expect([
+      ...fullDayLeaveDates([rec('2026-03-03', 4, 'am'), rec('2026-03-03', 4, 'pm')], 8),
+    ]).toEqual(['2026-03-03']);
   });
 
   it('화면 목록: 얻은 것이 먼저, 아직인 것은 조건과 함께', () => {
@@ -146,8 +167,15 @@ describe('업적', () => {
     expect(views.slice(firstLocked).every((v) => v.at === null && v.hint !== null)).toBe(true);
     const ids = views.map((v) => v.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(views.find((v) => v.id === 'anniv-10')).toMatchObject({ title: '강산이 변했다', hint: '2030. 1. 1. 예정' });
-    expect(views.find((v) => v.id === 'hire')).toMatchObject({ title: '첫 출근', at: '2020-01-01', hint: null });
+    expect(views.find((v) => v.id === 'anniv-10')).toMatchObject({
+      title: '강산이 변했다',
+      hint: '2030. 1. 1. 예정',
+    });
+    expect(views.find((v) => v.id === 'hire')).toMatchObject({
+      title: '첫 출근',
+      at: '2020-01-01',
+      hint: null,
+    });
     for (const v of views) {
       expect(v.title.length).toBeGreaterThan(0);
       expect(v.icon).toMatch(/^icon-/);
@@ -174,11 +202,27 @@ describe('호봉이의 한마디', () => {
     expect(hashString('a')).not.toBe(hashString('b'));
   });
   it('자리표시자가 남지 않는다', () => {
-    const days = ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-12-01', '2027-01-04', '2027-07-01', '2026-10-01'];
+    const days = [
+      '2026-11-23',
+      '2026-11-24',
+      '2026-11-25',
+      '2026-11-26',
+      '2026-11-27',
+      '2026-12-01',
+      '2027-01-04',
+      '2027-07-01',
+      '2026-10-01',
+    ];
     for (const today of days) {
       for (const hour of [8, 10, 15]) {
         for (const daysToStep of [null, 5, 200]) {
-          const line = lineFor({ ...base, today, hour, daysToStep, phase: hour < 9 ? 'before' : 'working' });
+          const line = lineFor({
+            ...base,
+            today,
+            hour,
+            daysToStep,
+            phase: hour < 9 ? 'before' : 'working',
+          });
           expect(line).not.toMatch(/[{}]/);
           expect(line.length).toBeGreaterThan(0);
         }
@@ -195,10 +239,14 @@ describe('호봉이의 한마디', () => {
     expect(categoriesFor({ ...base, mood: 'tired' }).categories).toEqual(['tired']);
     expect(categoriesFor({ ...base, phase: 'after', hour: 19 }).categories).toEqual(['afterWork']);
     expect(categoriesFor({ ...base, phase: 'lunch', hour: 12 }).categories).toEqual(['lunch']);
-    expect(categoriesFor({ ...base, mood: 'sleep', phase: 'after', hour: 23 }).categories).toEqual(['night']);
+    expect(categoriesFor({ ...base, mood: 'sleep', phase: 'after', hour: 23 }).categories).toEqual([
+      'night',
+    ]);
     expect(categoriesFor(base).categories).toEqual(['default', 'morning']);
     expect(categoriesFor({ ...base, today: '2026-11-23', hour: 9 }).categories).toContain('monday');
-    expect(categoriesFor({ ...base, today: '2026-11-27', hour: 15 }).categories).toContain('friday');
+    expect(categoriesFor({ ...base, today: '2026-11-27', hour: 15 }).categories).toContain(
+      'friday',
+    );
     expect(categoriesFor({ ...base, today: '2026-12-01' }).categories).toContain('yearEnd');
     expect(categoriesFor({ ...base, today: '2026-10-01' }).categories).toContain('busySeason');
     expect(categoriesFor({ ...base, daysToStep: 10 })).toMatchObject({ n: 10 });

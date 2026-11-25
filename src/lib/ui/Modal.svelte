@@ -14,7 +14,15 @@
     wide?: boolean;
   }
 
-  let { title, icon, onclose, children, actions, dismissible = true, wide = false }: Props = $props();
+  let {
+    title,
+    icon,
+    onclose,
+    children,
+    actions,
+    dismissible = true,
+    wide = false,
+  }: Props = $props();
 
   let panel = $state<HTMLDivElement>();
   let previous: Element | null = null;
@@ -73,7 +81,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="backdrop"
-  onkeydown={onkeydown}
+  {onkeydown}
   onpointerdown={(e) => {
     if (dismissible && e.target === e.currentTarget) onclose();
   }}
@@ -115,7 +123,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
+    padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b))
+      calc(12px + var(--safe-l));
     background: rgba(26, 28, 44, 0.62);
     overscroll-behavior: contain;
   }

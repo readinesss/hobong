@@ -30,7 +30,8 @@ class Anim {
   }
 
   #sync(): void {
-    const run = this.#users > 0 && !this.reduced && !(typeof document !== 'undefined' && document.hidden);
+    const run =
+      this.#users > 0 && !this.reduced && !(typeof document !== 'undefined' && document.hidden);
     if (run && this.#timer === null) {
       this.#timer = setInterval(() => {
         this.tick += 1;

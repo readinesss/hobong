@@ -3,7 +3,14 @@
  * 지나간 일정은 업적이 되고, 다가오는 일정은 "다음 도착점"이 된다.
  * 모두 입력값과 규정 데이터에서 다시 계산할 수 있으므로 저장하지 않는다.
  */
-import { addDays, addMonthsClamped, diffDays, periodCompleteDate, yearOf, type Ymd } from './date.ts';
+import {
+  addDays,
+  addMonthsClamped,
+  diffDays,
+  periodCompleteDate,
+  yearOf,
+  type Ymd,
+} from './date.ts';
 import type { RulesProvider } from './calendar.ts';
 import { tierDays } from './leave.ts';
 import { longServiceInfo, minServiceDate, seniorTreatmentInfo } from './promotion.ts';
@@ -262,7 +269,11 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
 }
 
 /** today(포함) 이후의 일정 count개 */
-export function upcomingMilestones(all: readonly Milestone[], today: Ymd, count: number): Milestone[] {
+export function upcomingMilestones(
+  all: readonly Milestone[],
+  today: Ymd,
+  count: number,
+): Milestone[] {
   return all.filter((m) => m.date >= today).slice(0, count);
 }
 

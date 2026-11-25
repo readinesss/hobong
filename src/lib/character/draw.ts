@@ -76,7 +76,11 @@ export function paintPose(
   const sctx = scratch.getContext('2d');
   if (!sctx) return;
   const rgba = toRgba(comp, characterRules.palette);
-  sctx.putImageData(new ImageData(rgba as unknown as Uint8ClampedArray<ArrayBuffer>, comp.w, comp.h), 0, 0);
+  sctx.putImageData(
+    new ImageData(rgba as unknown as Uint8ClampedArray<ArrayBuffer>, comp.w, comp.h),
+    0,
+    0,
+  );
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(scratch, 0, 0, comp.w, comp.h, dx, dy, comp.w * scale, comp.h * scale);
 }

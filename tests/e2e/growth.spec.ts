@@ -15,7 +15,9 @@ test.describe('승급과 시간의 흐름', () => {
     await expect(page.locator('#status')).toContainText('9급 6호봉');
     // 2027년 봉급표는 아직 없으므로 2026년 표로 계산하고 그 사실을 알린다
     await expect(page.locator('#wallet')).toContainText('2,264,600원');
-    await expect(page.locator('#wallet')).toContainText('2027년 봉급표가 아직 반영되지 않아 2026년 표로 계산했어요');
+    await expect(page.locator('#wallet')).toContainText(
+      '2027년 봉급표가 아직 반영되지 않아 2026년 표로 계산했어요',
+    );
     // 저장된 입력값은 그대로이고(파생 값은 저장하지 않는다) 연출을 본 기록만 남는다
     const data = await storedData(page);
     expect(data?.profile).toMatchObject({ step: 5, nextStepDate: '2027-01-01' });

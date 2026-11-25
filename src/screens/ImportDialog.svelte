@@ -72,7 +72,9 @@
     app.importData(ok.data);
     if (fresh) nav.go('home');
     app.toast(
-      hasExisting ? '데이터를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.' : '데이터를 불러왔어요. 다시 만나서 반가워요!',
+      hasExisting
+        ? '데이터를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.'
+        : '데이터를 불러왔어요. 다시 만나서 반가워요!',
       'good',
       'icon-upload',
     );
@@ -91,21 +93,42 @@
     <div class="stack wide">
       <p>이 파일을 불러올까요?</p>
       <dl class="well stack">
-        <div class="kv"><dt>파일</dt><dd>{fileName}</dd></div>
-        <div class="kv"><dt>닉네임</dt><dd>{ok.data.profile.nickname}</dd></div>
-        <div class="kv"><dt>직급·호봉</dt><dd>{ok.data.profile.grade}급 {ok.data.profile.step}호봉</dd></div>
-        <div class="kv"><dt>연가 기록</dt><dd>{ok.data.leave.records.length}건</dd></div>
-        <div class="kv"><dt>업적</dt><dd>{Object.keys(ok.data.achievements).length}개</dd></div>
+        <div class="kv">
+          <dt>파일</dt>
+          <dd>{fileName}</dd>
+        </div>
+        <div class="kv">
+          <dt>닉네임</dt>
+          <dd>{ok.data.profile.nickname}</dd>
+        </div>
+        <div class="kv">
+          <dt>직급·호봉</dt>
+          <dd>{ok.data.profile.grade}급 {ok.data.profile.step}호봉</dd>
+        </div>
+        <div class="kv">
+          <dt>연가 기록</dt>
+          <dd>{ok.data.leave.records.length}건</dd>
+        </div>
+        <div class="kv">
+          <dt>업적</dt>
+          <dd>{Object.keys(ok.data.achievements).length}개</dd>
+        </div>
         {#if ok.exportedAt}
-          <div class="kv"><dt>내보낸 때</dt><dd>{formatInstant(ok.exportedAt)}</dd></div>
+          <div class="kv">
+            <dt>내보낸 때</dt>
+            <dd>{formatInstant(ok.exportedAt)}</dd>
+          </div>
         {/if}
       </dl>
       {#if ok.migrated}
-        <p class="note">예전 형식(버전 {ok.fromVersion})의 파일이라 지금 형식으로 바꿔서 불러와요.</p>
+        <p class="note">
+          예전 형식(버전 {ok.fromVersion})의 파일이라 지금 형식으로 바꿔서 불러와요.
+        </p>
       {/if}
       {#if hasExisting}
         <p class="note warn">
-          지금 이 브라우저에 있는 데이터는 불러온 내용으로 바뀌어요. 바뀌기 직전 상태는 자동으로 보관되니 설정에서 되돌릴 수 있어요.
+          지금 이 브라우저에 있는 데이터는 불러온 내용으로 바뀌어요. 바뀌기 직전 상태는 자동으로
+          보관되니 설정에서 되돌릴 수 있어요.
         </p>
       {/if}
       <div class="btn-row end">
@@ -130,11 +153,23 @@
       >
         <Icon name="icon-upload" scale={2} />
         <p>내려받아 둔 <span class="nowrap">hobong-backup-….json</span> 파일을 골라 주세요.</p>
-        <button type="button" class="btn primary" data-autofocus onclick={() => inputEl?.click()} disabled={busy}>
+        <button
+          type="button"
+          class="btn primary"
+          data-autofocus
+          onclick={() => inputEl?.click()}
+          disabled={busy}
+        >
           파일 고르기
         </button>
         <p class="cap muted">이 칸에 파일을 끌어다 놓아도 돼요.</p>
-        <input bind:this={inputEl} type="file" accept=".json,application/json,text/plain" hidden onchange={onPick} />
+        <input
+          bind:this={inputEl}
+          type="file"
+          accept=".json,application/json,text/plain"
+          hidden
+          onchange={onPick}
+        />
       </div>
 
       {#if busy}<p class="cap muted" role="status">파일을 읽는 중…</p>{/if}
@@ -153,7 +188,12 @@
         </div>
       {/if}
 
-      <button type="button" class="btn small paste-toggle" aria-expanded={showPaste} onclick={() => (showPaste = !showPaste)}>
+      <button
+        type="button"
+        class="btn small paste-toggle"
+        aria-expanded={showPaste}
+        onclick={() => (showPaste = !showPaste)}
+      >
         {showPaste ? '▼' : '▶'} 파일을 고를 수 없나요? 글자로 붙여넣기
       </button>
       {#if showPaste}
@@ -165,10 +205,16 @@
             bind:value={pasted}
             spellcheck="false"
             autocomplete="off"
-            placeholder={'{ "app": "hobong", ... }'}
-          ></textarea>
+            placeholder={'{ "app": "hobong", ... }'}></textarea>
           <div class="btn-row end">
-            <button type="button" class="btn" onclick={inspectPasted} disabled={pasted.trim() === ''}>확인하기</button>
+            <button
+              type="button"
+              class="btn"
+              onclick={inspectPasted}
+              disabled={pasted.trim() === ''}
+            >
+              확인하기
+            </button>
           </div>
         </div>
       {/if}

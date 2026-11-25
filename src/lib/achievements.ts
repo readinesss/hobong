@@ -67,8 +67,18 @@ const VISIT_BADGES: readonly { count: number; tier: Tier }[] = [
 
 /** 행동으로 얻는 업적(앱이 직접 부여) */
 export const EVENT_BADGES = {
-  'evt-card': { title: '첫 명함', desc: '호봉이 카드를 만들었다.', icon: 'icon-camera', tier: 'bronze' },
-  'evt-night': { title: '야근 모드', desc: '어두운 화면을 켰다. 오늘도 수고 많으셨습니다.', icon: 'icon-moon', tier: 'bronze' },
+  'evt-card': {
+    title: '첫 명함',
+    desc: '호봉이 카드를 만들었다.',
+    icon: 'icon-camera',
+    tier: 'bronze',
+  },
+  'evt-night': {
+    title: '야근 모드',
+    desc: '어두운 화면을 켰다. 오늘도 수고 많으셨습니다.',
+    icon: 'icon-moon',
+    tier: 'bronze',
+  },
 } as const satisfies Record<string, { title: string; desc: string; icon: string; tier: Tier }>;
 
 export type EventBadgeId = keyof typeof EVENT_BADGES;
@@ -140,7 +150,10 @@ export function evaluateAchievements(input: AchievementInput): Record<string, { 
     }
   }
   // 첫 연가
-  const taken = data.leave.records.filter((r) => r.date <= today).map((r) => r.date).sort();
+  const taken = data.leave.records
+    .filter((r) => r.date <= today)
+    .map((r) => r.date)
+    .sort();
   if (taken[0]) out['leave-first'] = { at: taken[0] };
 
   // 2) 한 번 얻으면 남는 업적
@@ -163,7 +176,10 @@ export function evaluateAchievements(input: AchievementInput): Record<string, { 
     const day = data.visits.days[badge.count - 1];
     sticky(`visit-${badge.count}`, day ?? null);
   }
-  sticky('evt-payday', cal.payday(year, Number(today.slice(5, 7)), data.settings.payday) === today ? today : null);
+  sticky(
+    'evt-payday',
+    cal.payday(year, Number(today.slice(5, 7)), data.settings.payday) === today ? today : null,
+  );
   sticky('evt-backup', data.meta.lastBackupAt ? todayYmd(new Date(data.meta.lastBackupAt)) : null);
   return out;
 }
@@ -318,7 +334,9 @@ export function achievementViews(
     });
   }
 
-  const earnedViews = views.filter((v) => v.at !== null).sort((a, b) => ((a.at as Ymd) < (b.at as Ymd) ? 1 : -1));
+  const earnedViews = views
+    .filter((v) => v.at !== null)
+    .sort((a, b) => ((a.at as Ymd) < (b.at as Ymd) ? 1 : -1));
   const locked = views.filter((v) => v.at === null && v.hint !== null);
   return [...earnedViews, ...locked];
 }

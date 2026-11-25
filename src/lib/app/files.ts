@@ -29,8 +29,12 @@ export function detectCapabilities(): Capabilities {
   return {
     download: typeof document !== 'undefined' && 'download' in document.createElement('a'),
     copyImage:
-      !!nav?.clipboard && typeof nav.clipboard.write === 'function' && hasClipboardItem && window.isSecureContext,
-    copyText: !!nav?.clipboard && typeof nav.clipboard.writeText === 'function' && window.isSecureContext,
+      !!nav?.clipboard &&
+      typeof nav.clipboard.write === 'function' &&
+      hasClipboardItem &&
+      window.isSecureContext,
+    copyText:
+      !!nav?.clipboard && typeof nav.clipboard.writeText === 'function' && window.isSecureContext,
     shareFiles,
   };
 }
@@ -94,7 +98,11 @@ export async function copyImage(blob: Blob): Promise<boolean> {
 }
 
 /** 공유 시트를 연다. 사용자가 닫으면 'cancelled' */
-export async function shareFile(blob: Blob, fileName: string, title: string): Promise<'shared' | 'cancelled' | 'failed'> {
+export async function shareFile(
+  blob: Blob,
+  fileName: string,
+  title: string,
+): Promise<'shared' | 'cancelled' | 'failed'> {
   try {
     const file = new File([blob], fileName, { type: blob.type });
     await navigator.share({ files: [file], title });

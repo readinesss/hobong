@@ -18,7 +18,8 @@
       <p class="cap muted">{salary.grade}급 {salary.step}호봉 · 공무원보수규정 별표 3</p>
       {#if view.salaryPending}
         <p class="note warn">
-          {view.rules.year}년 봉급표가 아직 반영되지 않아 {salary.tableYear}년 표로 계산했어요. 새 봉급표가 나오면 금액이 달라져요.
+          {view.rules.year}년 봉급표가 아직 반영되지 않아 {salary.tableYear}년 표로 계산했어요. 새
+          봉급표가 나오면 금액이 달라져요.
         </p>
       {/if}
     </div>
@@ -33,8 +34,8 @@
         <dd><Money value={view.cumulative.total} short approx /></dd>
       </div>
       <p class="cap muted">
-        지금 직급과 {view.cumulative.tableYear}년 봉급표를 임용일부터 그대로 적용한 어림값이에요(과거 봉급표·승진 전 직급은 반영하지
-        않음).
+        지금 직급과 {view.cumulative.tableYear}년 봉급표를 임용일부터 그대로 적용한
+        어림값이에요(과거 봉급표·승진 전 직급은 반영하지 않음).
       </p>
     </dl>
 
@@ -43,7 +44,10 @@
       {#if view.nextRaise}
         <div class="kv">
           <span class="row"><Icon name="icon-arrow-up" /> 정기승급</span>
-          <span><Money value={view.nextRaise.diff} sign="+" /> <span class="cap muted">{formatKorean(view.nextRaise.date, false)}</span></span>
+          <span>
+            <Money value={view.nextRaise.diff} sign="+" />
+            <span class="cap muted">{formatKorean(view.nextRaise.date, false)}</span>
+          </span>
         </div>
       {/if}
       <div class="kv">

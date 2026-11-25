@@ -27,7 +27,9 @@ export function buildRegistry(files: readonly RulesFile[]): RulesRegistry {
   const map = new Map<number, RulesFile>();
   for (const file of files) {
     if (file.schema !== 1) {
-      throw new RulesError(`지원하지 않는 규정 데이터 형식입니다(year ${file.year}, schema ${String(file.schema)})`);
+      throw new RulesError(
+        `지원하지 않는 규정 데이터 형식입니다(year ${file.year}, schema ${String(file.schema)})`,
+      );
     }
     if (map.has(file.year)) throw new RulesError(`${file.year}년 규정 파일이 두 개입니다`);
     map.set(file.year, file);

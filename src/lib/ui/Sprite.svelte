@@ -1,7 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { anim } from '../app/anim.svelte.ts';
-  import { paintPose, poseOf, poseOfSprite, SPRITE_SIZE, type PoseOptions } from '../character/draw.ts';
+  import {
+    paintPose,
+    poseOf,
+    poseOfSprite,
+    SPRITE_SIZE,
+    type PoseOptions,
+  } from '../character/draw.ts';
   import type { Look } from '../character/look.ts';
 
   interface Props {
@@ -49,7 +55,11 @@
     if (el.height !== size) el.height = size;
     const ctx = el.getContext('2d');
     if (!ctx) return;
-    const comp = sprite ? poseOfSprite(sprite, frame) : look ? poseOf(look, { ...pose, tick }) : null;
+    const comp = sprite
+      ? poseOfSprite(sprite, frame)
+      : look
+        ? poseOf(look, { ...pose, tick })
+        : null;
     ctx.clearRect(0, 0, size, size);
     if (comp) paintPose(ctx, comp, 0, 0, devicePixels);
   });
@@ -57,10 +67,20 @@
 
 {#if label}
   <span class="wrap" role="img" aria-label={label} style="width:{cssSize}px;height:{cssSize}px">
-    <canvas bind:this={canvas} class="sprite" style="width:{cssSize}px;height:{cssSize}px" aria-hidden="true"></canvas>
+    <canvas
+      bind:this={canvas}
+      class="sprite"
+      style="width:{cssSize}px;height:{cssSize}px"
+      aria-hidden="true"
+    ></canvas>
   </span>
 {:else}
-  <canvas bind:this={canvas} class="sprite" style="width:{cssSize}px;height:{cssSize}px" aria-hidden="true"></canvas>
+  <canvas
+    bind:this={canvas}
+    class="sprite"
+    style="width:{cssSize}px;height:{cssSize}px"
+    aria-hidden="true"
+  ></canvas>
 {/if}
 
 <style>

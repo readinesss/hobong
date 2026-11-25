@@ -89,7 +89,9 @@ export interface TodayStatus {
 }
 
 export function secondOfDay(now: Date): number {
-  return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000;
+  return (
+    now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000
+  );
 }
 
 export function todayStatus(cal: Calendar, schedule: WorkSchedule, now: Date): TodayStatus {
@@ -106,7 +108,14 @@ export function todayStatus(cal: Calendar, schedule: WorkSchedule, now: Date): T
     dayFraction: sec / 86_400,
   };
   if (!workday) {
-    return { ...base, phase: 'off', workedSeconds: 0, progress: 0, secondsToStart: null, secondsToEnd: null };
+    return {
+      ...base,
+      phase: 'off',
+      workedSeconds: 0,
+      progress: 0,
+      secondsToStart: null,
+      secondsToEnd: null,
+    };
   }
   const start = schedule.start * 60;
   const end = schedule.end * 60;

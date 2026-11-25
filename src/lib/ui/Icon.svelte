@@ -27,11 +27,15 @@
     focusable="false"
   >
     {#each icon.paths as path (path.color)}
-      <path d={path.d} fill={path.color === 0 ? 'currentColor' : characterRules.palette[path.color]} />
+      <path
+        d={path.d}
+        fill={path.color === 0 ? 'currentColor' : characterRules.palette[path.color]}
+      />
     {/each}
   </svg>
 {:else}
-  <span class="icon-missing" style="width:{16 * scale}px;height:{16 * scale}px" aria-hidden="true"></span>
+  <span class="icon-missing" style="width:{16 * scale}px;height:{16 * scale}px" aria-hidden="true"
+  ></span>
 {/if}
 
 <style>

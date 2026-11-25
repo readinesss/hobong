@@ -24,7 +24,10 @@ export async function openApp(page: Page, options: OpenOptions = {}): Promise<vo
   if (options.seed !== undefined) {
     await page.addInitScript((value) => {
       // 새로 고침해도 테스트가 바꾼 내용이 남도록, 비어 있을 때만 넣는다.
-      if (window.localStorage.getItem('hobong.data') === null && !window.sessionStorage.getItem('seeded')) {
+      if (
+        window.localStorage.getItem('hobong.data') === null &&
+        !window.sessionStorage.getItem('seeded')
+      ) {
         window.localStorage.setItem('hobong.data', value);
         window.sessionStorage.setItem('seeded', '1');
       }
@@ -70,7 +73,13 @@ export function makeSeed(profile: SeedProfile = {}, extra: Record<string, unknow
       reduceMotion: true,
       hideAmounts: false,
       tabTitle: 'default',
-      card: { ratio: 'square', showSalary: false, showRetirement: false, showTenure: true, showBadges: true },
+      card: {
+        ratio: 'square',
+        showSalary: false,
+        showRetirement: false,
+        showTenure: true,
+        showBadges: true,
+      },
     },
     leave: { records: [], grantOverrideHours: {} },
     achievements: {},
@@ -84,7 +93,13 @@ export function makeSeed(profile: SeedProfile = {}, extra: Record<string, unknow
     },
     ...extra,
   };
-  return JSON.stringify({ app: 'hobong', schemaVersion: 2, appVersion: '0.1.0', exportedAt: '2026-11-24T00:00:00.000Z', data });
+  return JSON.stringify({
+    app: 'hobong',
+    schemaVersion: 2,
+    appVersion: '0.1.0',
+    exportedAt: '2026-11-24T00:00:00.000Z',
+    data,
+  });
 }
 
 export function fixture(name: string): string {

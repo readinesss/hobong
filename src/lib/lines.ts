@@ -44,13 +44,19 @@ function pick(pool: readonly string[], seed: string): string {
 }
 
 /** 상황에 맞는 문장 묶음과, 그 묶음을 고른 이유(시드에 쓴다) */
-export function categoriesFor(ctx: LineContext): { categories: LineCategory[]; slot: string; n: number | null } {
+export function categoriesFor(ctx: LineContext): {
+  categories: LineCategory[];
+  slot: string;
+  n: number | null;
+} {
   if (ctx.stepDay) return { categories: ['stepDay'], slot: 'day', n: null };
-  if (ctx.anniversaryYears !== null) return { categories: ['anniversary'], slot: 'day', n: ctx.anniversaryYears };
+  if (ctx.anniversaryYears !== null)
+    return { categories: ['anniversary'], slot: 'day', n: ctx.anniversaryYears };
   if (ctx.mood === 'vacation') return { categories: ['vacation'], slot: 'day', n: null };
   if (ctx.mood === 'sleep') return { categories: ['night'], slot: 'night', n: null };
   if (ctx.phase === 'off') return { categories: ['restDay'], slot: 'day', n: null };
-  if (ctx.isPayday && ctx.phase !== 'after') return { categories: ['payday'], slot: 'day', n: null };
+  if (ctx.isPayday && ctx.phase !== 'after')
+    return { categories: ['payday'], slot: 'day', n: null };
   if (ctx.mood === 'tired') return { categories: ['tired'], slot: 'day', n: null };
   if (ctx.phase === 'after') return { categories: ['afterWork'], slot: 'after', n: null };
   if (ctx.phase === 'lunch') return { categories: ['lunch'], slot: 'lunch', n: null };
@@ -69,7 +75,11 @@ export function categoriesFor(ctx: LineContext): { categories: LineCategory[]; s
   if (month === 7) categories.push('bonusMonth');
   if (month === 9 || month === 10) categories.push('busySeason');
   if (ctx.daysToStep !== null && ctx.daysToStep > 0 && ctx.daysToStep <= 30) {
-    return { categories: [...categories, 'stepSoon'], slot: morning ? 'am' : 'pm', n: ctx.daysToStep };
+    return {
+      categories: [...categories, 'stepSoon'],
+      slot: morning ? 'am' : 'pm',
+      n: ctx.daysToStep,
+    };
   }
   return { categories, slot: morning ? 'am' : 'pm', n: null };
 }

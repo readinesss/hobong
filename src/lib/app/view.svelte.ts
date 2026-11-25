@@ -7,7 +7,12 @@
 import { untrack } from 'svelte';
 import { clock } from './clock.svelte.ts';
 import { app } from './state.svelte.ts';
-import { achievementViews, evaluateAchievements, fullDayLeaveDates, type AchievementInput } from '../achievements.ts';
+import {
+  achievementViews,
+  evaluateAchievements,
+  fullDayLeaveDates,
+  type AchievementInput,
+} from '../achievements.ts';
 import { upcomingBonuses } from '../calc/bonus.ts';
 import { findBridges } from '../calc/bridge.ts';
 import { Calendar } from '../calc/calendar.ts';
@@ -30,7 +35,13 @@ import {
   seniorTreatmentInfo,
 } from '../calc/promotion.ts';
 import { careerProgress, retirementInfo } from '../calc/retirement.ts';
-import { cumulativeSalary, maxStepOf, nextStepRaise, salaryOn, yearToDateSalary } from '../calc/salary.ts';
+import {
+  cumulativeSalary,
+  maxStepOf,
+  nextStepRaise,
+  salaryOn,
+  yearToDateSalary,
+} from '../calc/salary.ts';
 import { isRaiseDay, prevRaiseDate, stepOn } from '../calc/step.ts';
 import { earnings, todayStatus, toSchedule } from '../calc/today.ts';
 import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
@@ -57,7 +68,9 @@ class View {
 
   profile = $derived(this.data.profile);
   maxStep = $derived(maxStepOf(this.rules.salary, this.profile.grade));
-  step = $derived(stepOn(this.profile, this.today, this.maxStep, this.rules.stepRaise.periodMonths));
+  step = $derived(
+    stepOn(this.profile, this.today, this.maxStep, this.rules.stepRaise.periodMonths),
+  );
   salary = $derived(salaryOn(rulesFor, this.profile, this.today));
 
   // ── 승급 ─────────────────────────────────────────────────────────────
@@ -69,7 +82,14 @@ class View {
     const prev = prevRaiseDate(this.profile, this.today, this.rules.stepRaise.periodMonths);
     const total = Math.max(1, diffDays(prev, next.date));
     const done = diffDays(prev, this.today);
-    return { prev, next: next.date, total, done, left: total - done, ratio: Math.min(1, Math.max(0, done / total)) };
+    return {
+      prev,
+      next: next.date,
+      total,
+      done,
+      left: total - done,
+      ratio: Math.min(1, Math.max(0, done / total)),
+    };
   });
   raisedToday = $derived(
     isRaiseDay(this.profile, this.today, this.maxStep, this.rules.stepRaise.periodMonths),
@@ -92,7 +112,9 @@ class View {
   // ── 승진 ─────────────────────────────────────────────────────────────
   longService = $derived(longServiceInfo(this.rules.promotion, this.profile));
   senior = $derived(seniorTreatmentInfo(this.rules.promotion, this.profile));
-  minService = $derived(minServiceDate(this.rules.promotion, this.profile.grade, this.profile.gradeDate));
+  minService = $derived(
+    minServiceDate(this.rules.promotion, this.profile.grade, this.profile.gradeDate),
+  );
   /** 근속승진 요건일(이미 지났으면 오늘)에 승진한다면 */
   promotion = $derived.by(() => {
     const info = this.longService;
@@ -121,7 +143,8 @@ class View {
     if (!next) return null;
     // 그 공휴일을 포함해 이어 쉬는 날 수(앞쪽 주말도 포함)
     let start = next.date;
-    while (!calendar.isWorkday(addDays(start, -1)) && diffDays(start, next.date) < 10) start = addDays(start, -1);
+    while (!calendar.isWorkday(addDays(start, -1)) && diffDays(start, next.date) < 10)
+      start = addDays(start, -1);
     return { ...next, restFrom: start, restDays: calendar.restRunFrom(start) };
   });
   holidayTomorrow = $derived.by(() => {
@@ -130,10 +153,14 @@ class View {
   });
 
   // ── 연가 ─────────────────────────────────────────────────────────────
-  leave = $derived(summarizeLeave(this.rules.leave, this.profile.hireDate, this.data.leave, this.today));
+  leave = $derived(
+    summarizeLeave(this.rules.leave, this.profile.hireDate, this.data.leave, this.today),
+  );
   leaveDayPrice = $derived(compensationPerDay(this.rules.leave, this.salary.amount));
   advanceLimit = $derived(advanceLimitDays(this.rules.leave, this.profile.hireDate, this.today));
-  fullDayLeave = $derived(fullDayLeaveDates(this.data.leave.records, this.rules.leave.units.hoursPerDay));
+  fullDayLeave = $derived(
+    fullDayLeaveDates(this.data.leave.records, this.rules.leave.units.hoursPerDay),
+  );
   bridges = $derived(findBridges(calendar, this.today, this.fullDayLeave));
 
   // ── 일정·업적 ────────────────────────────────────────────────────────
@@ -158,7 +185,12 @@ class View {
   earn = $derived(earnings(this.salary.amount, calendar, this.schedule, clock.now));
   /** 하루 중 지난 만큼을 더한 정년 진행률(소수점이 움직인다) */
   careerRatio = $derived(
-    careerProgress(this.profile.hireDate, this.retire.retireDate, this.today, this.status.dayFraction).ratio,
+    careerProgress(
+      this.profile.hireDate,
+      this.retire.retireDate,
+      this.today,
+      this.status.dayFraction,
+    ).ratio,
   );
 
   // ── 캐릭터(분 단위) ──────────────────────────────────────────────────
@@ -206,7 +238,11 @@ class View {
       if (calendar.payday(y, m, this.data.settings.payday) === cur) paydays += 1;
     }
     const before = stepOn(this.profile, date, this.maxStep, this.rules.stepRaise.periodMonths);
-    return { workdays: calendar.workdaysBetween(from, to), raises: Math.max(0, this.step - before), paydays };
+    return {
+      workdays: calendar.workdaysBetween(from, to),
+      raises: Math.max(0, this.step - before),
+      paydays,
+    };
   }
 }
 

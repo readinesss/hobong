@@ -45,7 +45,11 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
     return { ok: false, reason: '파일이 비어 있습니다.', details: [] };
   }
   if (text.length > MAX_BACKUP_BYTES) {
-    return { ok: false, reason: '파일이 너무 큽니다. 호봉 백업 파일이 맞는지 확인해 주세요.', details: [] };
+    return {
+      ok: false,
+      reason: '파일이 너무 큽니다. 호봉 백업 파일이 맞는지 확인해 주세요.',
+      details: [],
+    };
   }
   let parsed: unknown;
   try {

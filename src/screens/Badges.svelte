@@ -30,7 +30,9 @@
   );
   const seenCount = $derived(forms.filter((f) => f.known).length);
 
-  const unlocks = $derived(unlockList(characterRules).map((u) => ({ ...u, open: u.step <= view.step })));
+  const unlocks = $derived(
+    unlockList(characterRules).map((u) => ({ ...u, open: u.step <= view.step })),
+  );
 
   const visitDays = $derived(view.data.visits.days);
   const visitSet = $derived(new Set(visitDays));
@@ -40,7 +42,12 @@
     const days: { date: Ymd; on: boolean; future: boolean; today: boolean }[] = [];
     for (let i = 27; i >= 0; i -= 1) {
       const date = addDays(end, -i);
-      days.push({ date, on: visitSet.has(date), future: date > view.today, today: date === view.today });
+      days.push({
+        date,
+        on: visitSet.has(date),
+        future: date > view.today,
+        today: date === view.today,
+      });
     }
     return days;
   });
@@ -59,14 +66,30 @@
         <li class="well" class:current={item.current}>
           <div class="pic">
             {#if item.known}
-              <Sprite look={item.look} scale={2} animate={false} pose={{ plain: true }} label="{item.form.name}의 모습" />
+              <Sprite
+                look={item.look}
+                scale={2}
+                animate={false}
+                pose={{ plain: true }}
+                label="{item.form.name}의 모습"
+              />
             {:else}
-              <Sprite look={item.look} scale={2} animate={false} pose={{ plain: true, silhouette: 15 }} label="아직 만나지 못한 모습" />
+              <Sprite
+                look={item.look}
+                scale={2}
+                animate={false}
+                pose={{ plain: true, silhouette: 15 }}
+                label="아직 만나지 못한 모습"
+              />
             {/if}
           </div>
           <strong>{item.known ? item.form.name : '???'}</strong>
           <span class="cap muted">{item.gradeLabel}</span>
-          {#if item.current}<span class="tag blue">지금</span>{:else if item.known}<span class="tag">만남</span>{/if}
+          {#if item.current}<span class="tag blue">지금</span>{:else if item.known}<span
+              class="tag"
+            >
+              만남
+            </span>{/if}
         </li>
       {/each}
     </ul>
@@ -93,15 +116,26 @@
         </li>
       {/each}
     </ol>
-    <p class="cap muted">호봉이 오를 때마다 깃이 하나씩 자라고, 몇몇 호봉에서는 소품이나 색이 달라져요.</p>
+    <p class="cap muted">
+      호봉이 오를 때마다 깃이 하나씩 자라고, 몇몇 호봉에서는 소품이나 색이 달라져요.
+    </p>
   </Win>
 
   <Win title="출근 도장" icon="icon-stamp" id="visits" area="visits">
     {#snippet aside()}{visitDays.length}개{/snippet}
     <div class="stack wide">
-      <div class="weeks" role="img" aria-label="최근 4주 동안 들른 날 {recentWeeks.filter((d) => d.on).length}일">
+      <div
+        class="weeks"
+        role="img"
+        aria-label="최근 4주 동안 들른 날 {recentWeeks.filter((d) => d.on).length}일"
+      >
         {#each recentWeeks as day (day.date)}
-          <i class:on={day.on} class:future={day.future} class:today={day.today} title={formatKorean(day.date)}></i>
+          <i
+            class:on={day.on}
+            class:future={day.future}
+            class:today={day.today}
+            title={formatKorean(day.date)}
+          ></i>
         {/each}
       </div>
       <p class="cap muted">
@@ -120,7 +154,9 @@
             class="badge {badge.tier}"
             class:locked={badge.at === null}
             onclick={() => (detail = badge)}
-            aria-label="{badge.title}, {badge.at ? `${formatKorean(badge.at, false)} 달성` : `아직. ${badge.hint ?? ''}`}"
+            aria-label="{badge.title}, {badge.at
+              ? `${formatKorean(badge.at, false)} 달성`
+              : `아직. ${badge.hint ?? ''}`}"
           >
             <span class="medal" aria-hidden="true">
               <Icon name={badge.at === null ? 'icon-lock' : badge.icon} scale={2} />
@@ -150,7 +186,9 @@
       </div>
     </div>
     {#snippet actions()}
-      <button type="button" class="btn primary" data-autofocus onclick={() => (detail = null)}>확인</button>
+      <button type="button" class="btn primary" data-autofocus onclick={() => (detail = null)}>
+        확인
+      </button>
     {/snippet}
   </Modal>
 {/if}

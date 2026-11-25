@@ -13,7 +13,17 @@
     onchange?: (value: number) => void;
   }
 
-  let { id, label, value = $bindable(1), min, max, unit = '', hint, error, onchange }: Props = $props();
+  let {
+    id,
+    label,
+    value = $bindable(1),
+    min,
+    max,
+    unit = '',
+    hint,
+    error,
+    onchange,
+  }: Props = $props();
 
   function set(next: number) {
     const clamped = Math.min(max, Math.max(min, Math.round(next)));
@@ -38,7 +48,13 @@
 <div class="field">
   <label for={id}>{label}</label>
   <div class="stepper">
-    <button type="button" class="btn small" onclick={() => set(value - 1)} disabled={value <= min} aria-label="{label} 줄이기">
+    <button
+      type="button"
+      class="btn small"
+      onclick={() => set(value - 1)}
+      disabled={value <= min}
+      aria-label="{label} 줄이기"
+    >
       <Icon name="icon-minus" />
     </button>
     <input
@@ -54,7 +70,13 @@
       aria-describedby={hint ? `${id}-hint` : undefined}
     />
     {#if unit}<span class="unit">{unit}</span>{/if}
-    <button type="button" class="btn small" onclick={() => set(value + 1)} disabled={value >= max} aria-label="{label} 늘리기">
+    <button
+      type="button"
+      class="btn small"
+      onclick={() => set(value + 1)}
+      disabled={value >= max}
+      aria-label="{label} 늘리기"
+    >
       <Icon name="icon-plus" />
     </button>
   </div>

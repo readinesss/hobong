@@ -14,7 +14,9 @@
 
   let { value, short = false, sign = '', approx = false }: Props = $props();
   const hidden = $derived(app.data?.settings.hideAmounts ?? false);
-  const text = $derived(`${approx ? '약 ' : ''}${sign}${short ? formatWonShort(value) : formatWon(value)}`);
+  const text = $derived(
+    `${approx ? '약 ' : ''}${sign}${short ? formatWonShort(value) : formatWon(value)}`,
+  );
 </script>
 
 {#if hidden}

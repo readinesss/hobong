@@ -64,7 +64,9 @@ function finish(draft: Draft, label: string): Sprite {
   const out: Uint8Array[] = [];
   frames.forEach((rows, fi) => {
     if (rows.length !== h) {
-      throw new SpriteFormatError(`${where}: 프레임 ${fi}의 행 수(${rows.length})가 ${h}이 아닙니다`);
+      throw new SpriteFormatError(
+        `${where}: 프레임 ${fi}의 행 수(${rows.length})가 ${h}이 아닙니다`,
+      );
     }
     const px = new Uint8Array(w * h);
     rows.forEach((row, y) => {

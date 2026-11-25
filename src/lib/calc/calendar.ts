@@ -2,15 +2,7 @@
  * 공휴일·근무일·보수 지급일 계산.
  * 공휴일 목록은 연도별 규정 데이터에서 온다(일요일은 목록에 없고 요일로 판단).
  */
-import {
-  addDays,
-  dayOfWeek,
-  daysInMonth,
-  formatYmd,
-  parseYmd,
-  yearOf,
-  type Ymd,
-} from './date.ts';
+import { addDays, dayOfWeek, daysInMonth, formatYmd, parseYmd, yearOf, type Ymd } from './date.ts';
 import type { Holiday, Rules } from '../rules/types.ts';
 
 export type RulesProvider = (year: number) => Rules;
@@ -103,7 +95,11 @@ export class Calendar {
   }
 
   /** tag가 붙은 공휴일 중 from(포함) 이후 처음 오는 날(설날·추석 당일 등) */
-  nextTaggedHoliday(from: Ymd, tags: readonly string[], maxYears = 2): (NamedDay & { tag: string }) | null {
+  nextTaggedHoliday(
+    from: Ymd,
+    tags: readonly string[],
+    maxYears = 2,
+  ): (NamedDay & { tag: string }) | null {
     const startYear = yearOf(from);
     for (let year = startYear; year <= startYear + maxYears; year += 1) {
       for (const item of this.holidaysOf(year)) {

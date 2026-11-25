@@ -47,18 +47,25 @@ test.describe('연가 장부', () => {
     await expect(page.locator('#leave-records')).toContainText('예정');
     // 토요일
     await calendar.getByRole('gridcell', { name: /11월 28일/ }).click();
-    await expect(page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true })).toBeDisabled();
+    await expect(
+      page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }),
+    ).toBeDisabled();
     // 다음 달 공휴일
     await calendar.getByRole('button', { name: '다음 달' }).click();
     await calendar.getByRole('gridcell', { name: /12월 25일/ }).click();
     await expect(page.locator('#leave-entry')).toContainText('기독탄신일');
-    await expect(page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true })).toBeDisabled();
+    await expect(
+      page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }),
+    ).toBeDisabled();
   });
 
   test('기록을 지우고 되살릴 수 있다', async ({ page }) => {
     await page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }).click();
     await tick(page, 7000);
-    await page.locator('#leave-records').getByRole('button', { name: /기록 지우기/ }).click();
+    await page
+      .locator('#leave-records')
+      .getByRole('button', { name: /기록 지우기/ })
+      .click();
     expect((await storedData(page))?.leave.records).toHaveLength(0);
     await page.getByRole('button', { name: '되돌리기' }).click();
     expect((await storedData(page))?.leave.records).toHaveLength(1);
@@ -92,6 +99,8 @@ test.describe('연가 장부', () => {
   });
 
   test('참고용 장부임을 밝힌다', async ({ page }) => {
-    await expect(page.getByText('공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요.')).toBeVisible();
+    await expect(
+      page.getByText('공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요.'),
+    ).toBeVisible();
   });
 });

@@ -15,7 +15,11 @@
   const clamped = $derived(Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0)));
   // 조금이라도 진행했으면 한 칸은 채우고, 끝나기 전에는 마지막 칸을 비워 둔다.
   const filled = $derived(
-    clamped <= 0 ? 0 : clamped >= 1 ? cells : Math.min(cells - 1, Math.max(1, Math.round(clamped * cells))),
+    clamped <= 0
+      ? 0
+      : clamped >= 1
+        ? cells
+        : Math.min(cells - 1, Math.max(1, Math.round(clamped * cells))),
   );
 </script>
 
@@ -67,7 +71,11 @@
     content: '';
     position: absolute;
     inset: 0;
-    background-image: linear-gradient(90deg, transparent calc(100% - 3px), var(--panel) calc(100% - 3px));
+    background-image: linear-gradient(
+      90deg,
+      transparent calc(100% - 3px),
+      var(--panel) calc(100% - 3px)
+    );
     background-size: calc(100% / var(--cells)) 100%;
     opacity: 0.55;
     pointer-events: none;

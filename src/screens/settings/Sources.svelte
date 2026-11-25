@@ -47,7 +47,12 @@
       const value = rules[section] as unknown as Record<string, unknown>;
       const year = rules.meta.sectionYear[section];
       if (value.source) {
-        out.push({ key: section, label: SECTION_LABELS[section], year, source: value.source as SourceRef });
+        out.push({
+          key: section,
+          label: SECTION_LABELS[section],
+          year,
+          source: value.source as SourceRef,
+        });
         continue;
       }
       for (const [sub, inner] of Object.entries(value)) {
@@ -70,12 +75,16 @@
 
 <div class="stack wide">
   <p>
-    화면의 모든 수치는 아래 법령에서 왔어요. 법령이 바뀌면 코드가 아니라 데이터 파일(<span class="nowrap">data/연도.json</span>)만 고칩니다.
-    국가법령정보센터 원문을 {dots(view.rules.meta.verifiedAt)} 확인했어요.
+    화면의 모든 수치는 아래 법령에서 왔어요. 법령이 바뀌면 코드가 아니라 데이터 파일(<span
+      class="nowrap"
+    >
+      data/연도.json
+    </span>)만 고칩니다. 국가법령정보센터 원문을 {dots(view.rules.meta.verifiedAt)} 확인했어요.
   </p>
   {#if view.salaryPending}
     <p class="note warn">
-      {view.rules.year}년 봉급표는 아직 반영되지 않았어요. 금액은 {view.rules.meta.sectionYear.salary}년 봉급표로 계산하고 있어요.
+      {view.rules.year}년 봉급표는 아직 반영되지 않았어요. 금액은 {view.rules.meta.sectionYear
+        .salary}년 봉급표로 계산하고 있어요.
     </p>
   {/if}
   <ul class="list">
@@ -87,7 +96,8 @@
           <span class="tag">{row.year}년 값</span>
         </div>
         <p>
-          {law?.name ?? row.source.law} {row.source.article}
+          {law?.name ?? row.source.law}
+          {row.source.article}
         </p>
         <p class="cap muted">
           {[

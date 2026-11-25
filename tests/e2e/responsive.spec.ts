@@ -24,20 +24,33 @@ test.describe('반응형과 조작', () => {
       await page.setViewportSize(size);
       await openApp(page, { seed: makeSeed() });
       for (const tab of TABS) {
-        await page.getByRole('navigation', { name: '화면 이동' }).getByRole('link', { name: tab.label }).click();
+        await page
+          .getByRole('navigation', { name: '화면 이동' })
+          .getByRole('link', { name: tab.label })
+          .click();
         await tick(page, 800);
         const metrics = await page.evaluate(() => {
           const doc = document.documentElement;
           const wins = Array.from(document.querySelectorAll('main .win')).map((el) => {
             const r = el.getBoundingClientRect();
-            return { left: r.left, right: r.right, top: r.top + window.scrollY, bottom: r.bottom + window.scrollY, width: r.width };
+            return {
+              left: r.left,
+              right: r.right,
+              top: r.top + window.scrollY,
+              bottom: r.bottom + window.scrollY,
+              width: r.width,
+            };
           });
           return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, wins };
         });
-        expect(metrics.scrollWidth, `${tab.label}: 가로 넘침`).toBeLessThanOrEqual(metrics.clientWidth);
+        expect(metrics.scrollWidth, `${tab.label}: 가로 넘침`).toBeLessThanOrEqual(
+          metrics.clientWidth,
+        );
         expect(metrics.wins.length, `${tab.label}: 창 수`).toBeGreaterThan(0);
         for (const win of metrics.wins) {
-          expect(win.width, `${tab.label}: 창 너비`).toBeGreaterThanOrEqual(Math.min(280, size.width - 40));
+          expect(win.width, `${tab.label}: 창 너비`).toBeGreaterThanOrEqual(
+            Math.min(280, size.width - 40),
+          );
           expect(win.left).toBeGreaterThanOrEqual(0);
           expect(win.right).toBeLessThanOrEqual(metrics.clientWidth + 1);
         }
@@ -71,7 +84,10 @@ test.describe('반응형과 조작', () => {
     await page.setViewportSize({ width: 360, height: 760 });
     await openApp(page, { seed: makeSeed() });
     for (const tab of TABS) {
-      await page.getByRole('navigation', { name: '화면 이동' }).getByRole('link', { name: tab.label }).click();
+      await page
+        .getByRole('navigation', { name: '화면 이동' })
+        .getByRole('link', { name: tab.label })
+        .click();
       await tick(page, 600);
       const small = await page.evaluate(() => {
         const out: string[] = [];
@@ -84,12 +100,20 @@ test.describe('반응형과 조작', () => {
           const style = getComputedStyle(el);
           if (style.opacity === '0' && el.tagName === 'INPUT') continue; // 줄 전체를 덮는 체크박스·보조 입력
           // 테두리(box-shadow 3px)를 포함한 실제 눌리는 크기
-          const pad = el.classList.contains('btn') || el.classList.contains('chip') || el.classList.contains('input') ? 6 : 0;
+          const pad =
+            el.classList.contains('btn') ||
+            el.classList.contains('chip') ||
+            el.classList.contains('input')
+              ? 6
+              : 0;
           const h = r.height + pad;
           const w = r.width + pad;
           // 달력의 날짜 칸은 폭이 화면을 7등분한 값이라 44px에 조금 못 미칠 수 있어 40px까지 허용한다
           const min = el.classList.contains('day') ? 40 : 44;
-          if (h < min - 0.5 || w < min - 0.5) out.push(`${el.tagName}.${el.className} "${(el.innerText || el.getAttribute('aria-label') || '').slice(0, 12)}" ${Math.round(w)}×${Math.round(h)}`);
+          if (h < min - 0.5 || w < min - 0.5)
+            out.push(
+              `${el.tagName}.${el.className} "${(el.innerText || el.getAttribute('aria-label') || '').slice(0, 12)}" ${Math.round(w)}×${Math.round(h)}`,
+            );
         }
         return out;
       });
@@ -131,7 +155,9 @@ test.describe('반응형과 조작', () => {
     await expect(dialog).toBeVisible();
     for (let i = 0; i < 12; i += 1) {
       await page.keyboard.press('Tab');
-      const inside = await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'));
+      const inside = await page.evaluate(
+        () => !!document.activeElement?.closest('[role="dialog"]'),
+      );
       expect(inside).toBe(true);
     }
     await page.keyboard.press('Escape');

@@ -32,7 +32,9 @@ if (extra.length > 0) fail(`dist에 index.html 외의 파일이 있습니다: ${
 
 // (2) 외부 참조 검증
 // 마크업: 리소스를 불러오는 속성이 없어야 한다(인라인 data: 는 허용).
-const markup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+const markup = html
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+  .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
 const markupPatterns = [
   /<script\b[^>]*\bsrc\s*=/i,
   /<link\b[^>]*\bhref\s*=/i,
@@ -102,4 +104,6 @@ writeFileSync(INDEX, html);
 copyFileSync(INDEX, join(DIST, 'hobong.html'));
 
 const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
-console.log(`[postbuild] 단일 HTML 확인 완료: dist/index.html (${kb} kB), CSP 적용, hobong.html 사본 생성`);
+console.log(
+  `[postbuild] 단일 HTML 확인 완료: dist/index.html (${kb} kB), CSP 적용, hobong.html 사본 생성`,
+);

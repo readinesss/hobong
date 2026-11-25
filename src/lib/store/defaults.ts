@@ -16,11 +16,22 @@ export function defaultSettings(rules: Pick<Rules, 'payday' | 'workHours'>): Set
     reduceMotion: false,
     hideAmounts: false,
     tabTitle: 'default',
-    card: { ratio: 'square', showSalary: false, showRetirement: false, showTenure: true, showBadges: true },
+    card: {
+      ratio: 'square',
+      showSalary: false,
+      showRetirement: false,
+      showTenure: true,
+      showBadges: true,
+    },
   };
 }
 
-export function newUserData(profile: Profile, settings: Settings, nowIso: string, today: Ymd): UserData {
+export function newUserData(
+  profile: Profile,
+  settings: Settings,
+  nowIso: string,
+  today: Ymd,
+): UserData {
   return {
     profile,
     settings,

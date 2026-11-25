@@ -96,7 +96,10 @@
     min-height: 252px;
     padding: 12px 9px 0;
     margin: var(--u);
-    background: linear-gradient(var(--stage) 0 calc(100% - 27px), var(--stage-ground) calc(100% - 27px) 100%);
+    background: linear-gradient(
+      var(--stage) 0 calc(100% - 27px),
+      var(--stage-ground) calc(100% - 27px) 100%
+    );
     box-shadow: var(--frame);
     overflow: hidden;
   }

@@ -1,6 +1,12 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { addMonthsClamped, onOrNextDayOfMonth, periodCompleteDate, yearOf, type Ymd } from '../lib/calc/date.ts';
+  import {
+    addMonthsClamped,
+    onOrNextDayOfMonth,
+    periodCompleteDate,
+    yearOf,
+    type Ymd,
+  } from '../lib/calc/date.ts';
   import { maxStepOf } from '../lib/calc/salary.ts';
   import { stepOn, nextRaiseDate } from '../lib/calc/step.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
@@ -21,7 +27,14 @@
     oncancel?: () => void;
   }
 
-  let { initial, initialPayday, askPayday = false, submitLabel, onsubmit, oncancel }: Props = $props();
+  let {
+    initial,
+    initialPayday,
+    askPayday = false,
+    submitLabel,
+    onsubmit,
+    oncancel,
+  }: Props = $props();
 
   const today = $derived(clock.today);
   const rules = $derived(rulesFor(yearOf(today)));
@@ -46,8 +59,12 @@
   let nextStepDate = $state<Ymd | ''>(untrack(() => start?.next ?? ''));
   let longServiceDate = $state<Ymd | ''>(untrack(() => initial?.overrides.longServiceDate ?? ''));
   let seniorDate = $state<Ymd | ''>(untrack(() => initial?.overrides.seniorDate ?? ''));
-  let payday = $state(untrack(() => initialPayday ?? rulesFor(yearOf(clock.today)).payday.defaultDay));
-  let showAdvanced = $state(untrack(() => !!(initial?.overrides.longServiceDate || initial?.overrides.seniorDate)));
+  let payday = $state(
+    untrack(() => initialPayday ?? rulesFor(yearOf(clock.today)).payday.defaultDay),
+  );
+  let showAdvanced = $state(
+    untrack(() => !!(initial?.overrides.longServiceDate || initial?.overrides.seniorDate)),
+  );
   let tried = $state(false);
   let formEl = $state<HTMLFormElement>();
 
@@ -75,7 +92,10 @@
   const guessedNext = $derived.by(() => {
     if (!hireDate) return null;
     const base = promoted && gradeDate ? gradeDate : hireDate;
-    let candidate = onOrNextDayOfMonth(periodCompleteDate(base, rules.stepRaise.periodMonths), rules.stepRaise.dayOfMonth);
+    let candidate = onOrNextDayOfMonth(
+      periodCompleteDate(base, rules.stepRaise.periodMonths),
+      rules.stepRaise.dayOfMonth,
+    );
     for (let i = 0; i < 60 && candidate <= today; i += 1) {
       candidate = addMonthsClamped(candidate, rules.stepRaise.periodMonths);
     }
@@ -114,7 +134,9 @@
       aria-invalid={shown.nickname ? 'true' : undefined}
       aria-describedby="pf-nick-hint"
     />
-    <span class="hint cap" id="pf-nick-hint">실명·소속은 받지 않아요. {LIMITS.nicknameMax}자까지.</span>
+    <span class="hint cap" id="pf-nick-hint">
+      실명·소속은 받지 않아요. {LIMITS.nicknameMax}자까지.
+    </span>
     {#if shown.nickname}<span class="error cap" role="alert">{shown.nickname}</span>{/if}
   </div>
 
@@ -141,14 +163,27 @@
   <div class="grid2">
     <div class="field">
       <label for="pf-grade">현재 직급</label>
-      <select id="pf-grade" class="input" bind:value={grade} aria-invalid={shown.grade ? 'true' : undefined}>
+      <select
+        id="pf-grade"
+        class="input"
+        bind:value={grade}
+        aria-invalid={shown.grade ? 'true' : undefined}
+      >
         {#each GRADES as g (g)}
           <option value={g}>{g}급</option>
         {/each}
       </select>
       {#if shown.grade}<span class="error cap" role="alert">{shown.grade}</span>{/if}
     </div>
-    <Stepper id="pf-step" label="현재 호봉" bind:value={step} min={1} max={maxStep} unit="호봉" error={shown.step} />
+    <Stepper
+      id="pf-step"
+      label="현재 호봉"
+      bind:value={step}
+      min={1}
+      max={maxStep}
+      unit="호봉"
+      error={shown.step}
+    />
   </div>
 
   <div class="stack">
@@ -186,7 +221,8 @@
         </button>
       </div>
       <p class="cap muted">
-        임용일(승진했다면 승진일)에서 1년 단위로 어림한 날이에요. 경력 인정·휴직이 있었다면 실제와 다르니 나중에 고쳐 주세요.
+        임용일(승진했다면 승진일)에서 1년 단위로 어림한 날이에요. 경력 인정·휴직이 있었다면 실제와
+        다르니 나중에 고쳐 주세요.
       </p>
     {/if}
   </div>
@@ -226,7 +262,8 @@
     {#if showAdvanced}
       <div id="pf-advanced" class="well stack wide">
         <p class="cap muted">
-          휴직·징계·경력 합산처럼 계산으로 알 수 없는 사정이 있으면 날짜를 직접 넣어 주세요. 비워 두면 규정대로 계산해요.
+          휴직·징계·경력 합산처럼 계산으로 알 수 없는 사정이 있으면 날짜를 직접 넣어 주세요. 비워
+          두면 규정대로 계산해요.
         </p>
         <DateInput
           id="pf-long"
@@ -235,13 +272,20 @@
           hint="9·8·7급만 해당해요."
           error={shown.longServiceDate}
         />
-        <DateInput id="pf-senior" label="대우공무원 선발 예정일" bind:value={seniorDate} error={shown.seniorDate} />
+        <DateInput
+          id="pf-senior"
+          label="대우공무원 선발 예정일"
+          bind:value={seniorDate}
+          error={shown.seniorDate}
+        />
       </div>
     {/if}
   </div>
 
   {#if tried && Object.keys(errors).length > 0}
-    <p class="note warn" role="alert">고칠 곳이 {Object.keys(errors).length}군데 있어요. 빨간 글씨를 확인해 주세요.</p>
+    <p class="note warn" role="alert">
+      고칠 곳이 {Object.keys(errors).length}군데 있어요. 빨간 글씨를 확인해 주세요.
+    </p>
   {/if}
 
   <div class="btn-row end">

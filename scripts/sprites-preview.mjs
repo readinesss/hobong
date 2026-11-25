@@ -18,8 +18,22 @@ const SPRITE_DIR = join(ROOT, 'src/assets/sprites');
 const CANVAS = 48;
 
 const DEFAULT_PALETTE = [
-  '#1a1c2c', '#5d275d', '#b13e53', '#ef7d57', '#ffcd75', '#a7f070', '#38b764', '#257179',
-  '#29366f', '#3b5dc9', '#41a6f6', '#73eff7', '#f4f4f4', '#94b0c2', '#566c86', '#333c57',
+  '#1a1c2c',
+  '#5d275d',
+  '#b13e53',
+  '#ef7d57',
+  '#ffcd75',
+  '#a7f070',
+  '#38b764',
+  '#257179',
+  '#29366f',
+  '#3b5dc9',
+  '#41a6f6',
+  '#73eff7',
+  '#f4f4f4',
+  '#94b0c2',
+  '#566c86',
+  '#333c57',
 ];
 
 function arg(name, fallback = undefined) {
@@ -141,6 +155,8 @@ if (composeArg) {
   console.log(`콘택트 시트: ${out} (${cols}열 × ${rows}행, 왼쪽 위부터)`);
   cells.forEach(({ sprite, fi }, i) => {
     const frames = sprite.frames.length > 1 ? ` [프레임 ${fi}]` : '';
-    console.log(`  ${String(i + 1).padStart(2)}. (${Math.floor(i / cols) + 1}행 ${(i % cols) + 1}열) ${sprite.name}${frames}  ${sprite.w}×${sprite.h}`);
+    console.log(
+      `  ${String(i + 1).padStart(2)}. (${Math.floor(i / cols) + 1}행 ${(i % cols) + 1}열) ${sprite.name}${frames}  ${sprite.w}×${sprite.h}`,
+    );
   });
 }
