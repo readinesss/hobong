@@ -272,11 +272,15 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     const cx = left + stageW + 6;
     const cw = right - cx;
     let cy = py + 28;
-    cy += chip(ctx, model.formName, cx - 2, cy) > 0 ? 22 : 0;
-    text(ctx, `${model.grade}급`, cx, cy, 30, INK);
-    cy += 34;
-    text(ctx, `${model.step}호봉`, cx, cy, 30, INK);
-    cy += 38;
+    chip(ctx, model.formName, cx - 2, cy);
+    cy += 27;
+    // 두 자리 호봉("14호봉")은 큰 글자로는 오른쪽 칸을 넘친다. 넘치면 두 줄 모두 한 단계 작게 쓴다.
+    const stepText = `${model.step}호봉`;
+    const big: 24 | 30 = widthOf(ctx, stepText, 30) <= cw ? 30 : 24;
+    text(ctx, `${model.grade}급`, cx, cy, big, INK);
+    cy += big + 4;
+    text(ctx, stepText, cx, cy, big, INK);
+    cy += big + 8;
     text(ctx, `깃 ${model.step}/${model.maxStep}`, cx, cy, 12, MUTED);
     cy += 18;
     if (model.raise) {
@@ -295,7 +299,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     y = py + 30 + 168 + 8;
     const chipW = chip(ctx, model.formName, left, y);
     text(ctx, fit(ctx, model.nickname, 15, inner - chipW - 4), left + chipW + 4, y + 1, 15, INK);
-    y += 24;
+    y += 27;
     text(ctx, `${model.grade}급 ${model.step}호봉`, left, y, 30, INK);
     y += 38;
     // 깃 게이지
