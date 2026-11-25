@@ -1,10 +1,12 @@
 // 빌드 후처리: (1) 단일 HTML인지 검증 (2) 외부 참조가 없는지 검증
 // (3) 인라인 스크립트 해시 기반 CSP 주입 — 브라우저 수준에서 외부 통신을 차단한다.
-// (4) 내려받기용 사본(hobong.html) 생성
+// (4) 파일 머리에 출처·오픈소스 고지 주석 (5) 내려받기용 사본(hobong.html) 생성
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync, statSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { REPO_URL } from '../src/lib/config.ts';
 
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const DIST = new URL('../dist/', import.meta.url).pathname;
 const INDEX = join(DIST, 'index.html');
 
@@ -99,8 +101,23 @@ const charsetRe = /<meta\s+charset=["']?utf-8["']?\s*\/?>/i;
 if (!charsetRe.test(html)) fail('<meta charset> 태그를 찾지 못했습니다.');
 html = html.replace(charsetRe, (tag) => `${tag}\n    ${cspTag}`);
 
+// (4) 파일 머리에 출처와 오픈소스 고지를 남긴다(파일 하나만 돌아다녀도 무엇인지 알 수 있게).
+const doctypeRe = /^\s*<!doctype html>/i;
+if (!doctypeRe.test(html)) fail('<!doctype html> 로 시작하지 않습니다.');
+const banner = [
+  '<!--',
+  `  호봉 (hobong) v${pkg.version}`,
+  '  공무원 호봉·월급·승급·연가·정년을 확인하는 픽셀아트 웹사이트.',
+  '  이 파일 하나로 동작합니다. 서버가 없고, 외부로 아무것도 보내지 않습니다(아래 CSP로 차단).',
+  `  소스와 규정 데이터: ${REPO_URL}`,
+  '  포함된 오픈소스: Svelte (MIT), Galmuri 글꼴 (SIL OFL 1.1).',
+  '  라이선스 전문은 화면의 [설정 > 호봉에 대하여 > 오픈소스 고지]에 있습니다.',
+  '-->',
+].join('\n');
+html = html.replace(doctypeRe, (doctype) => `${doctype.trim()}\n${banner}`);
+
 writeFileSync(INDEX, html);
-// (4) 내려받기용 사본
+// (5) 내려받기용 사본
 copyFileSync(INDEX, join(DIST, 'hobong.html'));
 
 const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);

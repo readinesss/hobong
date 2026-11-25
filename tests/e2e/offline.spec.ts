@@ -36,7 +36,17 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
       (url) => !url.startsWith('data:') && !url.startsWith('blob:') && url !== APP_URL,
     );
     expect(external).toEqual([]);
-    expect(requests.filter((url) => url === APP_URL)).toHaveLength(1);
+    // 문서 자신은 많아야 한 번(Firefox는 file:// 문서 요청을 이 이벤트로 알리지 않는다).
+    expect(requests.filter((url) => url === APP_URL).length).toBeLessThanOrEqual(1);
+
+    // 브라우저가 직접 남긴 기록으로도 확인한다: 페이지가 불러온 리소스가 하나도 없어야 한다.
+    const loaded = await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((name) => !name.startsWith('data:') && !name.startsWith('blob:')),
+    );
+    expect(loaded).toEqual([]);
     expect(errors).toEqual([]);
   });
 
@@ -79,6 +89,20 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
         }),
     );
     expect(imageBlocked).toBe(true);
+  });
+
+  test('파일 하나에 출처와 오픈소스 고지가 함께 들어 있다', async ({ page }) => {
+    const html = readFileSync(join(ROOT, 'dist', 'index.html'), 'utf8');
+    expect(html.slice(0, 600)).toContain('https://github.com/readinesss/hobong');
+    expect(html).toContain('SIL OPEN FONT LICENSE Version 1.1');
+    expect(html).toContain('Svelte Contributors');
+
+    await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    const about = page.locator('#set-about');
+    await expect(about.locator('#set-licenses')).toHaveCount(0);
+    await about.getByRole('button', { name: /오픈소스 고지/ }).click();
+    await expect(about.locator('#set-licenses')).toContainText('SIL OPEN FONT LICENSE');
+    await expect(about.locator('#set-licenses')).toContainText('MIT License');
   });
 
   test('글꼴이 번들에 들어 있어 픽셀 폰트로 그려진다', async ({ page }) => {

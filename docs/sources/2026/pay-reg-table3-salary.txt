@@ -1,7 +1,7 @@
 # 공무원보수규정 [별표 3] 일반직공무원 등의 봉급표
 # 출처: 공무원보수규정 [시행 2026. 10. 2.] [대통령령 제36728호, 2026. 9. 29., 타법개정]
 # 조회: 2026-11-25, 국가법령정보센터(https://www.law.go.kr)
-# 비고: PDF 원문을 pdftotext -layout 으로 추출한 그대로다. tests/unit/rules-source.test.ts 가 이 파일과 data/2026.json 을 대조한다.
+# 비고: PDF 원문을 pdftotext -layout 으로 추출한 그대로다. tests/unit/rules-data.test.ts 가 이 파일과 data/2026.json 을 대조한다.
 
 ■ 공무원보수규정 [별표 3] <개정 2026. 1. 2.>
    일반직공무원과 일반직에 준하는 특정직 및 별정직 공무원 등의 봉급표

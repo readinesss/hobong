@@ -275,12 +275,28 @@ describe('법령 원문 발췌본과 대조', () => {
     return out;
   }
 
-  it('봉급표가 공무원보수규정 별표 3 원문과 한 칸도 다르지 않다', () => {
-    const text = readFileSync(join(ROOT, 'docs/sources/2026/pay-reg-table3-salary.txt'), 'utf8');
-    expect(text).toContain('[별표 3] <개정 2026. 1. 2.>');
-    const parsed = parseSalarySnapshot(text);
-    expect(parsed).toEqual(r2026.salary.table);
-    const count = Object.values(parsed).reduce((n, row) => n + row.length, 0);
+  // 봉급표를 자기 값으로 가진 해는 모두 원문 발췌본이 있어야 하고, 한 칸도 다르면 안 된다.
+  // 새 봉급표를 넣을 때 발췌본 없이(기억이나 추정으로) 숫자만 넣는 일을 막는다.
+  const withSalary = files.filter((f) => f.salary !== undefined);
+  it('봉급표를 가진 해가 하나 이상 있다', () => {
+    expect(withSalary.map((f) => f.year)).toContain(2026);
+  });
+  it.each(withSalary.map((f) => [f.year, f] as const))(
+    '%i년 봉급표가 공무원보수규정 별표 3 원문과 한 칸도 다르지 않다',
+    (year, file) => {
+      const salary = file.salary as NonNullable<RulesFile['salary']>;
+      const path = join(ROOT, 'docs/sources', String(year), 'pay-reg-table3-salary.txt');
+      expect(existsSync(path), `${path} 발췌본이 있어야 한다`).toBe(true);
+      const text = readFileSync(path, 'utf8');
+      // 발췌본이 데이터에 적힌 개정일의 별표인지 확인한다(예: 2026-01-02 → "개정 2026. 1. 2.").
+      const [y, m, d] = (salary.source.revised ?? '').split('-').map(Number);
+      expect(text).toContain(`[별표 3] <개정 ${y}. ${m}. ${d}.>`);
+      const parsed = parseSalarySnapshot(text);
+      expect(parsed).toEqual(salary.table);
+    },
+  );
+  it('2026년 봉급표는 258칸이다', () => {
+    const count = Object.values(r2026.salary.table).reduce((n, row) => n + row.length, 0);
     expect(count).toBe(258);
   });
 

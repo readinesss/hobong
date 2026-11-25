@@ -8,6 +8,7 @@
   import { checkWorkHours } from '../lib/calc/today.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { REPO_URL, SITE_URL } from '../lib/config.ts';
+  import { LICENSE_NOTICES } from '../lib/licenses.ts';
   import { backupFileName } from '../lib/store/backup.ts';
   import type { Profile, ThemeSetting, WorkHours } from '../lib/store/schema.ts';
   import Icon from '../lib/ui/Icon.svelte';
@@ -29,6 +30,7 @@
   let showBackupText = $state(false);
   let backupText = $state('');
   let workError = $state('');
+  let showLicenses = $state(false);
 
   const hosted = typeof location !== 'undefined' && location.protocol !== 'file:';
 
@@ -439,6 +441,34 @@
         </p>
       {/if}
       <p class="cap muted">소스와 규정 데이터: {REPO_URL.replace('https://', '')}</p>
+      <div class="stack">
+        <button
+          type="button"
+          class="btn small toggle"
+          aria-expanded={showLicenses}
+          aria-controls="set-licenses"
+          onclick={() => (showLicenses = !showLicenses)}
+        >
+          {showLicenses ? '▼' : '▶'} 오픈소스 고지
+        </button>
+        {#if showLicenses}
+          <div id="set-licenses" class="stack">
+            <p class="cap muted">
+              이 파일에는 아래 오픈소스가 함께 들어 있어요. 고마운 분들이에요.
+            </p>
+            {#each LICENSE_NOTICES as notice (notice.name)}
+              <section class="well stack" aria-label="{notice.name} 라이선스">
+                <p>
+                  <strong>{notice.name}</strong> <span class="cap muted">{notice.license}</span>
+                </p>
+                <p class="cap muted">{notice.use}</p>
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                <pre class="license" tabindex="0">{notice.text}</pre>
+              </section>
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
   </Win>
 </div>
@@ -546,6 +576,24 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .toggle {
+    justify-content: flex-start;
+    width: fit-content;
+  }
+  .license {
+    margin: 0;
+    max-height: 180px;
+    overflow: auto;
+    padding: 6px;
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    font-family: 'Galmuri11', 'Galmuri14', monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: var(--bg);
+    color: var(--ink);
   }
   .inline .input {
     width: 72px;
