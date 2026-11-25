@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { makeSeed, openApp, storedData, tick } from './helpers.ts';
+import { fillDate, makeSeed, openApp, storedData, tick } from './helpers.ts';
 
 test.describe('승급과 시간의 흐름', () => {
   test('승급일이 지나면 호봉이 오르고 승급 연출이 한 번 나온다', async ({ page }) => {
@@ -26,6 +26,87 @@ test.describe('승급과 시간의 흐름', () => {
     await page.reload();
     await tick(page);
     await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('미뤄진 승급일(1년보다 먼 날)을 넣어도 지금 호봉은 넣은 값 그대로다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByLabel('닉네임').fill('김주무관');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await fillDate(page, '임용일', '2022-09-01');
+    await page.getByLabel('현재 직급').selectOption('9');
+    await page.getByLabel('현재 호봉', { exact: true }).fill('5');
+    // 휴직으로 승급이 밀렸다: 13개월 뒤
+    await fillDate(page, '다음 승급일', '2027-12-01');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await tick(page, 6000);
+    await page.getByRole('button', { name: '시작하기' }).click();
+    await tick(page);
+
+    await expect(page.locator('#status')).toContainText('9급 5호봉');
+    await expect(page.locator('#wallet')).toContainText('2,226,100원');
+    await expect(page.locator('#growth')).toContainText('2027. 12. 1.');
+    expect((await storedData(page))?.profile).toMatchObject({
+      step: 5,
+      nextStepDate: '2027-12-01',
+      stepAsOf: '2026-11-25',
+    });
+
+    // 한 해가 지나도 승급일 전까지는 5호봉이다
+    await page.clock.setFixedTime(new Date('2027-11-29T10:00:00+09:00'));
+    await page.reload();
+    await tick(page, 3000);
+    const back = page.getByRole('dialog');
+    if ((await back.count()) > 0) await back.getByRole('button', { name: '확인' }).click();
+    await tick(page);
+    await expect(page.locator('#status')).toContainText('9급 5호봉');
+  });
+
+  test('내 정보를 열어 그대로 저장하면 호봉 기준점이 바뀌지 않는다', async ({ page }) => {
+    // 저장된 기준: 5호봉, 다음 승급 2027-01-01. 2027-03-10에 열면 6호봉으로 보인다.
+    await openApp(page, { seed: makeSeed(), hash: 'settings', time: '2027-03-10T10:00:00+09:00' });
+    for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
+      await page.getByRole('dialog').getByRole('button').last().click();
+      await tick(page);
+    }
+    const before = (await storedData(page))?.profile;
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+    const form = page.getByRole('dialog');
+    await expect(form.getByLabel('현재 호봉', { exact: true })).toHaveValue('6');
+    await expect(form.getByLabel('다음 승급일 연도')).toHaveValue('2028');
+    await form.getByLabel('닉네임').fill('새이름');
+    await form.getByRole('button', { name: '저장' }).click();
+    await tick(page);
+    const after = (await storedData(page))?.profile;
+    expect(after).toEqual({ ...before, nickname: '새이름' });
+  });
+
+  test('최고호봉이면 다음 승급일 대신 최고호봉이 된 날을 묻는다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByLabel('닉네임').fill('왕고참');
+    await fillDate(page, '생년월일', '1968-03-02');
+    await fillDate(page, '임용일', '1993-03-02');
+    await page.getByLabel('현재 직급').selectOption('9');
+    await page.getByLabel('현재 호봉', { exact: true }).fill('31');
+    await expect(page.getByLabel('최고호봉이 된 날 연도')).toBeVisible();
+    await expect(page.getByLabel('다음 승급일 연도')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /모르겠어요/ })).toHaveCount(0);
+    // 앞날은 받지 않는다
+    await fillDate(page, '최고호봉이 된 날', '2027-03-01');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: '최고호봉이 된 날' })).toBeVisible();
+    await fillDate(page, '최고호봉이 된 날', '2024-03-01');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await tick(page, 6000);
+    await page.getByRole('button', { name: '시작하기' }).click();
+    await tick(page);
+    await expect(page.locator('#status')).toContainText('9급 31호봉');
+    // "30호봉이 2024-03-01 전날까지"로 저장된다 → 그날부터 31호봉
+    expect((await storedData(page))?.profile).toMatchObject({
+      step: 30,
+      nextStepDate: '2024-03-01',
+    });
   });
 
   test('오랜만에 열면 그사이의 일을 정산해 보여준다', async ({ page }) => {

@@ -51,7 +51,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     const file = await download(page);
     expect(file.name).toBe('hobong-backup-20261125.json');
     const envelope = JSON.parse(file.text);
-    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 2, appVersion: '0.1.0' });
+    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 3, appVersion: '0.1.0' });
     expect(typeof envelope.exportedAt).toBe('string');
     await expect(page.getByText('급여·인사 정보가 들어 있으니')).toBeVisible();
     // 내려받은 뒤에는 "마지막 내려받기"가 기록된다

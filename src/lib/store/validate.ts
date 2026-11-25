@@ -3,7 +3,7 @@
  * 불러온 파일·저장소의 값은 믿지 않는다. 형식이 맞는 것만 받아 새 객체로 옮겨 담고,
  * 틀린 곳은 사람이 읽을 수 있는 이유와 함께 거부한다(기존 데이터는 건드리지 않는다).
  */
-import { addMonthsClamped, isValidYmd, parseHm, type Ymd } from '../calc/date.ts';
+import { addDays, addMonthsClamped, isValidYmd, parseHm, type Ymd } from '../calc/date.ts';
 import {
   LIMITS,
   type CardSettings,
@@ -44,6 +44,12 @@ export interface ProfileContext {
   today: Ymd;
   /** 직급별 최고 호봉 */
   maxStep: (grade: Grade) => number;
+  /**
+   * 입력 폼에서만 쓰는 추가 검사. 저장된 값에는 쓰지 않는다(시간이 지나면 승급일은 과거가 된다).
+   * - future: 다음 승급일은 오늘보다 뒤여야 한다
+   * - reached: 최고호봉이 된 날이므로 오늘이거나 오늘보다 앞이어야 한다
+   */
+  raiseDateRule?: 'future' | 'reached';
 }
 
 export type ProfileField =
@@ -54,6 +60,7 @@ export type ProfileField =
   | 'gradeDate'
   | 'step'
   | 'nextStepDate'
+  | 'stepAsOf'
   | 'longServiceDate'
   | 'seniorDate';
 
@@ -102,12 +109,23 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   }
 
   const next = raw.nextStepDate;
-  if (!isValidYmd(next)) errors.nextStepDate = '다음 승급일을 넣어 주세요.';
+  const reached = ctx.raiseDateRule === 'reached';
+  const nextLabel = reached ? '최고호봉이 된 날' : '다음 승급일';
+  if (!isValidYmd(next)) errors.nextStepDate = `${nextLabel}을 넣어 주세요.`;
   else if (isValidYmd(hire) && next <= hire)
-    errors.nextStepDate = '다음 승급일이 임용일보다 뒤여야 해요.';
+    errors.nextStepDate = `${nextLabel}이 임용일보다 뒤여야 해요.`;
+  else if (reached && next > today)
+    errors.nextStepDate =
+      '최고호봉이 된 날은 오늘이거나 오늘보다 앞이어야 해요. 아직 오르기 전이라면 호봉을 한 단계 낮춰 주세요.';
+  else if (ctx.raiseDateRule === 'future' && next <= today)
+    errors.nextStepDate = '다음 승급일은 오늘보다 뒤여야 해요. 이미 올랐다면 호봉을 올려 주세요.';
   else if (next > addMonthsClamped(today, LIMITS.maxNextStepYears * 12)) {
     errors.nextStepDate = '다음 승급일이 너무 먼 미래예요.';
   }
+
+  const asOf = raw.stepAsOf;
+  if (asOf !== undefined && asOf !== null && !isValidYmd(asOf))
+    errors.stepAsOf = '호봉을 확인한 날의 형식이 틀렸어요.';
 
   const overrides = raw.overrides;
   if (overrides !== undefined && !isDict(overrides))
@@ -135,6 +153,8 @@ export function toProfile(raw: Dict): Profile {
     gradeDate: raw.gradeDate as Ymd,
     step: raw.step as number,
     nextStepDate: raw.nextStepDate as Ymd,
+    // 없으면 "다음 승급일 직전 한 해만 이 호봉"으로 보는 것과 같은 값을 넣는다.
+    stepAsOf: isValidYmd(raw.stepAsOf) ? raw.stepAsOf : addDays(raw.nextStepDate as Ymd, -1),
     overrides: {
       longServiceDate: pick(overrides.longServiceDate),
       seniorDate: pick(overrides.seniorDate),

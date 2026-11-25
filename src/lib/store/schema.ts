@@ -8,7 +8,7 @@
  */
 import type { Ymd } from '../calc/date.ts';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const APP_ID = 'hobong';
 
 export type Grade = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -22,10 +22,15 @@ export interface Profile {
   grade: Grade;
   /** 현 직급 임용(승진)일. 승진한 적이 없으면 hireDate와 같다 */
   gradeDate: Ymd;
-  /** nextStepDate 전날까지 적용되는 호봉 */
+  /** stepAsOf 부터 nextStepDate 전날까지 적용되는 호봉 */
   step: number;
   /** 다음 정기승급일 */
   nextStepDate: Ymd;
+  /**
+   * 이 호봉을 확인(입력)한 날.
+   * 다음 승급일이 1년보다 멀어도(휴직·승급제한) 그날까지는 이 호봉으로 계산하기 위해 둔다.
+   */
+  stepAsOf: Ymd;
   /** 휴직·경력 인정 등 예외 보정: 값이 있으면 계산값 대신 쓴다 */
   overrides: {
     /** 근속승진 요건 충족일 */

@@ -39,6 +39,7 @@ function makeData(): UserData {
       gradeDate: '2020-01-01',
       step: 7,
       nextStepDate: '2027-01-01',
+      stepAsOf: '2026-11-25',
       overrides: { longServiceDate: null, seniorDate: null },
     },
     { ...defaultSettings(R), payday: 25 },

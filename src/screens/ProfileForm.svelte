@@ -8,7 +8,7 @@
     type Ymd,
   } from '../lib/calc/date.ts';
   import { maxStepOf } from '../lib/calc/salary.ts';
-  import { stepOn, nextRaiseDate } from '../lib/calc/step.ts';
+  import { dateReachedStep, nextRaiseDate, stepOn } from '../lib/calc/step.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
   import { rulesFor } from '../lib/rules/index.ts';
   import { GRADES, LIMITS, type Grade, type Profile } from '../lib/store/schema.ts';
@@ -40,13 +40,15 @@
   const rules = $derived(rulesFor(yearOf(today)));
 
   // 고칠 때는 "오늘 기준" 호봉과 다음 승급일을 보여준다(저장된 기준점은 과거일 수 있다).
+  // 최고호봉이면 다음 승급일이 없으므로 그 자리에 "최고호봉이 된 날"을 보여준다.
   const start = untrack(() => {
     if (!initial) return null;
     const r = rulesFor(yearOf(clock.today));
     const max = maxStepOf(r.salary, initial.grade);
-    const stepNow = stepOn(initial, clock.today, max, r.stepRaise.periodMonths);
-    const next = nextRaiseDate(initial, clock.today, max, r.stepRaise.periodMonths);
-    return { stepNow, next: next ?? initial.nextStepDate };
+    const period = r.stepRaise.periodMonths;
+    const stepNow = stepOn(initial, clock.today, max, period);
+    const next = nextRaiseDate(initial, clock.today, max, period);
+    return { stepNow, date: next ?? dateReachedStep(initial, max, period) };
   });
 
   let nickname = $state(untrack(() => initial?.nickname ?? ''));
@@ -56,7 +58,7 @@
   let promoted = $state(untrack(() => (initial ? initial.gradeDate !== initial.hireDate : false)));
   let gradeDate = $state<Ymd | ''>(untrack(() => initial?.gradeDate ?? ''));
   let step = $state(untrack(() => start?.stepNow ?? 1));
-  let nextStepDate = $state<Ymd | ''>(untrack(() => start?.next ?? ''));
+  let nextStepDate = $state<Ymd | ''>(untrack(() => start?.date ?? ''));
   let longServiceDate = $state<Ymd | ''>(untrack(() => initial?.overrides.longServiceDate ?? ''));
   let seniorDate = $state<Ymd | ''>(untrack(() => initial?.overrides.seniorDate ?? ''));
   let payday = $state(
@@ -72,6 +74,8 @@
   $effect(() => {
     if (step > maxStep) step = maxStep;
   });
+  /** 더 오를 호봉이 없는 상태. 날짜 칸은 "최고호봉이 된 날"을 받는다 */
+  const atMax = $derived(step >= maxStep);
 
   const draft = $derived({
     nickname,
@@ -84,16 +88,23 @@
     overrides: { longServiceDate: longServiceDate || null, seniorDate: seniorDate || null },
   });
   const errors = $derived<ProfileErrors>(
-    checkProfile(draft, { today, maxStep: (g) => maxStepOf(rules.salary, g) }),
+    checkProfile(draft, {
+      today,
+      maxStep: (g) => maxStepOf(rules.salary, g),
+      raiseDateRule: atMax ? 'reached' : 'future',
+    }),
   );
   const shown = $derived<ProfileErrors>(tried ? errors : {});
 
-  /** 승급기간(1년)을 채운 뒤 처음 오는 1일 중 오늘 다음 날 이후인 날 */
+  /**
+   * 승급기간(1년)을 채운 뒤 처음 오는 1일 중 오늘 다음 날 이후인 날.
+   * 승진해도 승급 주기는 새로 시작하지 않는다(승진 전의 잔여기간을 다음 승급기간에 넣는다,
+   * 보수규정 제11조제7항). 그래서 승진 여부와 관계없이 최초 임용일에서 어림한다.
+   */
   const guessedNext = $derived.by(() => {
     if (!hireDate) return null;
-    const base = promoted && gradeDate ? gradeDate : hireDate;
     let candidate = onOrNextDayOfMonth(
-      periodCompleteDate(base, rules.stepRaise.periodMonths),
+      periodCompleteDate(hireDate, rules.stepRaise.periodMonths),
       rules.stepRaise.dayOfMonth,
     );
     for (let i = 0; i < 60 && candidate <= today; i += 1) {
@@ -114,7 +125,29 @@
       });
       return;
     }
-    onsubmit(toProfile(draft as unknown as Record<string, unknown>), payday);
+    onsubmit(toProfile({ ...draft, ...anchorFields() }), payday);
+  }
+
+  /** 저장할 호봉 기준점(호봉, 다음 승급일, 확인한 날) */
+  function anchorFields(): { step: number; nextStepDate: Ymd; stepAsOf: Ymd } {
+    // 호봉과 날짜를 건드리지 않았으면 저장돼 있던 기준점을 그대로 둔다.
+    // (다시 저장하기만 해도 지나간 호봉 추정이 달라지는 일을 막는다)
+    if (
+      initial &&
+      start &&
+      grade === initial.grade &&
+      step === start.stepNow &&
+      nextStepDate === start.date
+    ) {
+      return {
+        step: initial.step,
+        nextStepDate: initial.nextStepDate,
+        stepAsOf: initial.stepAsOf,
+      };
+    }
+    // 최고호봉: "바로 아래 호봉이 그날 전날까지"라고 적어 두면 그날부터 최고호봉이 된다.
+    if (atMax) return { step: maxStep - 1, nextStepDate: nextStepDate as Ymd, stepAsOf: today };
+    return { step, nextStepDate: nextStepDate as Ymd, stepAsOf: today };
   }
 </script>
 
@@ -208,21 +241,23 @@
   <div class="stack">
     <DateInput
       id="pf-next"
-      label="다음 승급일"
+      label={atMax ? '최고호봉이 된 날' : '다음 승급일'}
       bind:value={nextStepDate}
       required
-      hint="다음에 호봉이 오르는 날(보통 어느 달의 1일). 인사기록의 차기 승급일을 넣어 주세요."
+      hint={atMax
+        ? '더 오를 호봉이 없어요. 최고호봉이 된 날을 넣어 주세요. 정확히 몰라도 괜찮아요(지금까지 번 봉급을 어림할 때만 써요).'
+        : '다음에 호봉이 오르는 날(보통 어느 달의 1일). 인사기록의 차기 승급일을 넣어 주세요. 휴직 등으로 미뤄졌다면 미뤄진 날짜를 그대로 넣으세요. 그날까지 지금 호봉으로 계산해요.'}
       error={shown.nextStepDate}
     />
-    {#if guessedNext && nextStepDate !== guessedNext}
+    {#if !atMax && guessedNext && nextStepDate !== guessedNext}
       <div class="btn-row">
         <button type="button" class="btn small" onclick={() => (nextStepDate = guessedNext)}>
           모르겠어요: {guessedNext.replaceAll('-', '. ')}. 로 넣기
         </button>
       </div>
       <p class="cap muted">
-        임용일(승진했다면 승진일)에서 1년 단위로 어림한 날이에요. 경력 인정·휴직이 있었다면 실제와
-        다르니 나중에 고쳐 주세요.
+        최초 임용일에서 1년 단위로 어림한 날이에요. 경력 인정·휴직·승급 제한이 있었다면 실제와
+        다르니 인사기록을 확인해 고쳐 주세요.
       </p>
     {/if}
   </div>

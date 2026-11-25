@@ -60,7 +60,7 @@ function seed(profile, { theme = 'light' } = {}) {
   };
   return JSON.stringify({
     app: 'hobong',
-    schemaVersion: 2,
+    schemaVersion: 3,
     appVersion: '0.1.0',
     exportedAt: '2026-11-25T00:00:00.000Z',
     data,
@@ -75,6 +75,7 @@ const NINE = {
   gradeDate: '2022-09-01',
   step: 5,
   nextStepDate: '2027-01-01',
+  stepAsOf: '2026-11-25',
 };
 const SEVEN = {
   nickname: '박주무관',
@@ -84,6 +85,7 @@ const SEVEN = {
   gradeDate: '2019-01-01',
   step: 14,
   nextStepDate: '2027-07-01',
+  stepAsOf: '2026-11-25',
 };
 
 const SHOTS = [

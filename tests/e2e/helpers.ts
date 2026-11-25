@@ -50,6 +50,7 @@ export interface SeedProfile {
   gradeDate?: string;
   step?: number;
   nextStepDate?: string;
+  stepAsOf?: string;
 }
 
 /** 현재 형식(v2)의 저장본을 만든다 */
@@ -62,6 +63,7 @@ export function makeSeed(profile: SeedProfile = {}, extra: Record<string, unknow
     gradeDate: profile.hireDate ?? '2022-09-01',
     step: 5,
     nextStepDate: '2027-01-01',
+    stepAsOf: '2026-11-24',
     ...profile,
   };
   const data = {
@@ -95,7 +97,7 @@ export function makeSeed(profile: SeedProfile = {}, extra: Record<string, unknow
   };
   return JSON.stringify({
     app: 'hobong',
-    schemaVersion: 2,
+    schemaVersion: 3,
     appVersion: '0.1.0',
     exportedAt: '2026-11-24T00:00:00.000Z',
     data,

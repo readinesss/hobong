@@ -1,0 +1,46 @@
+{
+  "app": "hobong",
+  "schemaVersion": 2,
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-11-24T00:00:00.000Z",
+  "data": {
+    "profile": {
+      "nickname": "김주무관",
+      "birthDate": "1996-04-12",
+      "hireDate": "2022-09-01",
+      "grade": 9,
+      "gradeDate": "2022-09-01",
+      "step": 5,
+      "nextStepDate": "2027-12-01",
+      "overrides": { "longServiceDate": null, "seniorDate": null }
+    },
+    "settings": {
+      "payday": 25,
+      "work": { "start": "09:00", "end": "18:00", "lunchStart": "12:00", "lunchEnd": "13:00" },
+      "theme": "light",
+      "reduceMotion": false,
+      "hideAmounts": false,
+      "tabTitle": "default",
+      "card": {
+        "ratio": "square",
+        "showSalary": false,
+        "showRetirement": false,
+        "showTenure": true,
+        "showBadges": true
+      }
+    },
+    "leave": {
+      "records": [{ "id": "a1", "date": "2026-03-13", "hours": 4, "kind": "pm", "memo": "병원" }],
+      "grantOverrideHours": {}
+    },
+    "achievements": { "hire": { "at": "2022-09-01" } },
+    "character": { "seenForms": ["egg"], "lastGrade": 9, "lastStep": 5 },
+    "visits": { "days": ["2026-11-23", "2026-11-24"], "lastVisit": "2026-11-23" },
+    "meta": {
+      "createdAt": "2026-11-01T00:00:00.000Z",
+      "updatedAt": "2026-11-24T00:00:00.000Z",
+      "lastBackupAt": null,
+      "changesSinceBackup": 2
+    }
+  }
+}

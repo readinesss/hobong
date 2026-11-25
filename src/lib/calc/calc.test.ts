@@ -6,7 +6,15 @@ import { describe, expect, it } from 'vitest';
 import { rulesFor } from '../rules/index.ts';
 import { Calendar } from './calendar.ts';
 import { careerProgress, retirementInfo } from './retirement.ts';
-import { isRaiseDay, nextRaiseDate, prevRaiseDate, raiseIndexOn, stepOn } from './step.ts';
+import {
+  dateReachedStep,
+  isRaiseDay,
+  nextRaiseDate,
+  prevRaiseDate,
+  raiseIndexOn,
+  stepOn,
+  stretchPeriods,
+} from './step.ts';
 import {
   cumulativeSalary,
   maxStepOf,
@@ -63,6 +71,7 @@ function profile(over: Partial<Profile> = {}): Profile {
     gradeDate: '2020-01-01',
     step: 7,
     nextStepDate: '2027-01-01',
+    stepAsOf: '2026-11-25',
     overrides: { longServiceDate: null, seniorDate: null },
     ...over,
   };
@@ -142,6 +151,70 @@ describe('호봉 추이 (보수규정 제13조)', () => {
     // 1호봉으로 내려가는 구간보다 앞은 실제 승급일이 아니다.
     expect(isRaiseDay(anchor, '2022-03-01', 31)).toBe(false);
     expect(isRaiseDay({ step: 31, nextStepDate: '2027-03-01' }, '2027-03-01', 31)).toBe(false);
+  });
+
+  describe('다음 승급일이 1년보다 멀 때(휴직·승급제한으로 미뤄진 경우)', () => {
+    // 2026-11-25에 "지금 5호봉, 다음 승급 2027-12-01"이라고 넣었다.
+    const late = { step: 5, nextStepDate: '2027-12-01', stepAsOf: '2026-11-25' };
+    it('확인한 날부터 다음 승급일 전날까지 넣은 호봉 그대로다', () => {
+      expect(stepOn(late, '2026-11-25', 31)).toBe(5);
+      expect(stepOn(late, '2026-12-01', 31)).toBe(5);
+      expect(stepOn(late, '2027-11-30', 31)).toBe(5);
+      expect(stepOn(late, '2027-12-01', 31)).toBe(6);
+      expect(stepOn(late, '2028-12-01', 31)).toBe(7);
+      expect(nextRaiseDate(late, '2026-11-25', 31)).toBe('2027-12-01');
+      expect(nextRaiseDate(late, '2027-12-01', 31)).toBe('2028-12-01');
+    });
+    it('지금 호봉이 시작된 날은 다음 승급일에서 한 해씩 거슬러 확인한 날 이전에 닿는 날로 본다', () => {
+      expect(stretchPeriods(late)).toBe(1);
+      expect(prevRaiseDate(late, '2026-11-25')).toBe('2025-12-01');
+      expect(stepOn(late, '2025-12-01', 31)).toBe(5);
+      expect(stepOn(late, '2025-11-30', 31)).toBe(4);
+      expect(stepOn(late, '2024-11-30', 31)).toBe(3);
+      expect(dateReachedStep(late, 5)).toBe('2025-12-01');
+      expect(dateReachedStep(late, 6)).toBe('2027-12-01');
+      expect(dateReachedStep(late, 4)).toBe('2024-12-01');
+    });
+    it('몇 해가 밀려도 같다', () => {
+      const far = { step: 5, nextStepDate: '2029-01-01', stepAsOf: '2026-11-25' };
+      expect(stretchPeriods(far)).toBe(2);
+      expect(stepOn(far, '2026-11-25', 31)).toBe(5);
+      expect(stepOn(far, '2028-12-31', 31)).toBe(5);
+      expect(nextRaiseDate(far, '2026-11-25', 31)).toBe('2029-01-01');
+      expect(prevRaiseDate(far, '2026-11-25')).toBe('2026-01-01');
+      expect(stepOn(far, '2025-12-31', 31)).toBe(4);
+    });
+    it('1호봉도 다음 승급일에 2호봉이 된다', () => {
+      const first = { step: 1, nextStepDate: '2028-04-01', stepAsOf: '2026-11-25' };
+      expect(stepOn(first, '2026-11-25', 31)).toBe(1);
+      expect(nextRaiseDate(first, '2026-11-25', 31)).toBe('2028-04-01');
+      expect(isRaiseDay(first, '2028-04-01', 31)).toBe(true);
+      expect(isRaiseDay(first, '2027-04-01', 31)).toBe(false);
+    });
+    it('다음 승급일이 1년 안이면 확인한 날이 있어도 예전과 같다', () => {
+      const normal = { ...anchor, stepAsOf: '2026-11-25' };
+      expect(stretchPeriods(normal)).toBe(0);
+      for (const d of ['2022-03-01', '2026-02-28', '2026-03-01', '2026-11-25', '2027-03-01']) {
+        expect(stepOn(normal, d, 31)).toBe(stepOn(anchor, d, 31));
+      }
+      // 확인한 날이 다음 승급일 이후(오래된 기준점)여도 늘어나지 않는다
+      expect(stretchPeriods({ ...anchor, stepAsOf: '2028-01-01' })).toBe(0);
+    });
+    it('봉급·누적 봉급도 넣은 호봉을 따른다', () => {
+      const p = profile({ step: 5, nextStepDate: '2027-12-01', stepAsOf: '2026-11-25' });
+      expect(salaryOn(rulesFor, p, '2026-11-25')).toMatchObject({ step: 5, amount: 2_226_100 });
+      const raise = nextStepRaise(rulesFor, p, '2026-11-25');
+      expect(raise).toMatchObject({ date: '2027-12-01', fromStep: 5, toStep: 6 });
+      // 무작위로 뒤져도 날짜가 뒤로 갈수록 호봉이 내려가지 않는다
+      let prev = 0;
+      for (let y = 2020; y <= 2030; y += 1) {
+        for (const md of ['01-01', '06-30', '11-30', '12-01']) {
+          const s = stepOn(p, `${y}-${md}`, 31);
+          expect(s).toBeGreaterThanOrEqual(prev);
+          prev = s;
+        }
+      }
+    });
   });
 });
 

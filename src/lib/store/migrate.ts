@@ -5,12 +5,14 @@
  * - v1: 초기 설계안. 브리프의 입력 항목(닉네임·생년월일·임용일·직급·호봉·다음 승급일)을
  *       한 층에 펼쳐 두고, 연가는 일/반일/시간 단위로 기록했다.
  * - v2: 현 직급 임용일과 예외 보정, 시간 단위 연가 장부, 설정·업적·캐릭터·출근 도장을
- *       묶음별로 나눈 현재 형식.
+ *       묶음별로 나눈 형식.
+ * - v3: 호봉을 확인한 날(profile.stepAsOf)을 더했다. 다음 승급일이 1년보다 멀 때
+ *       (휴직·승급제한) 지금 호봉이 한 단계 낮게 계산되던 문제를 고치기 위해서다.
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
  */
-import { isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
+import { addDays, isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
 import { APP_ID, SCHEMA_VERSION, type Settings } from './schema.ts';
 
 type Dict = Record<string, unknown>;
@@ -99,9 +101,26 @@ function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
   };
 }
 
+/**
+ * v2 → v3: 호봉을 확인한 날을 채운다.
+ * 언제 넣은 값인지 알 수 없으므로 마지막으로 고친 날로 본다. 그날이 다음 승급일 이후라면
+ * (승급일이 지나도 저장값은 그대로 두므로) 다음 승급일 전날로 둔다. 이 값은 v2의 계산과 같다.
+ */
+function v2ToV3(data: Dict, ctx: MigrationContext): Dict {
+  const profile = data.profile;
+  if (!isDict(profile) || !isValidYmd(profile.nextStepDate)) return data;
+  if (isValidYmd(profile.stepAsOf)) return data;
+  const meta = isDict(data.meta) ? data.meta : {};
+  const updated = dateOfIso(typeof meta.updatedAt === 'string' ? meta.updatedAt : ctx.exportedAt);
+  const dayBefore = addDays(profile.nextStepDate, -1);
+  const stepAsOf = updated < profile.nextStepDate ? updated : dayBefore;
+  return { ...data, profile: { ...profile, stepAsOf } };
+}
+
 /** 키 = 변환 전 버전 */
 const MIGRATIONS: Record<number, Migration> = {
   1: v1ToV2,
+  2: v2ToV3,
 };
 
 export type MigrateResult =

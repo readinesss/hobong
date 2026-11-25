@@ -38,6 +38,7 @@ import {
   saveUndo,
 } from '../../src/lib/store/storage.ts';
 import { checkProfile, cleanText, validateUserData } from '../../src/lib/store/validate.ts';
+import { nextRaiseDate, stepOn } from '../../src/lib/calc/step.ts';
 
 const TODAY = '2026-11-25';
 const NOW = '2026-11-25T01:00:00.000Z';
@@ -58,6 +59,7 @@ function sampleProfile(over: Partial<Profile> = {}): Profile {
     gradeDate: '2024-07-01',
     step: 6,
     nextStepDate: '2027-01-01',
+    stepAsOf: '2026-11-25',
     overrides: { longServiceDate: null, seniorDate: '2028-08-01' },
     ...over,
   };
@@ -163,6 +165,8 @@ describe('구버전(v1) 파일 변환', () => {
       gradeDate: '2022-09-01',
       step: 4,
       nextStepDate: '2026-09-01',
+      // 확인한 날은 알 수 없으므로 파일을 내보낸 날로 채운다
+      stepAsOf: '2026-06-15',
       overrides: { longServiceDate: null, seniorDate: null },
     });
     expect(parsed.data.leave.records).toEqual([
@@ -185,6 +189,37 @@ describe('구버전(v1) 파일 변환', () => {
     const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW)), ctx);
     expect(again.ok && again.migrated).toBe(false);
     expect(again.ok && again.data).toEqual(parsed.data);
+  });
+  it('v2 파일: 호봉을 확인한 날을 채워 넣는다', () => {
+    const v2 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v2.json'), 'utf8');
+    const parsed = parseBackup(v2, ctx);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.fromVersion).toBe(2);
+    expect(parsed.migrated).toBe(true);
+    // 마지막으로 고친 날(2026-11-24)이 다음 승급일(2027-12-01)보다 앞이므로 그날로 둔다.
+    expect(parsed.data.profile.stepAsOf).toBe('2026-11-24');
+    // 나머지는 그대로다
+    const before = JSON.parse(v2).data;
+    expect({ ...parsed.data, profile: { ...parsed.data.profile, stepAsOf: undefined } }).toEqual({
+      ...before,
+      profile: { ...before.profile, stepAsOf: undefined },
+    });
+    // 다음 승급일이 1년보다 멀어도 지금 호봉은 넣은 값 그대로다(v2에서는 4호봉으로 내려갔다).
+    expect(stepOn(parsed.data.profile, TODAY, 31)).toBe(5);
+    expect(nextRaiseDate(parsed.data.profile, TODAY, 31)).toBe('2027-12-01');
+  });
+  it('v2 파일: 다음 승급일이 이미 지났으면 그 전날을 확인한 날로 둔다(계산은 v2와 같다)', () => {
+    const v2 = JSON.parse(
+      readFileSync(join(process.cwd(), 'tests/fixtures/backup-v2.json'), 'utf8'),
+    );
+    v2.data.profile.nextStepDate = '2026-07-01';
+    const parsed = parseBackup(JSON.stringify(v2), ctx);
+    expect(parsed.ok && parsed.data.profile.stepAsOf).toBe('2026-06-30');
+    if (!parsed.ok) return;
+    expect(stepOn(parsed.data.profile, TODAY, 31)).toBe(6);
+    expect(stepOn(parsed.data.profile, '2026-06-30', 31)).toBe(5);
+    expect(stepOn(parsed.data.profile, '2025-06-30', 31)).toBe(4);
   });
   it('저장소에 남아 있던 구버전 데이터도 같은 길로 변환된다', () => {
     const store = memoryStore();
@@ -389,6 +424,27 @@ describe('입력 폼 검사', () => {
         .longServiceDate,
     ).toBeDefined();
     expect(checkProfile(null, ctx).nickname).toBeDefined();
+    expect(checkProfile({ ...base, stepAsOf: '2026-13-01' }, ctx).stepAsOf).toBeDefined();
+    expect(checkProfile({ ...base, stepAsOf: undefined }, ctx)).toEqual({});
+  });
+  it('입력 폼에서만: 다음 승급일은 앞날, 최고호봉이 된 날은 지난날', () => {
+    const future = { ...ctx, raiseDateRule: 'future' as const };
+    expect(checkProfile({ ...base, nextStepDate: '2026-11-26' }, future)).toEqual({});
+    expect(checkProfile({ ...base, nextStepDate: TODAY }, future).nextStepDate).toContain(
+      '오늘보다 뒤',
+    );
+    // 저장된 값에는 이 검사를 하지 않는다(승급일이 지나도 저장값은 그대로다)
+    expect(checkProfile({ ...base, nextStepDate: '2026-01-01' }, ctx)).toEqual({});
+
+    const reached = { ...ctx, raiseDateRule: 'reached' as const };
+    expect(checkProfile({ ...base, nextStepDate: '2025-01-01' }, reached)).toEqual({});
+    expect(checkProfile({ ...base, nextStepDate: TODAY }, reached)).toEqual({});
+    expect(checkProfile({ ...base, nextStepDate: '2027-01-01' }, reached).nextStepDate).toContain(
+      '최고호봉이 된 날',
+    );
+    expect(checkProfile({ ...base, nextStepDate: '' }, reached).nextStepDate).toContain(
+      '최고호봉이 된 날',
+    );
   });
   it('문자열 다듬기', () => {
     expect(cleanText('  안녕\n하세요\t ', 10)).toBe('안녕하세요');
