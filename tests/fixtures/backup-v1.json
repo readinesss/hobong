@@ -1,0 +1,23 @@
+{
+  "app": "hobong",
+  "schemaVersion": 1,
+  "appVersion": "0.0.1",
+  "exportedAt": "2026-06-15T09:30:00.000Z",
+  "data": {
+    "nickname": "김주무관",
+    "birthDate": "1996-04-12",
+    "hireDate": "2022-09-01",
+    "grade": 9,
+    "step": 4,
+    "nextStepDate": "2026-09-01",
+    "leave": [
+      { "date": "2026-01-02", "unit": "day" },
+      { "date": "2026-03-13", "unit": "half" },
+      { "date": "2026-05-04", "unit": "hour", "amount": 2 }
+    ],
+    "leaveGrantDays": { "2026": 16 },
+    "badges": ["hire", "probation"],
+    "theme": "dark",
+    "createdAt": "2026-02-01T00:00:00.000Z"
+  }
+}

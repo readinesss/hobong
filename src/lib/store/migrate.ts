@@ -1,0 +1,132 @@
+/**
+ * 구버전 데이터 변환.
+ *
+ * 버전 내역
+ * - v1: 초기 설계안. 브리프의 입력 항목(닉네임·생년월일·임용일·직급·호봉·다음 승급일)을
+ *       한 층에 펼쳐 두고, 연가는 일/반일/시간 단위로 기록했다.
+ * - v2: 현 직급 임용일과 예외 보정, 시간 단위 연가 장부, 설정·업적·캐릭터·출근 도장을
+ *       묶음별로 나눈 현재 형식.
+ *
+ * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
+ * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
+ */
+import { isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
+import { APP_ID, SCHEMA_VERSION, type Settings } from './schema.ts';
+
+type Dict = Record<string, unknown>;
+
+function isDict(value: unknown): value is Dict {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export interface MigrationContext {
+  /** 구버전에 없던 설정의 기본값 */
+  defaultSettings: Settings;
+  /** 파일을 내보낸 시각(ISO). 없으면 변환 시각 */
+  exportedAt: string;
+}
+
+type Migration = (data: Dict, ctx: MigrationContext) => Dict;
+
+function dateOfIso(iso: string): Ymd {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '1970-01-01' : todayYmd(date);
+}
+
+/** v1 → v2 */
+function v1ToV2(data: Dict, ctx: MigrationContext): Dict {
+  const exportedDay = dateOfIso(ctx.exportedAt);
+  const records: Dict[] = [];
+  if (Array.isArray(data.leave)) {
+    data.leave.forEach((item: unknown, index: number) => {
+      if (!isDict(item) || !isValidYmd(item.date)) return;
+      const id = `v1-${index + 1}`;
+      if (item.unit === 'half') {
+        records.push({ id, date: item.date, hours: 4, kind: 'am', memo: '' });
+      } else if (item.unit === 'hour') {
+        const amount = typeof item.amount === 'number' ? Math.round(item.amount) : 1;
+        records.push({ id, date: item.date, hours: Math.min(8, Math.max(1, amount)), kind: 'hours', memo: '' });
+      } else {
+        records.push({ id, date: item.date, hours: 8, kind: 'day', memo: '' });
+      }
+    });
+  }
+  const grantOverrideHours: Dict = {};
+  if (isDict(data.leaveGrantDays)) {
+    for (const [year, days] of Object.entries(data.leaveGrantDays)) {
+      if (typeof days === 'number' && Number.isFinite(days)) grantOverrideHours[year] = Math.round(days * 8);
+    }
+  }
+  const achievements: Dict = {};
+  if (Array.isArray(data.badges)) {
+    for (const id of data.badges) {
+      if (typeof id === 'string') achievements[id] = { at: exportedDay };
+    }
+  }
+  const theme = data.theme === 'light' || data.theme === 'dark' ? data.theme : ctx.defaultSettings.theme;
+  const createdAt = typeof data.createdAt === 'string' ? data.createdAt : ctx.exportedAt;
+  return {
+    profile: {
+      nickname: data.nickname,
+      birthDate: data.birthDate,
+      hireDate: data.hireDate,
+      grade: data.grade,
+      // v1에는 현 직급 임용일이 없었다. 승진 이력을 모르므로 최초 임용일로 둔다.
+      gradeDate: data.hireDate,
+      step: data.step,
+      nextStepDate: data.nextStepDate,
+      overrides: { longServiceDate: null, seniorDate: null },
+    },
+    settings: { ...ctx.defaultSettings, theme },
+    leave: { records, grantOverrideHours },
+    achievements,
+    character: { seenForms: [], lastGrade: data.grade, lastStep: data.step },
+    visits: { days: [], lastVisit: null },
+    meta: { createdAt, updatedAt: ctx.exportedAt, lastBackupAt: ctx.exportedAt, changesSinceBackup: 0 },
+  };
+}
+
+/** 키 = 변환 전 버전 */
+const MIGRATIONS: Record<number, Migration> = {
+  1: v1ToV2,
+};
+
+export type MigrateResult =
+  | { ok: true; data: unknown; fromVersion: number; migrated: boolean }
+  | { ok: false; reason: string };
+
+/**
+ * 겉봉(envelope)을 확인하고 data를 현재 버전 형식으로 바꾼다.
+ * 결과 data는 아직 검증 전이므로 validateUserData를 거쳐야 한다.
+ */
+export function migrateEnvelope(envelope: unknown, defaults: Settings, nowIso: string): MigrateResult {
+  if (!isDict(envelope)) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
+  if (envelope.app !== APP_ID) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
+  const version = envelope.schemaVersion;
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    return { ok: false, reason: '데이터 버전 정보(schemaVersion)가 없거나 틀렸습니다.' };
+  }
+  if (version > SCHEMA_VERSION) {
+    return {
+      ok: false,
+      reason: `이 파일은 더 새로운 버전의 호봉에서 만든 것입니다(파일 버전 ${version}, 지원 버전 ${SCHEMA_VERSION}). 호봉을 최신 버전으로 바꾼 뒤 다시 불러와 주세요.`,
+    };
+  }
+  if (!isDict(envelope.data)) return { ok: false, reason: '파일 안에 데이터가 없습니다.' };
+
+  const exportedAt =
+    typeof envelope.exportedAt === 'string' && !Number.isNaN(Date.parse(envelope.exportedAt))
+      ? envelope.exportedAt
+      : nowIso;
+  let data: Dict = envelope.data;
+  for (let v = version; v < SCHEMA_VERSION; v += 1) {
+    const step = MIGRATIONS[v];
+    if (!step) return { ok: false, reason: `버전 ${v} 데이터를 변환하는 방법을 모릅니다.` };
+    try {
+      data = step(data, { defaultSettings: defaults, exportedAt });
+    } catch {
+      return { ok: false, reason: `버전 ${v} 데이터를 변환하다 실패했습니다. 파일이 손상됐을 수 있습니다.` };
+    }
+  }
+  return { ok: true, data, fromVersion: version, migrated: version !== SCHEMA_VERSION };
+}
