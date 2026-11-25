@@ -4,7 +4,7 @@
   "target": { "id": "national-general", "label": "국가직 일반직 공무원" },
   "status": "verified",
   "verifiedAt": "2026-11-25",
-  "notes": ["모든 값은 2026-11-25에 국가법령정보센터 현행 원문으로 확인했다. 발췌본은 docs/sources/2026/ 에 있다.", "휴직·징계·경력 인정 등 개인별 예외는 반영하지 않는다. 화면의 날짜 직접 입력으로 보정한다."],
+  "notes": ["모든 값은 2026-11-25에 국가법령정보센터 현행 원문(법령·행정규칙·법령해석례)으로 확인했다. 음력 명절 날짜는 한국천문연구원 달력자료를 따랐다. 발췌본은 docs/sources/2026/ 에 있다.", "휴직·징계·경력 인정 등 개인별 예외는 반영하지 않는다. 화면의 날짜 직접 입력으로 보정한다."],
   "laws": {
     "stateOfficialsAct": {
       "name": "국가공무원법",
@@ -61,7 +61,7 @@
       "url": "https://www.law.go.kr/법령/관공서의공휴일에관한규정"
     },
     "kasi": {
-      "name": "한국천문연구원 달력자료(월력요항 기준)",
+      "name": "한국천문연구원 달력자료",
       "effective": "2026-01-01",
       "promulgation": "2026년 달력자료, 자료생성 2024. 7. 25.",
       "url": "https://astro.kasi.re.kr/life/post/calendarData?year=2026"
@@ -124,18 +124,19 @@
   "promotionStep": {
     "subtract": 1,
     "minStep": 1,
+    "capAtMaxStep": true,
     "source": {
       "law": "pay",
-      "article": "제11조제2항, 별표 28 가목",
+      "article": "제11조제2항, 별표 28 가목·비고 1",
       "revised": "2018-01-18",
       "snapshot": "pay-reg-table28-promotion-step.txt",
-      "note": "승진 전 1호봉은 1호봉, 2호봉 이상은 1호봉을 뺀 호봉. 잔여기간 12개월 이상 시 선(先)승급(제11조제5항)은 반영하지 않는다."
+      "note": "승진 전 1호봉은 1호봉, 2호봉 이상은 1호봉을 뺀 호봉. 승진 후 계급에 그 호봉이 없으면 그 계급의 최고 호봉(비고 1). 잔여기간 12개월 이상 시 선(先)승급(제11조제5항)은 반영하지 않는다."
     }
   },
   "payday": {
     "options": [
       { "day": 10, "orgs": "국방부 및 그 소속 기관" },
-      { "day": 17, "orgs": "교육부 및 그 소속 기관(각급 교육행정기관 및 교육기관 포함), 국가교육위원회" },
+      { "day": 17, "orgs": "교육부 및 그 소속 기관(각급 교육행정기관 및 교육기관을 포함한다), 국가교육위원회" },
       { "day": 20, "orgs": "대법원, 중앙선거관리위원회, 행정안전부, 인사혁신처, 법무부, 개인정보보호위원회, 서울특별시 및 그 소속기관" },
       { "day": 25, "orgs": "그 밖의 기관 및 그 소속 기관" }
     ],
@@ -177,7 +178,8 @@
         "law": "service",
         "article": "제15조제1항·제2항",
         "snapshot": "service-reg-leave.txt",
-        "note": "재직기간은 연가 사용 직전일 기준(복무·징계 예규 제8장). 연도 중 재직기간 구간이 바뀌면 그날부터 늘어난 일수를 쓴다. 유사경력 3일 가산·성실근무 1~2일 가산(제15조제1항 단서·제3항)은 반영하지 않으며 화면에서 직접 고친다."
+        "also": [{ "law": "serviceDirective", "article": "제8장 휴가(재직기간은 연가사용 직전일 기준, 성실근무 가산)", "snapshot": "service-directive-leave-excerpt.txt" }],
+        "note": "재직기간은 연가 사용 직전일 기준(예규). 연도 중 재직기간 구간이 바뀌면 그날부터 늘어난 일수를 쓴다. 유사경력 3일 가산(제15조제1항 단서)과 성실근무 가산(제15조제3항: 각각 1일, 예규: 합계 2일)은 반영하지 않으며 화면에서 직접 고친다."
       }
     },
     "units": {
@@ -186,8 +188,9 @@
       "source": {
         "law": "service",
         "article": "제16조제3항, 제17조제4항",
-        "snapshot": "service-directive-leave-excerpt.txt",
-        "note": "반일연가 2회는 1일, 누계 8시간은 1일(복무·징계 예규: 반일연가 1회는 4시간)."
+        "snapshot": "service-reg-leave.txt",
+        "also": [{ "law": "serviceDirective", "article": "제8장 휴가(반일연가 1회는 4시간)", "snapshot": "service-directive-leave-excerpt.txt" }],
+        "note": "반일연가 2회는 1일, 누계 8시간은 1일(규정). 반일연가 1회가 4시간이라는 것은 예규에서 왔다."
       }
     },
     "firstYear": {
@@ -228,16 +231,16 @@
     },
     "longService": {
       "tiers": [
-        { "fromYears": 5, "toYears": 10, "days": 3 },
-        { "fromYears": 10, "toYears": 20, "days": 5 },
-        { "fromYears": 20, "toYears": null, "days": 7 }
+        { "fromYears": 5, "toYears": 10, "days": 3, "effective": "2026-06-23", "grace": { "fromYears": 8, "until": "2028-06-23" } },
+        { "fromYears": 10, "toYears": 20, "days": 5, "effective": "2025-07-22", "grace": { "fromYears": 18, "until": "2027-07-22" } },
+        { "fromYears": 20, "toYears": null, "days": 7, "effective": "2025-07-22" }
       ],
       "source": {
         "law": "service",
-        "article": "제20조제18항",
+        "article": "제20조제18항, 부칙(대통령령 제35665호 제2조, 제36442호 제2조)",
         "revised": "2026-06-23",
         "snapshot": "service-reg-leave.txt",
-        "note": "장기재직휴가. 구간별 재직기간 중 각 1회."
+        "note": "장기재직휴가. 구간별 재직기간 중 각 1회. 10년 이상 구간은 2025-07-22, 5년 이상 10년 미만 구간은 2026-06-23에 생겼다(effective). 부칙 특례(grace): 시행 당시 재직 18년 이상 20년 미만(8년 이상 10년 미만)이던 사람은 구간 상한을 넘겨도 시행 이후 2년이 되는 날까지 쓸 수 있다. 그 날짜는 시행일과 같은 달·날로 적었다(하루 차이의 해석 여지가 있다). 구간별 시행일은 현행 조문의 개정 이력 표시(신설 2025. 7. 22., 2026. 6. 23.)와 두 부칙으로 정했고, 2025년 신설 당시의 조문 전문은 따로 확인하지 못했다."
       }
     }
   },
@@ -287,6 +290,7 @@
     "diligence": {
       "payMonths": [1, 7],
       "periodMonths": 6,
+      "minMonthsToQualify": 1,
       "minDaysForMonth": 15,
       "tiers": [
         { "underYears": 2, "rate": 0.1 },
@@ -303,7 +307,7 @@
         "article": "제7조제1항·제2항·제4항, 별표 2 제1호",
         "revised": "2025-01-03",
         "snapshot": "allowance-reg-table2-diligence.txt",
-        "note": "1월 1일·7월 1일 현재 봉급표상 월봉급액 기준, 1월·7월 보수지급일 지급. 신규 임용자는 지급대상기간(직전 6개월) 중 실제 근무 개월 수 ÷ 6. 근무연수는 매달 1일 현재 기준."
+        "note": "1월 1일·7월 1일 현재 봉급표상 월봉급액 기준, 1월·7월 보수지급일 지급. 신규 임용자는 지급대상기간(직전 6개월) 중 실제 근무 개월 수 ÷ 6. 근무연수는 매달 1일 현재 기준. 지급 자격은 제1항의 문언(지급대상기간 중 1개월 이상 봉급이 지급된 공무원)대로 실제 1개월 이상으로 판정하고, 15일을 1개월로 치는 것(제2항)은 지급액 계산에만 쓴다. 이 구분은 조문 해석이며 인사혁신처 업무지침으로는 확인하지 못했다(구현상의 가정)."
       }
     },
     "diligenceExtra": {
@@ -396,6 +400,7 @@
       "law": "holidayRegulation",
       "article": "제2조·제3조",
       "snapshot": "kasi-calendar-2026.txt",
+      "also": [{ "law": "holidayAct", "article": "제2조", "snapshot": "holiday-act.txt" }, { "law": "kasi", "article": "2026년 달력자료(음력 명절 날짜)", "snapshot": "kasi-calendar-2026.txt" }],
       "note": "일요일을 뺀 관공서 공휴일. 음력 명절 날짜는 한국천문연구원 달력자료 기준. 노동절(2026-05-01 시행)과 제헌절(2026-05-11 시행)은 개정 규정에 따라 넣었다(공휴일에 관한 법률 제2조). 임시공휴일은 지정되면 직접 추가한다."
     }
   }

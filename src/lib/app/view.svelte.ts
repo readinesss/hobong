@@ -13,7 +13,7 @@ import {
   fullDayLeaveDates,
   type AchievementInput,
 } from '../achievements.ts';
-import { upcomingBonuses } from '../calc/bonus.ts';
+import { missingHolidayYearForBonuses, upcomingBonuses } from '../calc/bonus.ts';
 import { findBridges } from '../calc/bridge.ts';
 import { Calendar } from '../calc/calendar.ts';
 import {
@@ -43,7 +43,7 @@ import {
   yearToDateSalary,
 } from '../calc/salary.ts';
 import { isRaiseDay, prevRaiseDate, stepOn } from '../calc/step.ts';
-import { earnings, todayStatus, toSchedule } from '../calc/today.ts';
+import { earnings, todayStatus, toSchedule, type TodayStatus } from '../calc/today.ts';
 import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
@@ -68,13 +68,33 @@ class View {
 
   profile = $derived(this.data.profile);
   maxStep = $derived(maxStepOf(this.rules.salary, this.profile.grade));
+
+  // ── 정년 ─────────────────────────────────────────────────────────────
+  retire = $derived(retirementInfo(this.rules.retirement, this.profile.birthDate));
+  /** 정년퇴직일이 지났는지 */
+  retired = $derived(this.today > this.retire.retireDate);
+  /**
+   * 재직 중의 값(호봉·봉급·재직기간·누적 봉급)을 계산하는 날.
+   * 정년퇴직일이 지나면 그날에서 멈춘다(퇴직 뒤에도 숫자가 계속 늘어나지 않게).
+   */
+  serviceDay = $derived(this.retired ? this.retire.retireDate : this.today);
+
   step = $derived(
-    stepOn(this.profile, this.today, this.maxStep, this.rules.stepRaise.periodMonths),
+    stepOn(this.profile, this.serviceDay, this.maxStep, this.rules.stepRaise.periodMonths),
   );
-  salary = $derived(salaryOn(rulesFor, this.profile, this.today));
+  salary = $derived(salaryOn(rulesFor, this.profile, this.serviceDay));
 
   // ── 승급 ─────────────────────────────────────────────────────────────
-  nextRaise = $derived(nextStepRaise(rulesFor, this.profile, this.today));
+  /** 다음 정기승급. 최고호봉이거나 정년퇴직일 뒤라면 null */
+  nextRaise = $derived.by(() => {
+    const next = nextStepRaise(rulesFor, this.profile, this.serviceDay);
+    return next && next.date <= this.retire.retireDate ? next : null;
+  });
+  /** 다음 승급이 없는 까닭 */
+  noRaiseReason = $derived.by<'max' | 'retire' | null>(() => {
+    if (this.nextRaise) return null;
+    return this.step >= this.maxStep ? 'max' : 'retire';
+  });
   /** 직전 승급일~다음 승급일 사이의 진행 정도 */
   raiseProgress = $derived.by(() => {
     const next = this.nextRaise;
@@ -96,10 +116,9 @@ class View {
   );
   nextUnlock = $derived(nextUnlock(characterRules, this.step));
 
-  // ── 정년·재직 ────────────────────────────────────────────────────────
-  retire = $derived(retirementInfo(this.rules.retirement, this.profile.birthDate));
+  // ── 재직 ─────────────────────────────────────────────────────────────
   career = $derived(careerProgress(this.profile.hireDate, this.retire.retireDate, this.today));
-  tenure = $derived(spanBetween(this.profile.hireDate, addDays(this.today, 1)));
+  tenure = $derived(spanBetween(this.profile.hireDate, addDays(this.serviceDay, 1)));
   /** 오늘이 임용 N주년이면 N */
   anniversaryYears = $derived.by(() => {
     const hire = parseYmd(this.profile.hireDate);
@@ -129,13 +148,31 @@ class View {
   });
 
   // ── 돈 ───────────────────────────────────────────────────────────────
-  cumulative = $derived(cumulativeSalary(rulesFor, this.profile, this.today));
-  yearToDate = $derived(yearToDateSalary(rulesFor, this.profile, this.today));
-  bonuses = $derived(
-    upcomingBonuses(rulesFor, calendar, this.profile, this.data.settings.payday, this.today, 3),
+  cumulative = $derived(cumulativeSalary(rulesFor, this.profile, this.serviceDay));
+  /** 올해 번 봉급. 지난해 이전에 퇴직했다면 0 */
+  yearToDate = $derived(
+    yearOf(this.serviceDay) < yearOf(this.today)
+      ? 0
+      : yearToDateSalary(rulesFor, this.profile, this.serviceDay),
   );
+  /** 기준일에 재직 중인 보너스만(정년퇴직일 뒤의 정근수당·명절휴가비는 없다) */
+  bonuses = $derived(
+    upcomingBonuses(
+      rulesFor,
+      calendar,
+      this.profile,
+      this.data.settings.payday,
+      this.today,
+      3,
+      this.retire.retireDate,
+    ),
+  );
+  /** 공휴일 데이터가 없어 명절휴가비가 목록에서 빠졌을 수 있는 해 */
+  bonusGapYear = $derived(missingHolidayYearForBonuses(calendar, this.today));
   payday = $derived(calendar.nextPayday(this.today, this.data.settings.payday));
-  isPayday = $derived(this.payday === this.today);
+  /** 다음 월급날이 속한 해의 공휴일이 반영돼 있는지(아니면 공휴일과 겹쳐 앞당겨질 수 있다) */
+  paydayHolidaysKnown = $derived(calendar.hasHolidayData(yearOf(this.payday)));
+  isPayday = $derived(!this.retired && this.payday === this.today);
 
   // ── 쉬는 날 ──────────────────────────────────────────────────────────
   nextHoliday = $derived.by(() => {
@@ -154,7 +191,18 @@ class View {
 
   // ── 연가 ─────────────────────────────────────────────────────────────
   leave = $derived(
-    summarizeLeave(this.rules.leave, this.profile.hireDate, this.data.leave, this.today),
+    summarizeLeave(
+      this.rules.leave,
+      this.profile.hireDate,
+      this.data.leave,
+      this.today,
+      this.retire.retireDate,
+    ),
+  );
+  /** 올해가 정년퇴직하는 해라 연가가 근무 개월 수만큼만 나오는지 */
+  leaveProrated = $derived(
+    yearOf(this.retire.retireDate) === yearOf(this.today) &&
+      !this.retire.retireDate.endsWith('-12-31'),
   );
   leaveDayPrice = $derived(compensationPerDay(this.rules.leave, this.salary.amount));
   advanceLimit = $derived(advanceLimitDays(this.rules.leave, this.profile.hireDate, this.today));
@@ -181,8 +229,23 @@ class View {
 
   // ── 오늘(초 단위) ────────────────────────────────────────────────────
   schedule = $derived(toSchedule(this.data.settings.work, this.rules.workHours));
-  status = $derived(todayStatus(calendar, this.schedule, clock.now));
-  earn = $derived(earnings(this.salary.amount, calendar, this.schedule, clock.now));
+  status = $derived.by<TodayStatus>(() => {
+    const status = todayStatus(calendar, this.schedule, clock.now);
+    if (!this.retired) return status;
+    // 퇴직 뒤에는 근무일이 아니다
+    return {
+      ...status,
+      workday: false,
+      phase: 'off',
+      workedSeconds: 0,
+      progress: 0,
+      secondsToStart: null,
+      secondsToEnd: null,
+    };
+  });
+  earn = $derived(
+    earnings(this.retired ? 0 : this.salary.amount, calendar, this.schedule, clock.now),
+  );
   /** 하루 중 지난 만큼을 더한 정년 진행률(소수점이 움직인다) */
   careerRatio = $derived(
     careerProgress(

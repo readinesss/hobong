@@ -145,7 +145,13 @@
       {/if}
       <div class="kv">
         <dt>다음 승급일</dt>
-        <dd>{view.nextRaise ? formatKorean(view.nextRaise.date, false) : '최고 호봉'}</dd>
+        <dd>
+          {view.nextRaise
+            ? formatKorean(view.nextRaise.date, false)
+            : view.noRaiseReason === 'retire'
+              ? '정년 전 승급 없음'
+              : '최고 호봉'}
+        </dd>
       </div>
       {#if profile.overrides.longServiceDate}
         <div class="kv">

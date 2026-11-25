@@ -12,6 +12,7 @@ import {
   type Ymd,
 } from './date.ts';
 import type { Calendar } from './calendar.ts';
+import { floorRate } from './money.ts';
 import type { LeaveRules, MonthTier } from '../rules/types.ts';
 import type { LeaveData, LeaveKind, LeaveRecord } from '../store/schema.ts';
 
@@ -29,31 +30,56 @@ function roundHalfUp(value: number): number {
 }
 
 /**
- * 임용한 해에 실제 근무한 개월 수(복무규정 제17조제2항).
- * 임용일부터 역(曆)에 따라 세고, 남는 날이 minDaysForMonth일 이상이면 1개월로 친다.
+ * year년에 실제 근무하는 개월 수(복무규정 제17조제2항: 연도 중 임용되거나 퇴직하는 경우).
+ * 임용한 해는 임용일부터, 퇴직하는 해는 퇴직일까지 역(曆)에 따라 세고,
+ * 남는 날이 minDaysForMonth일 이상이면 1개월로 친다.
  */
-export function firstYearMonths(hireDate: Ymd, minDaysForMonth: number): number {
-  const nextJan1 = formatYmd({ y: yearOf(hireDate) + 1, m: 1, d: 1 });
-  let months = completedMonths(hireDate, nextJan1);
-  const rest = diffDays(periodCompleteDate(hireDate, months), nextJan1);
+export function serviceMonthsInYear(
+  hireDate: Ymd,
+  year: number,
+  minDaysForMonth: number,
+  retireDate?: Ymd,
+): number {
+  const jan1 = formatYmd({ y: year, m: 1, d: 1 });
+  const nextJan1 = formatYmd({ y: year + 1, m: 1, d: 1 });
+  const start = hireDate > jan1 ? hireDate : jan1;
+  const afterRetire = retireDate !== undefined ? addDays(retireDate, 1) : nextJan1;
+  const end = afterRetire < nextJan1 ? afterRetire : nextJan1;
+  if (end <= start) return 0;
+  let months = completedMonths(start, end);
+  const rest = diffDays(periodCompleteDate(start, months), end);
   if (rest >= minDaysForMonth) months += 1;
   return Math.min(12, months);
+}
+
+/** 임용한 해에 실제 근무한 개월 수 */
+export function firstYearMonths(hireDate: Ymd, minDaysForMonth: number): number {
+  return serviceMonthsInYear(hireDate, yearOf(hireDate), minDaysForMonth);
 }
 
 /**
  * on 날짜에 쓸 수 있는, 그 해의 연가 일수(자동 계산).
  * - 재직기간은 사용 직전일 기준이라 on 당일에 구간이 바뀌면 바뀐 일수를 쓴다.
- * - 임용한 해에는 근무 개월 수만큼만(반올림) 부여된다.
+ * - 임용한 해와 정년퇴직하는 해에는 근무 개월 수만큼만(반올림) 부여된다.
  * - 가산(유사경력 3일, 성실근무 1~2일)·저축연가·공제는 반영하지 않는다.
  */
-export function annualLeaveDays(rules: LeaveRules, hireDate: Ymd, on: Ymd): number {
+export function annualLeaveDays(
+  rules: LeaveRules,
+  hireDate: Ymd,
+  on: Ymd,
+  retireDate?: Ymd,
+): number {
   if (on < hireDate) return 0;
+  if (retireDate !== undefined && on > retireDate) return 0;
   const base = tierDays(rules.annual.tiers, completedMonths(hireDate, on));
   if (base === 0) return 0;
-  if (yearOf(hireDate) === yearOf(on)) {
-    const worked = firstYearMonths(hireDate, rules.firstYear.minDaysForMonth);
-    if (worked < 12) return roundHalfUp((base * worked) / 12);
-  }
+  const worked = serviceMonthsInYear(
+    hireDate,
+    yearOf(on),
+    rules.firstYear.minDaysForMonth,
+    retireDate,
+  );
+  if (worked < 12) return roundHalfUp((base * worked) / 12);
   return base;
 }
 
@@ -65,7 +91,12 @@ export interface GrantStep {
 }
 
 /** 한 해 동안 연가 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만) */
-export function grantTimeline(rules: LeaveRules, hireDate: Ymd, year: number): GrantStep[] {
+export function grantTimeline(
+  rules: LeaveRules,
+  hireDate: Ymd,
+  year: number,
+  retireDate?: Ymd,
+): GrantStep[] {
   const jan1 = formatYmd({ y: year, m: 1, d: 1 });
   const dec31 = formatYmd({ y: year, m: 12, d: 31 });
   const candidates = new Set<Ymd>([jan1]);
@@ -75,7 +106,7 @@ export function grantTimeline(rules: LeaveRules, hireDate: Ymd, year: number): G
   }
   const steps: GrantStep[] = [];
   for (const date of [...candidates].sort()) {
-    const days = annualLeaveDays(rules, hireDate, date);
+    const days = annualLeaveDays(rules, hireDate, date, retireDate);
     const last = steps[steps.length - 1];
     if (!last || last.days !== days) steps.push({ from: date, days });
   }
@@ -119,17 +150,18 @@ export function summarizeLeave(
   hireDate: Ymd,
   leave: LeaveData,
   today: Ymd,
+  retireDate?: Ymd,
 ): LeaveSummary {
   const year = yearOf(today);
   const hoursPerDay = rules.units.hoursPerDay;
-  const autoHours = annualLeaveDays(rules, hireDate, today) * hoursPerDay;
+  const autoHours = annualLeaveDays(rules, hireDate, today, retireDate) * hoursPerDay;
   const override = leave.grantOverrideHours[String(year)];
   const overridden = typeof override === 'number';
   const grantedHours = overridden ? override : autoHours;
 
   let nextChange: LeaveSummary['nextChange'] = null;
   if (!overridden) {
-    const upcoming = grantTimeline(rules, hireDate, year).find((s) => s.from > today);
+    const upcoming = grantTimeline(rules, hireDate, year, retireDate).find((s) => s.from > today);
     if (upcoming && upcoming.days * hoursPerDay !== autoHours) {
       nextChange = { date: upcoming.from, hours: upcoming.days * hoursPerDay };
     }
@@ -251,7 +283,7 @@ export function workdaysInRange(cal: Calendar, from: Ymd, to: Ymd, limit = 62): 
 /** 연가보상비 1일 단가(원 미만 버림): 월봉급액 × 86% ÷ 30 (수당규정 제18조의5) */
 export function compensationPerDay(rules: LeaveRules, monthlySalary: number): number {
   const { rate, divisor } = rules.compensation;
-  return Math.floor(Math.round(monthlySalary * rate) / divisor);
+  return floorRate(monthlySalary, rate, 1, divisor);
 }
 
 /** 다음 재직기간 연가를 미리 쓸 수 있는 최대 일수(복무규정 제16조제6항) */

@@ -7,6 +7,7 @@ import {
   addDays,
   addMonthsClamped,
   diffDays,
+  formatKorean,
   periodCompleteDate,
   yearOf,
   type Ymd,
@@ -17,6 +18,7 @@ import { longServiceInfo, minServiceDate, seniorTreatmentInfo } from './promotio
 import { retirementInfo } from './retirement.ts';
 import { gradeKey, maxStepOf } from './salary.ts';
 import { nextRaiseDate, stepOn } from './step.ts';
+import type { LongLeaveTier } from '../rules/types.ts';
 import type { Profile } from '../store/schema.ts';
 
 export type MilestoneKind = 'career' | 'leave' | 'pay' | 'promotion' | 'retire';
@@ -50,6 +52,40 @@ const RETIRE_COUNTDOWNS: readonly { days: number; label: string }[] = [
   { days: 365, label: '365일' },
   { days: 100, label: '100일' },
 ];
+
+export interface LongLeaveWindow {
+  /** 재직기간이 이 구간에 든 날 */
+  reached: Ymd;
+  /** 실제로 쓸 수 있게 된 날(조항 시행일보다 앞설 수 없다) */
+  from: Ymd;
+  /** 쓸 수 있는 마지막 날. 상한이 없는 구간이면 null */
+  until: Ymd | null;
+  /** 부칙 특례로 기한이 늘었는지 */
+  graced: boolean;
+}
+
+/**
+ * 장기재직휴가를 쓸 수 있는 기간(복무규정 제20조제18항과 부칙).
+ * 구간 상한에 닿기 전에 조항이 시행되지 않았고 특례에도 해당하지 않으면 null(가진 적 없는 휴가).
+ */
+export function longLeaveWindow(tier: LongLeaveTier, hireDate: Ymd): LongLeaveWindow | null {
+  const reached = periodCompleteDate(hireDate, tier.fromYears * 12);
+  const from = reached > tier.effective ? reached : tier.effective;
+  if (tier.toYears === null) return { reached, from, until: null, graced: false };
+  // 상한 연수가 되는 날의 전날까지가 이 구간이다.
+  const top = periodCompleteDate(hireDate, tier.toYears * 12);
+  let until = addDays(top, -1);
+  let graced = false;
+  if (tier.grace) {
+    // 시행 당시 재직기간이 grace.fromYears 이상, 구간 상한 미만이던 사람
+    const graceFrom = periodCompleteDate(hireDate, tier.grace.fromYears * 12);
+    if (graceFrom <= tier.effective && tier.effective < top && tier.grace.until > until) {
+      until = tier.grace.until;
+      graced = true;
+    }
+  }
+  return from <= until ? { reached, from, until, graced } : null;
+}
 
 function yearsLabel(months: number): string {
   const years = Math.floor(months / 12);
@@ -131,13 +167,20 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
     });
   });
 
-  // 장기재직휴가
+  // 장기재직휴가: 조항이 생긴 날 이후에만, 그 구간에 있는 동안만 있는 휴가다.
   for (const tier of r.leave.longService.tiers) {
+    const window = longLeaveWindow(tier, hireDate);
+    if (!window) continue;
+    const until = window.until ? `${formatKorean(window.until, false)}까지` : '재직하는 동안';
+    const why =
+      window.from === window.reached
+        ? `재직 ${tier.fromYears}년.`
+        : `재직 ${tier.fromYears}년을 넘긴 뒤 이 휴가가 새로 생겼다(${formatKorean(tier.effective, false)} 시행).`;
     push({
       id: `long-leave-${tier.fromYears}`,
-      date: periodCompleteDate(hireDate, tier.fromYears * 12),
+      date: window.from,
       title: `장기재직휴가 ${tier.days}일`,
-      detail: `재직 ${tier.fromYears}년. ${tier.toYears ? `${tier.toYears}년이 되기 전까지` : '재직 중'} 한 번 쓸 수 있는 ${tier.days}일 휴가가 생긴다.`,
+      detail: `${why} ${until} 한 번 쓸 수 있는 ${tier.days}일 휴가${window.graced ? '(부칙 특례로 기한이 늘었다)' : ''}.`,
       icon: 'icon-plane',
       kind: 'leave',
       badge: true,

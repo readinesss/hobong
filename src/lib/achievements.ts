@@ -7,7 +7,7 @@ import { addDays, diffDays, formatKorean, todayYmd, yearOf, type Ymd } from './c
 import type { Calendar } from './calc/calendar.ts';
 import type { LeaveSummary } from './calc/leave.ts';
 import type { Milestone } from './calc/milestones.ts';
-import { raiseDate, type StepAnchor } from './calc/step.ts';
+import { dateReachedStep, type StepAnchor } from './calc/step.ts';
 import type { LeaveRecord, UserData } from './store/schema.ts';
 
 export type Tier = 'bronze' | 'silver' | 'gold';
@@ -27,7 +27,8 @@ export interface AchievementView {
 }
 
 /** 일정에서 오는 뱃지의 이름·등급(없으면 일정 제목을 그대로 쓴다) */
-const MILESTONE_BADGES: Record<string, { title: string; tier: Tier }> = {
+/** title 이 없으면 일정의 제목을 그대로 쓴다(일수처럼 규정 데이터에서 오는 값은 여기 적지 않는다) */
+const MILESTONE_BADGES: Record<string, { title?: string; tier: Tier }> = {
   hire: { title: '첫 출근', tier: 'bronze' },
   probation: { title: '시보 졸업', tier: 'bronze' },
   'anniv-1': { title: '첫 돌', tier: 'bronze' },
@@ -45,9 +46,9 @@ const MILESTONE_BADGES: Record<string, { title: string; tier: Tier }> = {
   'days-5000': { title: '오천 일', tier: 'silver' },
   'days-10000': { title: '만 일의 출근', tier: 'gold' },
   'leave-21': { title: '쉼표 스물하나', tier: 'silver' },
-  'long-leave-5': { title: '장기재직휴가 3일', tier: 'bronze' },
-  'long-leave-10': { title: '장기재직휴가 5일', tier: 'silver' },
-  'long-leave-20': { title: '장기재직휴가 7일', tier: 'gold' },
+  'long-leave-5': { tier: 'bronze' },
+  'long-leave-10': { tier: 'silver' },
+  'long-leave-20': { tier: 'gold' },
   'retire-half': { title: '반환점', tier: 'gold' },
 };
 
@@ -145,8 +146,12 @@ export function evaluateAchievements(input: AchievementInput): Record<string, { 
   // 호봉
   for (const badge of STEP_BADGES) {
     if (currentStep >= badge.step) {
-      const reached = raiseDate(anchor, badge.step - anchor.step - 1);
-      out[`step-${badge.step}`] = { at: reached <= today ? reached : today };
+      // 경력 인정으로 높은 호봉에서 시작했다면 그 호봉이 된 날이 임용 전으로 계산된다.
+      // 재직한 적 없는 날짜를 찍지 않도록 임용일로 올린다.
+      const reached = dateReachedStep(anchor, badge.step);
+      const hire = data.profile.hireDate;
+      const at = reached < hire ? hire : reached;
+      out[`step-${badge.step}`] = { at: at <= today ? at : today };
     }
   }
   // 첫 연가

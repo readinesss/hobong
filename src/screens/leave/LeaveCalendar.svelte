@@ -21,6 +21,8 @@
   }
 
   let { month, selected, onselect, onmonth }: Props = $props();
+  /** 보고 있는 달이 속한 해의 공휴일이 규정 데이터에 있는지 */
+  const holidaysKnown = $derived(calendar.hasHolidayData(parseYmd(month).y));
 
   const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -118,6 +120,12 @@
     </button>
   </div>
 
+  {#if !holidaysKnown}
+    <p class="cap muted note-line">
+      {parseYmd(month).y}년 공휴일이 아직 반영되지 않았어요. 이 달력에는 주말만 쉬는 날로 나와요.
+    </p>
+  {/if}
+
   <div class="grid" role="grid" aria-label="{title} 달력">
     <div class="week head" role="row">
       {#each WEEKDAYS as name, i (name)}
@@ -177,6 +185,9 @@
 </div>
 
 <style>
+  .note-line {
+    margin: 0 0 6px;
+  }
   .cal {
     display: grid;
     gap: 9px;

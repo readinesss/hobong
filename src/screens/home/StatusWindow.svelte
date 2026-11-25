@@ -76,6 +76,12 @@
             {formatKorean(raise.next)}에 {view.nextRaise.toStep}호봉{unlockNote}
           </p>
         </div>
+      {:else if view.noRaiseReason === 'retire'}
+        <p class="note">
+          {view.retired
+            ? '정년퇴직하셨어요. 긴 길을 끝까지 걸어오셨습니다.'
+            : '정년퇴직일 전에 남은 정기승급이 없어요.'}
+        </p>
       {:else}
         <p class="note">최고 호봉이에요. 여기까지 오신 걸 축하합니다.</p>
       {/if}

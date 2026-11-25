@@ -253,6 +253,10 @@
             {calendar.holidayName(selected) ?? '토요일·일요일'}은(는) 쉬는 날이라 연가를 쓰지 않아도
             돼요. 아래 달력에서 다른 날을 골라 주세요.
           </p>
+        {:else if !calendar.hasHolidayData(selParts.y)}
+          <p class="note">
+            {selParts.y}년 공휴일이 아직 반영되지 않아, 이날이 공휴일인지는 확인하지 못했어요.
+          </p>
         {/if}
         <div class="units">
           <button
@@ -426,12 +430,18 @@
     <p class="note">
       공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요. 연가 일수는
       재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
+      {#if view.leaveProrated}
+        올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
+      {/if}
     </p>
     <p class="note">
       연가보상비 1일 단가: {view.data.settings.hideAmounts
         ? '●●,●●●원'
-        : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × 86% ÷ 30, 수당규정 제18조의5). 보상 일수와
-      지급 여부는 권장연가 등 기관 방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
+        : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(
+        rules.compensation.rate * 100,
+      )}% ÷
+      {rules.compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관
+      방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
     </p>
   </section>
 </div>

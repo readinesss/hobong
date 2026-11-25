@@ -77,6 +77,7 @@
                   }`,
                   bonus.dateNote,
                   bonus.salaryConfirmed ? '' : '그 해 봉급표 확정 전',
+                  bonus.holidaysKnown ? '' : '그 해 공휴일 반영 전(지급일이 앞당겨질 수 있음)',
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -84,6 +85,12 @@
             </li>
           {/each}
         </ul>
+        {#if view.bonusGapYear}
+          <p class="cap muted">
+            {view.bonusGapYear}년 공휴일이 아직 반영되지 않아 그 해의 명절휴가비는 여기 나오지
+            않아요.
+          </p>
+        {/if}
       </div>
     {/if}
 

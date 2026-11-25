@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { buildRegistry, resolveRules, RulesError } from '../../src/lib/rules/resolve.ts';
 import { SECTION_KEYS, type RulesFile, type SourceRef } from '../../src/lib/rules/types.ts';
 import { dayOfWeek, isValidYmd } from '../../src/lib/calc/date.ts';
+import { promotedStep } from '../../src/lib/calc/promotion.ts';
 
 const ROOT = process.cwd();
 const DATA_DIR = join(ROOT, 'data');
@@ -55,14 +56,91 @@ describe('규정 파일 형식', () => {
         expect(source.article.length).toBeGreaterThan(0);
         if (source.revised) expect(isValidYmd(source.revised)).toBe(true);
         expect(source.snapshot, `${source.law} ${source.article}: 발췌본 없음`).toBeTruthy();
-        const snapshotYear = source.snapshot?.includes('2027') ? 2026 : 2026;
+        // 발췌본은 그 값이 들어 있는 파일의 연도 디렉터리(docs/sources/<연도>/)에 둔다.
         expect(
-          existsSync(join(ROOT, 'docs/sources', String(snapshotYear), source.snapshot as string)),
-          `발췌본 파일 없음: ${source.snapshot}`,
+          existsSync(join(ROOT, 'docs/sources', String(year), source.snapshot as string)),
+          `발췌본 파일 없음: docs/sources/${year}/${source.snapshot}`,
         ).toBe(true);
+        for (const extra of source.also ?? []) {
+          expect(laws[extra.law], `알 수 없는 법령 키: ${extra.law}`).toBeDefined();
+          expect(extra.article.length).toBeGreaterThan(0);
+          if (extra.snapshot) {
+            expect(
+              existsSync(join(ROOT, 'docs/sources', String(year), extra.snapshot)),
+              `발췌본 파일 없음: docs/sources/${year}/${extra.snapshot}`,
+            ).toBe(true);
+          }
+        }
       }
     },
   );
+
+  it.each(files.map((f) => [f.year, f] as const))(
+    '%i.json: 적어 둔 법령은 모두 어떤 값의 근거로 쓰인다',
+    (_year, file) => {
+      const used = new Set<string>();
+      for (const source of collectSources(file)) {
+        used.add(source.law);
+        for (const extra of source.also ?? []) used.add(extra.law);
+      }
+      for (const key of Object.keys(file.laws)) {
+        expect(used.has(key), `laws.${key} 를 근거로 쓰는 값이 없다`).toBe(true);
+      }
+    },
+  );
+
+  it.each(files.map((f) => [f.year, f] as const))(
+    '%i.json: 법령의 시행일·공포번호가 발췌본 머리말과 같다',
+    (year, file) => {
+      const laws = resolveRules(registry, year).laws;
+      const seen = new Set<string>();
+      const check = (lawKey: string, snapshot: string | undefined) => {
+        if (!snapshot) return;
+        const text = readFileSync(join(ROOT, 'docs/sources', String(year), snapshot), 'utf8');
+        const head = text.split('\n').find((line) => line.startsWith('# 출처:')) ?? '';
+        const m = /\[시행 (\d{4})\. (\d{1,2})\. (\d{1,2})\.\] \[([^\]]*?제(\d+)호[^\]]*)\]/.exec(
+          head,
+        );
+        if (!m) return; // 달력자료·해석례는 시행일·공포번호가 없다
+        const law = laws[lawKey];
+        if (!law) throw new Error(`법령 키 없음: ${lawKey}`);
+        const effective = `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+        expect(law.effective, `${snapshot} 머리말의 시행일`).toBe(effective);
+        expect(law.promulgation, `${snapshot} 머리말의 공포번호`).toContain(`제${m[5]}호`);
+        seen.add(lawKey);
+      };
+      for (const source of collectSources(file)) {
+        // 달력자료처럼 다른 문서의 발췌본을 붙인 경우는 보조 근거에서 확인한다
+        if (source.snapshot && !/^kasi-/.test(source.snapshot)) check(source.law, source.snapshot);
+        for (const extra of source.also ?? []) check(extra.law, extra.snapshot);
+      }
+      if (year === 2026) {
+        expect([...seen].sort()).toEqual(
+          [
+            'allowance',
+            'appointment',
+            'appointmentRule',
+            'holidayAct',
+            'pay',
+            'service',
+            'serviceDirective',
+            'stateOfficialsAct',
+          ].sort(),
+        );
+      }
+    },
+  );
+
+  it('비율은 0.1% 단위다(금액 계산을 정수로 하기 위한 전제)', () => {
+    const rates = [
+      ...r2026.allowances.diligence.tiers.map((t) => t.rate),
+      r2026.allowances.seniorTreatment.rate,
+      r2026.allowances.holidayBonus.rate,
+      r2026.leave.compensation.rate,
+    ];
+    for (const rate of rates)
+      expect(Math.abs(rate * 1000 - Math.round(rate * 1000))).toBeLessThan(1e-9);
+  });
 
   it('2026년은 모든 항목이 자기 연도 값이다', () => {
     expect(r2026.meta.fallback).toBe(false);
@@ -431,25 +509,248 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(t15).toMatch(/7급\(상당\)[\s\S]*?180,000원/);
     expect(t15).toMatch(/8ㆍ9급\(상당\)[\s\S]*?175,000원/);
   });
-  it('공휴일 규정과 달력자료', () => {
+  // ── 발췌본을 읽어 데이터 값과 직접 맞춰 보는 검사(데이터만 틀리게 고치면 실패해야 한다) ──
+  const won = (n: number) => n.toLocaleString('en-US');
+  const squash = (text: string) => text.replace(/\s+/g, '');
+
+  /** "[제○조 표] … / 1년 이상 3년 미만 15 / …" 줄을 (시작 개월, 끝 개월, 일수)로 읽는다 */
+  function parseTierLine(
+    text: string,
+    marker: string,
+  ): { from: number; to: number | null; days: number }[] {
+    const line = text.split('\n').find((l) => l.startsWith(marker));
+    if (!line) throw new Error(`발췌본에 '${marker}' 줄이 없습니다`);
+    const months = (label: string) => {
+      const m = /(\d+)(년|개월)/.exec(label);
+      if (!m) throw new Error(`기간을 읽지 못함: ${label}`);
+      return Number(m[1]) * (m[2] === '년' ? 12 : 1);
+    };
+    return line
+      .split(' / ')
+      .slice(1)
+      .map((cell) => {
+        const both = /^(.+?) 이상 (.+?) 미만 (\d+)$/.exec(cell);
+        if (both)
+          return {
+            from: months(both[1] as string),
+            to: months(both[2] as string),
+            days: Number(both[3]),
+          };
+        const under = /^(.+?) 미만 (\d+)$/.exec(cell);
+        if (under) return { from: 0, to: months(under[1] as string), days: Number(under[2]) };
+        const over = /^(.+?) 이상 (\d+)$/.exec(cell);
+        if (over) return { from: months(over[1] as string), to: null, days: Number(over[2]) };
+        throw new Error(`표 칸을 읽지 못함: ${cell}`);
+      });
+  }
+
+  it('연가 일수·미리 쓰기 표의 구간과 일수가 발췌본과 같다', () => {
+    const t = snap('service-reg-leave.txt');
+    expect(
+      r2026.leave.annual.tiers.map((x) => ({ from: x.fromMonths, to: x.toMonths, days: x.days })),
+    ).toEqual(parseTierLine(t, '[제15조제1항 표]'));
+    expect(
+      r2026.leave.advance.tiers.map((x) => ({ from: x.fromMonths, to: x.toMonths, days: x.days })),
+    ).toEqual(parseTierLine(t, '[제16조제6항 표]'));
+    expect(r2026.leave.firstYear).toMatchObject({ minDaysForMonth: 15, rounding: 'half-up' });
+    expect(t).toContain(
+      '권장 연가 일수 중 미사용 연가 일수에 대해서는 제16조제5항에 따른 연가보상비를 지급하지 않을 수 있다',
+    );
+  });
+
+  it('장기재직휴가: 구간·일수·시행일·부칙 특례가 발췌본과 같다', () => {
+    const t = snap('service-reg-leave.txt');
+    const tiers = r2026.leave.longService.tiers;
+    for (const tier of tiers) {
+      const label =
+        tier.toYears === null
+          ? `재직기간이 ${tier.fromYears}년 이상인 공무원: ${tier.days}일`
+          : `재직기간이 ${tier.fromYears}년 이상 ${tier.toYears}년 미만인 공무원: ${tier.days}일`;
+      expect(t).toContain(label);
+    }
+    expect(t).toContain('<신설 2025. 7. 22., 2026. 6. 23.>');
+    expect(tiers.map((x) => x.effective)).toEqual(['2026-06-23', '2025-07-22', '2025-07-22']);
+    // 부칙: 시행 당시 재직 N년 이상 (구간 상한) 미만이면 시행 이후 2년이 되는 날까지
+    expect(t).toContain('부 칙 <대통령령 제35665호, 2025. 7. 22.>');
+    expect(t).toContain('이 영 시행 당시 재직기간이 18년 이상 20년 미만인 공무원은');
+    expect(t).toContain('부 칙 <대통령령 제36442호, 2026. 6. 23.>');
+    expect(t).toContain('이 영 시행 당시 재직기간이 8년 이상 10년 미만인 공무원은');
+    expect(t.match(/이 영 시행 이후 2년이 되는 날까지/g)).toHaveLength(2);
+    expect(tiers[0]?.grace).toEqual({ fromYears: 8, until: '2028-06-23' });
+    expect(tiers[1]?.grace).toEqual({ fromYears: 18, until: '2027-07-22' });
+    expect(tiers[2]?.grace).toBeUndefined();
+    for (const tier of tiers) {
+      if (!tier.grace) continue;
+      // 특례 기한 = 시행일로부터 2년
+      expect(tier.grace.until).toBe(
+        `${Number(tier.effective.slice(0, 4)) + 2}${tier.effective.slice(4)}`,
+      );
+    }
+  });
+
+  it('승진 시 호봉: 별표 28 가목의 모든 칸과 비고 1', () => {
+    const t = snap('pay-reg-table28-promotion-step.txt');
+    const pairs: [number, number][] = [];
+    for (const line of t.split('\n')) {
+      if (!/^\s+\d/.test(line)) continue;
+      const nums = line.trim().split(/\s+/).map(Number);
+      for (let i = 0; i + 1 < nums.length; i += 2)
+        pairs.push([nums[i] as number, nums[i + 1] as number]);
+    }
+    expect(pairs).toHaveLength(32);
+    for (const [before, after] of pairs) {
+      expect(promotedStep(r2026.promotionStep, before), `승진 전 ${before}호봉`).toBe(after);
+    }
+    expect(t).toContain('1. 승진 후 해당 호봉이 없는 경우에는 승진 후 계급의 최고 호봉으로 한다.');
+    expect(r2026.promotionStep.capAtMaxStep).toBe(true);
+    // 6급 32호봉 → 5급에는 31호봉이 없으므로 최고 호봉(30)
+    expect(promotedStep(r2026.promotionStep, 32, r2026.salary.table['5'].length)).toBe(30);
+  });
+
+  it('보수 지급일: 기관명까지 별표 30과 같다', () => {
+    const t = squash(snap('pay-reg-table30-payday.txt'));
+    for (const option of r2026.payday.options) {
+      expect(t, `${option.day}일`).toContain(`${option.day}일${squash(option.orgs)}`);
+    }
+    expect(r2026.payday.defaultDay).toBe(25);
+    expect(r2026.payday.shift).toBe('previous-day-if-saturday-or-holiday');
+  });
+
+  it('정년 구간·대우공무원 발령일·정근수당 기준이 조문과 같다', () => {
+    expect(r2026.retirement.age).toBe(60);
+    expect(r2026.retirement.periods).toEqual([
+      { fromMonth: 1, toMonth: 6, retireMonth: 6, retireDay: 30 },
+      { fromMonth: 7, toMonth: 12, retireMonth: 12, retireDay: 31 },
+    ]);
+    expect(snap('appointment-rule.txt')).toContain('다음 월 1일에 일괄 발령하여야 한다');
+    expect(r2026.promotion.seniorTreatment.appointDayOfMonth).toBe(1);
+    const a = snap('allowance-reg-articles.txt');
+    expect(a).toContain(
+      '전년도 7월 1일부터 12월 31일까지의 기간 중 1개월 이상 봉급이 지급된 공무원',
+    );
+    expect(a).toContain(
+      '해당 연도 1월 1일부터 6월 30일까지의 기간 중 1개월 이상 봉급이 지급된 공무원',
+    );
+    expect(r2026.allowances.diligence).toMatchObject({
+      payMonths: [1, 7],
+      periodMonths: 6,
+      minMonthsToQualify: 1,
+      minDaysForMonth: 15,
+    });
+    expect(r2026.allowances.holidayBonus.basisTags).toEqual(['seollal', 'chuseok']);
+  });
+
+  it('정근수당 가산금이 별표 2 제2호와 같다', () => {
+    const t = snap('allowance-reg-table2-diligence.txt');
+    const tiers = r2026.allowances.diligenceExtra.tiers;
+    tiers.forEach((tier, i) => {
+      const prev = tiers[i - 1]?.underYears ?? null;
+      const amount = `${won(tier.amount)}원`;
+      const patterns: RegExp[] = [];
+      if (tier.underYears !== null)
+        patterns.push(new RegExp(`${tier.underYears}년 미만\\s+${amount}`));
+      if (prev !== null) patterns.push(new RegExp(`${prev}년 이상\\s+${amount}`));
+      expect(
+        patterns.some((re) => re.test(t)),
+        `${tier.underYears ?? '그 이상'}년 구간 ${amount}`,
+      ).toBe(true);
+    });
+    // 5년 이상 10년 미만은 "전 공무원(군인 제외)" 칸이 한 칸(50,000원)으로 합쳐져 있다
+    //(7년에서 나뉘는 것은 군인 칸뿐이다).
+    expect(tiers.map((x) => [x.underYears, x.amount])).toEqual([
+      [5, 30_000],
+      [10, 50_000],
+      [15, 60_000],
+      [20, 80_000],
+      [null, 100_000],
+    ]);
+    const extra = r2026.allowances.diligenceExtra.additional;
+    expect(extra.map((x) => [x.fromYears, x.toYears])).toEqual([
+      [20, 25],
+      [25, null],
+    ]);
+    // 추가 가산금 문장은 PDF 표의 비고 칸에 여러 줄로 나뉘어 있다
+    expect(t).toContain('ㆍ근무연수가 20년 이상');
+    expect(t).toContain('25년 미만인 사람에게는');
+    expect(t).toContain(`월 ${won(extra[0]?.amount ?? 0)}원을, 25년 이상인`);
+    expect(t).toContain(`사람에게는 월 ${won(extra[1]?.amount ?? 0)}원을`);
+  });
+
+  it('직급보조비 1~9급이 별표 15와 같다', () => {
+    const t = snap('allowance-reg-table15-position.txt');
+    const labels: Record<string, string> = {
+      '1': '1급\\(상당\\)',
+      '2': '2급\\(상당\\)',
+      '3': '3급\\(상당\\)',
+      '4': '4급\\(상당\\)',
+      '5': '5급\\(상당\\)',
+      '6': '6급\\(상당\\)',
+      '7': '7급\\(상당\\)',
+      '8': '8ㆍ9급\\(상당\\)',
+      '9': '8ㆍ9급\\(상당\\)',
+    };
+    for (const [grade, label] of Object.entries(labels)) {
+      const m = new RegExp(`${label}[\\s\\S]*?([\\d,]+)원`).exec(t);
+      expect(m, `${grade}급 칸`).not.toBeNull();
+      expect(
+        r2026.allowances.position.amountByGrade[grade as keyof typeof labels & string as never],
+        `${grade}급 직급보조비`,
+      ).toBe(Number((m?.[1] ?? '').replace(/,/g, '')));
+    }
+  });
+
+  /** 달력자료 발췌본의 "이름 M월 D일" · "이름 M월D일~ M월D일" 줄을 날짜 목록으로 편다 */
+  function parseCalendar(text: string, year: number): string[] {
+    const out: string[] = [];
+    const ymd = (m: number, d: number) =>
+      `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('#') || line.startsWith('*')) continue;
+      // "**" 는 국경일이지만 (자료를 만들 당시) 공휴일이 아닌 날이다
+      if (line.includes('**')) continue;
+      const range = /(\d{1,2})월\s*(\d{1,2})일\s*~\s*(\d{1,2})월\s*(\d{1,2})일/.exec(line);
+      if (range) {
+        const [m1, d1, m2, d2] = range.slice(1).map(Number) as [number, number, number, number];
+        expect(m1).toBe(m2); // 설·추석 연휴는 한 달 안에 있다
+        for (let d = d1; d <= d2; d += 1) out.push(ymd(m1, d));
+        continue;
+      }
+      const single = /(\d{1,2})월\s*(\d{1,2})일\s*\(/.exec(line);
+      if (single) out.push(ymd(Number(single[1]), Number(single[2])));
+    }
+    return out;
+  }
+
+  it('공휴일: 규정 조문', () => {
     const act = snap('holiday-act.txt');
     expect(act).toContain('1. 「국경일에 관한 법률」에 따른 국경일');
     expect(act).toContain('5. 노동절(5월 1일)');
     const reg = snap('holiday-regulation.txt');
     expect(reg).toContain('6. 노동절(5월 1일)');
     expect(reg).toContain('이 영은 2026년 5월 1일부터 시행한다');
-    const k27 = snap('kasi-calendar-2027.txt');
-    const dates27 = resolveRules(registry, 2027).holidays.items;
-    const md = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
-    for (const item of dates27) {
-      if (item.name.includes('연휴') || item.tag) continue; // 설·추석은 기간으로 적혀 있다
-      expect(k27, `${item.date} ${item.name}`).toContain(md(item.date));
-    }
+  });
+
+  it('공휴일: 2027년 날짜가 달력자료와 하루도 다르지 않다', () => {
+    const k27 = readFileSync(join(ROOT, 'docs/sources/2027/kasi-calendar-2027.txt'), 'utf8');
     expect(k27).toContain('설날 2월 6일~ 2월 8일');
     expect(k27).toContain('추석 9월14일~ 9월16일');
+    const fromCalendar = parseCalendar(k27, 2027);
+    expect(fromCalendar.length).toBeGreaterThan(15);
+    const fromData = resolveRules(registry, 2027).holidays.items.map((x) => x.date);
+    expect([...new Set(fromData)].sort()).toEqual([...new Set(fromCalendar)].sort());
+  });
+
+  it('공휴일: 2026년 날짜가 달력자료 + 그 뒤 시행된 노동절·제헌절과 같다', () => {
     const k26 = snap('kasi-calendar-2026.txt');
     expect(k26).toContain('설날 2월16일~ 2월18일');
     expect(k26).toContain('추석 9월24일~ 9월26일');
     expect(k26).toContain('전국동시지방선거 6월 3일');
+    // 이 달력자료는 2024년에 만들어져, 2026년에 공휴일이 된 두 날이 빠져 있다(발췌본 머리말 참고).
+    const fromCalendar = parseCalendar(k26, 2026);
+    expect(k26).toContain('제헌절 ** 7월 17일');
+    const added = ['2026-05-01', '2026-07-17'];
+    for (const d of added) expect(fromCalendar).not.toContain(d);
+    const fromData = r2026.holidays.items.map((x) => x.date);
+    expect([...new Set(fromData)].sort()).toEqual([...new Set([...fromCalendar, ...added])].sort());
   });
 });

@@ -1,6 +1,7 @@
 /** 승진소요최저연수, 근속승진, 대우공무원 (공무원임용령 제31조·제35조의4·제35조의5, 임용규칙 제19조·제21조) */
 import { addDays, onOrNextDayOfMonth, periodCompleteDate, yearOf, type Ymd } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
+import { floorRate } from './money.ts';
 import { gradeKey, maxStepOf, monthlySalary, salaryOn, type PayProfile } from './salary.ts';
 import type { PromotionRules, PromotionStepRules } from '../rules/types.ts';
 import type { Grade, Profile } from '../store/schema.ts';
@@ -103,9 +104,14 @@ export function seniorTreatmentInfo(
   };
 }
 
-/** 승진 후 호봉(보수규정 별표 28 가목): 1호봉은 1호봉, 그 밖에는 한 호봉을 뺀다 */
-export function promotedStep(rule: PromotionStepRules, step: number): number {
-  return Math.max(rule.minStep, step - rule.subtract);
+/**
+ * 승진 후 호봉(보수규정 별표 28 가목): 1호봉은 1호봉, 그 밖에는 한 호봉을 뺀다.
+ * 승진 후 계급에 그 호봉이 없으면 그 계급의 최고 호봉으로 한다(같은 표 비고 1).
+ * maxStep 에 승진 후 계급의 최고 호봉을 넘기면 그 상한까지 적용한다.
+ */
+export function promotedStep(rule: PromotionStepRules, step: number, maxStep?: number): number {
+  const raw = Math.max(rule.minStep, step - rule.subtract);
+  return maxStep !== undefined && rule.capAtMaxStep ? Math.min(maxStep, raw) : raw;
 }
 
 export interface PromotionPreview {
@@ -134,7 +140,7 @@ export function promotionPreview(
   if (toGrade === null) return null;
   const r = rules(yearOf(date));
   const before = salaryOn(rules, profile, date);
-  const toStep = Math.min(maxStepOf(r.salary, toGrade), promotedStep(r.promotionStep, before.step));
+  const toStep = promotedStep(r.promotionStep, before.step, maxStepOf(r.salary, toGrade));
   const toAmount = monthlySalary(r.salary, toGrade, toStep);
   return {
     date,
@@ -156,7 +162,7 @@ export function promotionPreview(
 export function seniorAllowance(rules: RulesProvider, profile: PayProfile, date: Ymd): number {
   const r = rules(yearOf(date));
   const now = salaryOn(rules, profile, date);
-  const byRate = Math.floor(now.amount * r.allowances.seniorTreatment.rate);
+  const byRate = floorRate(now.amount, r.allowances.seniorTreatment.rate);
   const preview = promotionPreview(rules, profile, date);
   if (!preview) return byRate;
   return Math.max(0, Math.min(byRate, preview.toAmount - now.amount));

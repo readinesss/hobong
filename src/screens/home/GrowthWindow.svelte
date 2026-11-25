@@ -31,6 +31,8 @@
             .toStep}호봉 · 봉급
           <Money value={view.nextRaise.diff} sign="+" />
         </p>
+      {:else if view.noRaiseReason === 'retire'}
+        <p class="cap muted">정년퇴직일 전에 남은 정기승급이 없어요.</p>
       {:else}
         <p class="cap muted">{view.profile.grade}급의 최고 호봉({view.maxStep}호봉)이에요.</p>
       {/if}

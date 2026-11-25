@@ -2,6 +2,7 @@
   import { nav } from '../lib/app/nav.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
+  import { formatKorean } from '../lib/calc/date.ts';
 
   /** 이 횟수만큼 바뀌면 백업을 권한다 */
   const NUDGE_AFTER = 8;
@@ -20,6 +21,13 @@
 {:else if app.saveFailed}
   <p class="note warn banner" role="alert">
     방금 바꾼 내용을 저장하지 못했어요(저장 공간 부족 등). 설정에서 데이터를 내려받아 보관해 주세요.
+  </p>
+{/if}
+
+{#if view.retired}
+  <p class="note banner" role="status">
+    정년퇴직일({formatKorean(view.retire.retireDate, false)})이 지났어요. 호봉·봉급·재직기간은
+    퇴직일 기준에서 멈춰 있어요. 그동안 수고 많으셨습니다.
   </p>
 {/if}
 

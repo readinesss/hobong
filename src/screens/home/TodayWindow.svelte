@@ -84,7 +84,9 @@
       <li class="well">
         <span class="cap muted row"><Icon name="icon-coin" /> 월급날</span>
         <strong class="num">{formatDday(view.today, view.payday)}</strong>
-        <span class="cap muted">{formatMonthDay(view.payday)}</span>
+        <span class="cap muted">
+          {formatMonthDay(view.payday)}{view.paydayHolidaysKnown ? '' : ' · 공휴일 반영 전'}
+        </span>
       </li>
       <li class="well">
         <span class="cap muted row"><Icon name="icon-flag" /> 다음 공휴일</span>

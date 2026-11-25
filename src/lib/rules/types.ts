@@ -17,6 +17,8 @@ export interface SourceRef {
   snapshot?: string;
   /** 해석, 반영하지 않은 예외 등 */
   note?: string;
+  /** 함께 근거가 되는 다른 법령·예규(예: 규정의 조항을 예규가 구체화한 경우) */
+  also?: { law: string; article: string; snapshot?: string }[];
 }
 
 export interface LawInfo {
@@ -57,6 +59,8 @@ export interface StepRaiseRules {
 export interface PromotionStepRules {
   subtract: number;
   minStep: number;
+  /** 승진 후 계급에 그 호봉이 없으면 그 계급의 최고 호봉으로 한다(별표 28 비고 1) */
+  capAtMaxStep: boolean;
   source: SourceRef;
 }
 
@@ -90,13 +94,24 @@ export interface YearTier {
   days: number;
 }
 
+/** 장기재직휴가 구간 */
+export interface LongLeaveTier extends YearTier {
+  /** 이 구간의 휴가가 생긴 날(조항 시행일). 그 전에는 없던 휴가다 */
+  effective: string;
+  /**
+   * 부칙의 사용 특례: 시행 당시 재직기간이 fromYears 이상(이 구간 상한 미만)이던 사람은
+   * 구간 상한을 넘겨도 until 까지 쓸 수 있다.
+   */
+  grace?: { fromYears: number; until: string };
+}
+
 export interface LeaveRules {
   annual: { tiers: MonthTier[]; tenureBasis: 'day-before-use'; source: SourceRef };
   units: { hoursPerDay: number; halfDayHours: number; source: SourceRef };
   firstYear: { minDaysForMonth: number; rounding: 'half-up'; source: SourceRef };
   advance: { tiers: MonthTier[]; source: SourceRef };
   compensation: { rate: number; divisor: number; maxDays: number; source: SourceRef };
-  longService: { tiers: YearTier[]; source: SourceRef };
+  longService: { tiers: LongLeaveTier[]; source: SourceRef };
 }
 
 export interface PromotionRules {
@@ -119,6 +134,8 @@ export interface AllowanceRules {
   diligence: {
     payMonths: number[];
     periodMonths: number;
+    /** 지급대상기간 중 봉급이 지급된 기간이 이 개월 수 이상이어야 받는다 */
+    minMonthsToQualify: number;
     minDaysForMonth: number;
     /** underYears가 null이면 그 이상 전부 */
     tiers: { underYears: number | null; rate: number }[];

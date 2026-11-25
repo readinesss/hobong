@@ -109,6 +109,38 @@ test.describe('승급과 시간의 흐름', () => {
     });
   });
 
+  test('정년퇴직일 뒤의 승급·보너스는 보여주지 않고, 퇴직 뒤에는 숫자가 멈춘다', async ({
+    page,
+  }) => {
+    // 1966-11-30생 → 2026-12-31 정년퇴직. 다음 승급 예정일(2027-03-01)은 그 뒤다.
+    const seed = makeSeed({
+      nickname: '고참',
+      birthDate: '1966-11-30',
+      hireDate: '1993-03-02',
+      gradeDate: '1993-03-02',
+      step: 29,
+      nextStepDate: '2027-03-01',
+    });
+    await openApp(page, { seed });
+    await expect(page.locator('#status')).toContainText('9급 29호봉');
+    await expect(page.locator('#growth')).toContainText('정년퇴직일 전에 남은 정기승급이 없어요');
+    // 2027년 1월 정근수당·설 명절휴가비는 기준일에 재직 중이 아니므로 나오지 않는다
+    await expect(page.locator('#wallet')).not.toContainText('정근수당');
+    await expect(page.locator('#wallet')).not.toContainText('명절휴가비');
+
+    await page.clock.setFixedTime(new Date('2027-02-01T10:00:00+09:00'));
+    await page.reload();
+    await tick(page, 3000);
+    for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
+      await page.getByRole('dialog').getByRole('button').last().click();
+      await tick(page);
+    }
+    await expect(page.getByText('정년퇴직일(2026. 12. 31.)이 지났어요')).toBeVisible();
+    // 퇴직 뒤에도 호봉이 오르거나 번 돈이 쌓이지 않는다
+    await expect(page.locator('#status')).toContainText('9급 29호봉');
+    await expect(page.locator('#today')).toContainText('0원');
+  });
+
   test('오랜만에 열면 그사이의 일을 정산해 보여준다', async ({ page }) => {
     await openApp(page, { seed: makeSeed(), time: '2026-12-10T09:30:00+09:00' });
     const dialog = page.getByRole('dialog');

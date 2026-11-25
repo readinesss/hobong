@@ -31,6 +31,7 @@ import {
   checkNewLeave,
   compensationPerDay,
   firstYearMonths,
+  serviceMonthsInYear,
   formatLeaveHours,
   grantTimeline,
   summarizeLeave,
@@ -54,8 +55,21 @@ import {
   workMinutesPerDay,
   workedSecondsAt,
 } from './today.ts';
-import { diligenceBonus, diligencePeriodMonths, diligenceRate, upcomingBonuses } from './bonus.ts';
-import { buildMilestones, pastMilestones, upcomingMilestones } from './milestones.ts';
+import {
+  diligenceBonus,
+  diligencePeriodMonths,
+  diligenceQualifies,
+  diligenceRate,
+  missingHolidayYearForBonuses,
+  upcomingBonuses,
+} from './bonus.ts';
+import { floorRate } from './money.ts';
+import {
+  buildMilestones,
+  longLeaveWindow,
+  pastMilestones,
+  upcomingMilestones,
+} from './milestones.ts';
 import { findBridges } from './bridge.ts';
 import type { LeaveData, LeaveRecord, Profile } from '../store/schema.ts';
 
@@ -890,5 +904,177 @@ describe('징검다리', () => {
     const list = findBridges(cal, '2027-05-04', new Set());
     expect(list.some((b) => b.leaveDates.includes('2027-05-04'))).toBe(false);
     expect(list.some((b) => b.leaveDates.join() === '2027-05-06,2027-05-07')).toBe(true);
+  });
+});
+
+describe('검토에서 나온 경계 사례', () => {
+  it('비율 계산은 부동소수점 오차 없이 원 미만만 버린다', () => {
+    // 2,624,400 × 0.35 는 그대로 곱하면 918,539.999… 가 된다
+    expect(2_624_400 * 0.35).not.toBe(918_540);
+    expect(floorRate(2_624_400, 0.35)).toBe(918_540);
+    expect(floorRate(2_720_300, 0.35)).toBe(952_105);
+    expect(floorRate(2_682_600, 0.35, 6, 6)).toBe(938_910);
+    expect(floorRate(3_514_500, 0.041)).toBe(144_094);
+    expect(floorRate(2_226_100, 0.86, 1, 30)).toBe(63_814);
+    // 봉급표의 모든 칸 × 정근수당 지급률 × 개월 수가 정수 계산과 같다
+    for (const row of Object.values(R.salary.table)) {
+      for (const amount of row) {
+        for (const tier of R.allowances.diligence.tiers) {
+          const pct = Math.round(tier.rate * 100);
+          for (let months = 1; months <= 6; months += 1) {
+            expect(floorRate(amount, tier.rate, months, 6)).toBe(
+              Math.floor((amount * pct * months) / 600),
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it('정근수당: 근무연수 7년(35%)에서도 1원이 빠지지 않는다', () => {
+    // 2019-03-01 임용 → 2027-01-01 현재 근무연수 7년
+    const p = profile({ hireDate: '2019-03-01', gradeDate: '2019-03-01', step: 10 });
+    const bonus = diligenceBonus(rulesFor, cal, p, 25, 2027, 1);
+    expect(bonus).toMatchObject({ rate: 0.35, years: 7, step: 11, baseSalary: 2_624_400 });
+    expect(bonus?.amount).toBe(918_540);
+  });
+
+  it('정근수당 자격: 지급대상기간에 실제로 한 달은 채워야 한다', () => {
+    const d = R.allowances.diligence;
+    expect(diligenceQualifies(d, '2026-12-01', '2027-01-01')).toBe(true);
+    expect(diligenceQualifies(d, '2026-12-02', '2027-01-01')).toBe(false);
+    expect(diligenceQualifies(d, '2026-12-17', '2027-01-01')).toBe(false);
+    expect(diligenceQualifies(d, '2026-07-01', '2027-01-01')).toBe(true);
+    expect(diligenceQualifies(d, '2020-01-01', '2027-01-01')).toBe(true);
+    expect(diligenceQualifies(d, '2027-01-01', '2027-01-01')).toBe(false);
+    const late = profile({
+      hireDate: '2026-12-05',
+      gradeDate: '2026-12-05',
+      step: 1,
+      nextStepDate: '2028-01-01',
+      stepAsOf: '2026-12-05',
+    });
+    expect(diligenceBonus(rulesFor, cal, late, 25, 2027, 1)).toBeNull();
+    const onTime = profile({
+      hireDate: '2026-12-01',
+      gradeDate: '2026-12-01',
+      step: 1,
+      nextStepDate: '2027-12-01',
+      stepAsOf: '2026-12-01',
+    });
+    expect(diligenceBonus(rulesFor, cal, onTime, 25, 2027, 1)).toMatchObject({
+      rate: 0.1,
+      proration: { months: 1, of: 6 },
+      amount: Math.floor((2_133_000 * 10 * 1) / 600),
+    });
+  });
+
+  it('정년퇴직일 뒤가 기준일인 보너스는 없다', () => {
+    // 1966-11-30생 → 2026-12-31 정년퇴직
+    const p = profile({ birthDate: '1966-11-30', hireDate: '1993-03-02', gradeDate: '1993-03-02' });
+    const retire = retirementInfo(R.retirement, p.birthDate).retireDate;
+    expect(retire).toBe('2026-12-31');
+    expect(upcomingBonuses(rulesFor, cal, p, 25, '2026-11-25', 3).length).toBeGreaterThan(0);
+    expect(upcomingBonuses(rulesFor, cal, p, 25, '2026-11-25', 3, retire)).toEqual([]);
+    // 6월 30일 퇴직자는 그 해 설 명절휴가비는 받고 7월 정근수당과 추석은 없다
+    const june = upcomingBonuses(rulesFor, cal, p, 25, '2027-01-26', 5, '2027-06-30');
+    expect(june.map((b) => b.title)).toEqual(['명절휴가비(설날)']);
+  });
+
+  it('정년퇴직하는 해의 연가는 근무하는 개월 수만큼만(복무규정 제17조제2항)', () => {
+    const hire = '1992-03-02';
+    expect(serviceMonthsInYear(hire, 2027, 15, '2027-06-30')).toBe(6);
+    expect(serviceMonthsInYear(hire, 2027, 15, '2027-12-31')).toBe(12);
+    expect(serviceMonthsInYear(hire, 2027, 15)).toBe(12);
+    expect(annualLeaveDays(R.leave, hire, '2027-03-01')).toBe(21);
+    // 21일 × 6/12 = 10.5 → 11일
+    expect(annualLeaveDays(R.leave, hire, '2027-03-01', '2027-06-30')).toBe(11);
+    expect(annualLeaveDays(R.leave, hire, '2027-03-01', '2027-12-31')).toBe(21);
+    // 퇴직 전 해는 그대로, 퇴직 뒤에는 0
+    expect(annualLeaveDays(R.leave, hire, '2026-03-01', '2027-06-30')).toBe(21);
+    expect(annualLeaveDays(R.leave, hire, '2027-07-01', '2027-06-30')).toBe(0);
+    // 임용한 해 계산은 그대로다
+    expect(firstYearMonths('2026-08-01', 15)).toBe(5);
+    expect(annualLeaveDays(R.leave, '2026-08-01', '2026-10-01')).toBe(
+      annualLeaveDays(R.leave, '2026-08-01', '2026-10-01', '2060-12-31'),
+    );
+  });
+
+  describe('장기재직휴가는 조항이 생긴 뒤, 그 구간에 있는 동안만', () => {
+    const [short, mid, long] = R.leave.longService.tiers;
+    if (!short || !mid || !long) throw new Error('장기재직휴가 구간이 없습니다');
+    it('보통의 경우: 5년이 되는 날부터 10년이 되기 전날까지', () => {
+      expect(longLeaveWindow(short, '2022-09-01')).toEqual({
+        reached: '2027-09-01',
+        from: '2027-09-01',
+        until: '2032-08-31',
+        graced: false,
+      });
+    });
+    it('이미 5년을 넘긴 사람은 조항 시행일부터', () => {
+      // 2026-06-23 당시 재직 7년 5개월(특례 대상 아님)
+      expect(longLeaveWindow(short, '2019-01-01')).toEqual({
+        reached: '2024-01-01',
+        from: '2026-06-23',
+        until: '2028-12-31',
+        graced: false,
+      });
+    });
+    it('부칙 특례: 시행 당시 8년 이상 10년 미만이면 2년 뒤까지', () => {
+      // 2026-06-23 당시 재직 9년 9개월 → 10년(2026-09-01)을 넘겨도 2028-06-23까지
+      expect(longLeaveWindow(short, '2016-09-01')).toEqual({
+        reached: '2021-09-01',
+        from: '2026-06-23',
+        until: '2028-06-23',
+        graced: true,
+      });
+      // 2025-07-22 당시 재직 18년 10개월 → 20년(2026-09-01)을 넘겨도 2027-07-22까지
+      expect(longLeaveWindow(mid, '2006-09-01')).toEqual({
+        reached: '2016-09-01',
+        from: '2025-07-22',
+        until: '2027-07-22',
+        graced: true,
+      });
+    });
+    it('조항이 생기기 전에 구간을 지나간 사람에게는 없던 휴가다', () => {
+      expect(longLeaveWindow(short, '2006-09-01')).toBeNull();
+      expect(longLeaveWindow(short, '1990-03-01')).toBeNull();
+      expect(longLeaveWindow(mid, '1990-03-01')).toBeNull();
+      expect(longLeaveWindow(long, '1990-03-01')).toEqual({
+        reached: '2010-03-01',
+        from: '2025-07-22',
+        until: null,
+        graced: false,
+      });
+    });
+    it('일정과 뱃지에도 같은 날짜가 쓰인다', () => {
+      const old = buildMilestones(
+        rulesFor,
+        profile({ birthDate: '1968-03-01', hireDate: '1990-03-01', gradeDate: '1990-03-01' }),
+        '2026-11-25',
+      );
+      const ids = old.filter((m) => m.id.startsWith('long-leave')).map((m) => [m.id, m.date]);
+      expect(ids).toEqual([['long-leave-20', '2025-07-22']]);
+      const graced = buildMilestones(
+        rulesFor,
+        profile({ birthDate: '1990-03-01', hireDate: '2016-09-01', gradeDate: '2016-09-01' }),
+        '2026-11-25',
+      ).find((m) => m.id === 'long-leave-5');
+      expect(graced?.date).toBe('2026-06-23');
+      expect(graced?.detail).toContain('2028. 6. 23.');
+      expect(graced?.detail).toContain('부칙 특례');
+    });
+  });
+
+  it('다음 해 공휴일이 없으면 그 해의 지급일·명절휴가비는 확정이 아니다', () => {
+    const p = profile();
+    // 2028년 공휴일 데이터는 아직 없다
+    expect(cal.hasHolidayData(2028)).toBe(false);
+    expect(diligenceBonus(rulesFor, cal, p, 17, 2028, 7)?.holidaysKnown).toBe(false);
+    expect(diligenceBonus(rulesFor, cal, p, 25, 2027, 1)?.holidaysKnown).toBe(true);
+    expect(missingHolidayYearForBonuses(cal, '2026-11-25')).toBeNull();
+    expect(missingHolidayYearForBonuses(cal, '2027-06-30')).toBeNull();
+    expect(missingHolidayYearForBonuses(cal, '2027-07-01')).toBe(2028);
+    expect(missingHolidayYearForBonuses(cal, '2028-03-01')).toBe(2028);
   });
 });
