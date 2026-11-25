@@ -20,6 +20,9 @@ updates:
       # svelte-check·typescript-eslint 가 TypeScript 7을 지원할 때까지 6.x 에 머문다.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
+      # 타입은 실제로 쓰는 Node 버전(.nvmrc)과 같은 major 여야 한다.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /

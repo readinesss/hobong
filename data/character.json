@@ -52,7 +52,7 @@
     "sleep": { "label": "자는 중", "eyes": "eyes-sleep", "items": ["item-nightcap"], "fx": ["fx-zzz"], "hide": ["head", "face", "handL", "handR"] },
     "vacation": { "label": "연가 중", "eyes": "eyes-happy", "items": ["item-sunglasses", "item-strawhat", "item-lei"], "fx": [], "hide": ["neck", "face", "head", "handL", "handR"] },
     "tired": { "label": "쉬고 싶다", "eyes": "eyes-tired", "items": [], "fx": ["fx-sweat"], "hide": [] },
-    "payday": { "label": "봉급날", "eyes": "eyes-sparkle", "items": [], "fx": ["fx-coin"], "hide": [] },
+    "payday": { "label": "봉급날", "eyes": "eyes-sparkle", "items": [], "fx": ["fx-coin"], "hide": ["face"] },
     "celebrate": { "label": "축하합니다", "eyes": "eyes-happy", "items": ["item-partyhat"], "fx": ["fx-confetti"], "hide": ["head"] }
   },
   "tiredAfterDays": 90,
