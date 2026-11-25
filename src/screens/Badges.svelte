@@ -144,7 +144,8 @@
     </div>
   </Win>
 
-  <Win title="뱃지" icon="icon-medal" id="badges" area="badges">
+  <!-- id를 화면 주소(#badges)와 다르게 둔다: 같으면 새로 고칠 때 브라우저가 이 창으로 내려가 버린다 -->
+  <Win title="뱃지" icon="icon-medal" id="badge-list" area="badges">
     {#snippet aside()}{view.earnedCount} / {total}{/snippet}
     <ul class="badges">
       {#each badges as badge (badge.id)}

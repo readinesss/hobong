@@ -68,6 +68,22 @@ test.describe('반응형과 조작', () => {
     });
   }
 
+  test('어느 화면에서 새로 고쳐도 맨 위에서 시작한다', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const tab of TABS) {
+      await openApp(page, { seed: makeSeed(), hash: tab.hash });
+      await expect(page.getByRole('link', { name: tab.label })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      // 화면 주소(#badges 등)와 같은 id를 가진 요소가 있으면 브라우저가 그리로 내려가 버린다.
+      expect(await page.evaluate((id) => document.getElementById(id) === null, tab.hash)).toBe(
+        true,
+      );
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    }
+  });
+
   test('모바일 폭에서는 하단 탭, 넓은 화면에서는 옆 레일', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page, { seed: makeSeed() });
