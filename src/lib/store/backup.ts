@@ -17,9 +17,9 @@ export function serializeBackup(envelope: Envelope): string {
   return `${JSON.stringify(envelope, null, 2)}\n`;
 }
 
-/** hobong-backup-YYYYMMDD.json */
-export function backupFileName(today: Ymd): string {
-  return `hobong-backup-${today.replace(/-/g, '')}.json`;
+/** hobong-backup-YYYYMMDD.json, 암호를 걸었으면 hobong-backup-YYYYMMDD-locked.json */
+export function backupFileName(today: Ymd, locked = false): string {
+  return `hobong-backup-${today.replace(/-/g, '')}${locked ? '-locked' : ''}.json`;
 }
 
 export interface ParseContext extends ProfileContext {
@@ -37,7 +37,7 @@ export type ParseResult =
       exportedAt: string | null;
       appVersion: string | null;
     }
-  | { ok: false; reason: string; details: string[]; code?: 'newer' };
+  | { ok: false; reason: string; details: string[]; code?: 'newer' | 'encrypted' };
 
 /** 백업 파일 내용(문자열)을 읽어 현재 버전의 사용자 데이터로 만든다 */
 export function parseBackup(text: string, ctx: ParseContext): ParseResult {
@@ -61,6 +61,21 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
       // 파일·붙여넣은 글자·브라우저 저장소 어디서 읽었든 맞는 말로 쓴다(파일이면 화면이 덧붙인다)
       reason: '데이터를 읽지 못했어요. 내용이 잘렸거나 손상된 것 같아요.',
       details: ['백업 데이터 형식(JSON)이 아니에요.'],
+    };
+  }
+  // 암호가 걸린 백업(crypto.ts)은 불러오기 화면에서 암호를 받아 푼 뒤에 다시 이 함수를 거친다.
+  // 어느 길로 들어오든 엉뚱한 '형식이 맞지 않아요'가 되지 않게 먼저 알아본다.
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    (parsed as Record<string, unknown>).app === APP_ID &&
+    (parsed as Record<string, unknown>).format === 'hobong-encrypted'
+  ) {
+    return {
+      ok: false,
+      reason: '암호가 걸린 백업이에요. 불러오기에서 암호를 넣어 열어 주세요.',
+      details: [],
+      code: 'encrypted',
     };
   }
   const migrated = migrateEnvelope(parsed, ctx.defaultSettings, ctx.nowIso);

@@ -1,9 +1,18 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { nav } from '../lib/app/nav.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { readFileText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
-  import { MAX_BACKUP_BYTES, type ParseResult } from '../lib/store/backup.ts';
+  import { type ParseResult } from '../lib/store/backup.ts';
+  import {
+    canEncrypt,
+    decryptBackup,
+    looksEncrypted,
+    MAX_ENCRYPTED_BYTES,
+    readEncrypted,
+    type LockError,
+  } from '../lib/store/crypto.ts';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
 
@@ -27,17 +36,90 @@
   /** 마지막으로 읽은 것이 파일인지 붙여넣은 글자인지(안내 문구를 알맞게 고른다) */
   let source = $state<'file' | 'paste'>('file');
 
+  // ── 암호가 걸린 백업 ────────────────────────────────────────────────
+  /** 암호를 묻는 중인 파일(암호문 그대로. 평문이 아니다) */
+  let locked = $state<{ text: string; name: string; source: 'file' | 'paste' } | null>(null);
+  /** 암호 입력값. 풀기를 시도하면 맞든 틀리든 바로 비운다(어디에도 남기지 않는다) */
+  let password = $state('');
+  let unlocking = $state(false);
+  let lockError = $state<LockError | null>(null);
+  let passwordEl = $state<HTMLInputElement>();
+
   const hasExisting = $derived(app.data !== null);
   const ok = $derived(result && result.ok ? (result as Ok) : null);
+
+  function lockMessage(code: LockError, from: 'file' | 'paste'): string {
+    switch (code) {
+      case 'wrong-or-damaged':
+        return '암호가 틀렸거나 파일이 손상됐어요. 암호를 건 파일은 이 둘을 구별할 수 없어요. 암호를 다시 넣어 주세요.';
+      case 'iterations':
+        return '암호 파일의 설정 값이 허용 범위를 벗어나 열지 않았어요.';
+      case 'newer':
+        return '더 새 버전의 호봉에서 만든 암호 파일이에요. 새 hobong.html로 열어 주세요.';
+      case 'unsupported':
+        return '이 브라우저에서는 암호가 걸린 파일을 열 수 없어요. 최신 Chrome·Edge·Safari·Firefox에서 열어 주세요.';
+      default:
+        return from === 'file'
+          ? '암호 파일의 형식이 맞지 않아요. 내려받은 파일을 그대로 골랐는지 확인해 주세요.'
+          : '암호 파일의 형식이 맞지 않아요. 처음부터 끝까지 빠짐없이 붙여넣었는지 확인해 주세요.';
+    }
+  }
+
+  /** 읽은 글자를 살핀다: 암호 파일이면 암호를 묻고, 아니면 지금처럼 바로 검사한다 */
+  function examine(text: string, name: string, from: 'file' | 'paste') {
+    locked = null;
+    password = '';
+    lockError = null;
+    if (!looksEncrypted(text)) {
+      result = app.inspect(text);
+      return;
+    }
+    result = null;
+    if (!canEncrypt()) {
+      readError = lockMessage('unsupported', from);
+      return;
+    }
+    // 형식·반복 횟수가 틀린 파일은 암호를 묻기 전에 거른다
+    const head = readEncrypted(text);
+    if (!head.ok) {
+      readError = lockMessage(head.code, from);
+      return;
+    }
+    locked = { text, name, source: from };
+  }
+
+  async function unlock() {
+    if (!locked || unlocking || password === '') return;
+    const target = locked;
+    const typed = password;
+    password = '';
+    unlocking = true;
+    lockError = null;
+    const opened = await decryptBackup(target.text, typed);
+    unlocking = false;
+    // 기다리는 사이 다른 파일로 바뀌었으면 버린다
+    if (locked !== target) return;
+    if (!opened.ok) {
+      lockError = opened.code;
+      void tick().then(() => passwordEl?.focus());
+      return;
+    }
+    // 푼 평문은 암호 없는 파일과 똑같이 검사한다(덮어쓰기 경고·되돌리기 보관 포함)
+    locked = null;
+    fileName = target.name;
+    source = target.source;
+    result = app.inspect(opened.plain);
+  }
 
   async function take(f: File) {
     busy = true;
     readError = '';
     result = null;
+    locked = null;
     source = 'file';
     fileName = f.name;
     try {
-      result = app.inspect(await readFileText(f, MAX_BACKUP_BYTES));
+      examine(await readFileText(f, MAX_ENCRYPTED_BYTES), f.name, 'file');
     } catch (error) {
       readError = error instanceof Error ? error.message : '파일을 읽지 못했어요.';
     } finally {
@@ -67,7 +149,7 @@
     fileName = '붙여넣은 글자';
     source = 'paste';
     readError = '';
-    result = app.inspect(pasted);
+    examine(pasted, fileName, 'paste');
   }
 
   function confirm() {
@@ -98,6 +180,9 @@
     result = null;
     readError = '';
     fileName = '';
+    locked = null;
+    password = '';
+    lockError = null;
   }
 </script>
 
@@ -148,6 +233,61 @@
         <button type="button" class="btn" onclick={again}>다른 파일</button>
         <button type="button" class="btn primary" data-autofocus onclick={confirm}>
           {hasExisting ? '덮어쓰고 불러오기' : '불러오기'}
+        </button>
+      </div>
+    </div>
+  {:else if locked}
+    <div class="stack wide" id="import-locked">
+      <p class="locked-head">
+        <Icon name="icon-lock" />
+        <span>암호가 걸린 백업이에요. 내려받을 때 정한 암호를 넣어 주세요.</span>
+      </p>
+      <dl class="well stack">
+        <div class="kv">
+          <dt>파일</dt>
+          <dd class="name">{locked.name}</dd>
+        </div>
+      </dl>
+      <div class="field">
+        <label for="import-pw">암호</label>
+        <input
+          bind:this={passwordEl}
+          bind:value={password}
+          id="import-pw"
+          class="input"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          autocapitalize="off"
+          readonly={unlocking}
+          aria-invalid={lockError === 'wrong-or-damaged' ? 'true' : undefined}
+          aria-describedby={lockError ? 'import-lock-error' : undefined}
+          data-autofocus
+          onkeydown={(e) => {
+            if (e.key === 'Enter' && !e.isComposing) {
+              e.preventDefault();
+              void unlock();
+            }
+          }}
+        />
+      </div>
+      {#if unlocking}<p class="cap muted" role="status">암호를 확인하는 중이에요…</p>{/if}
+      {#if lockError}
+        <div class="note warn" role="alert" id="import-lock-error">
+          <p>{lockMessage(lockError, locked.source)}</p>
+          <p>지금 데이터는 그대로예요. 아무것도 바뀌지 않았어요.</p>
+        </div>
+      {/if}
+      <p class="cap muted">암호는 저장하지 않아요. 잊었다면 호봉도 이 파일을 되살릴 수 없어요.</p>
+      <div class="btn-row end">
+        <button type="button" class="btn" onclick={again}>다른 파일</button>
+        <button
+          type="button"
+          class="btn primary"
+          onclick={() => void unlock()}
+          disabled={password === '' || unlocking}
+        >
+          열기
         </button>
       </div>
     </div>
@@ -259,6 +399,14 @@
   }
   .details {
     margin: 6px 0;
+  }
+  .locked-head {
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+  }
+  .name {
+    overflow-wrap: anywhere;
   }
   /* 글자가 두 줄로 넘어가도 표시(▶/▼) 옆에 왼쪽 정렬로 붙는다 */
   .paste-toggle {
