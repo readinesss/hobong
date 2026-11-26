@@ -248,6 +248,9 @@ test.describe('데이터 내려받기·불러오기', () => {
     await other.goto(page.url());
     const police = fixture('backup-v4-police.json');
     await other.evaluate((value) => localStorage.setItem('hobong.data', value), police);
+    // WebKit 은 새로 연 탭에 다른 탭의 storage 이벤트를 보내지 않는다(docs/PLAN.md 부록 C).
+    // 앱은 탭으로 돌아올 때(focus) 저장소를 다시 보므로 그 순간을 흉내 낸다.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     // 이 탭은 '더 새 버전'으로 막지 않고 그 데이터를 읽어 별표 10 으로 계산한다
     await expect(page.locator('#wallet')).toContainText('별표 10');
     await expect(page.locator('#status')).toContainText('경위');
