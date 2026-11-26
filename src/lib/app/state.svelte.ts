@@ -460,14 +460,36 @@ class AppStore {
   /**
    * 백업 파일 내용. 파일 안의 기록(마지막 내려받기, 백업 배지)은 내려받은 뒤의 상태로 맞춘다.
    * 그래야 이 파일로 되살렸을 때 "아직 내려받은 적 없어요"가 뜨지 않는다.
-   * 내려받기(또는 복사)에 성공하면 같은 시각으로 markBackedUp 을 부른다.
+   * 내려받기(또는 복사)에 성공하면 같은 시각과 stamp 로 markBackedUp 을 부른다.
+   * stamp 는 내보낸 내용의 지문이다. 암호를 거는 동안(비동기) 다른 탭이 바꾸었거나, 글자 창을 연 뒤에
+   * 내용이 바뀌었으면 markBackedUp 이 '백업됨'으로 기록하지 않는다.
    */
-  exportBackup(now = new Date()): { text: string; at: string } {
+  exportBackup(now = new Date()): { text: string; at: string; stamp: string } {
     const at = now.toISOString();
-    if (!this.data) return { text: '', at };
+    if (!this.data) return { text: '', at, stamp: '' };
     const snapshot = $state.snapshot(this.data) as UserData;
     const backedUp = AppStore.withBackupMark(snapshot, at);
-    return { text: serializeBackup(makeEnvelope(backedUp, APP_VERSION, at)), at };
+    return {
+      text: serializeBackup(makeEnvelope(backedUp, APP_VERSION, at)),
+      at,
+      stamp: AppStore.contentStamp(snapshot),
+    };
+  }
+
+  /** 백업에 담기는 내용의 지문. 백업 표시(마지막 내려받기·변경 횟수·백업 배지)는 빼고 본다 */
+  static contentStamp(data: UserData): string {
+    return JSON.stringify({
+      ...data,
+      meta: { ...data.meta, lastBackupAt: null, changesSinceBackup: 0 },
+      achievements: { ...data.achievements, 'evt-backup': null },
+    });
+  }
+
+  /** 지금 내용이 stamp 를 만든 때와 같은지 */
+  isSameContent(stamp: string): boolean {
+    return (
+      this.data !== null && AppStore.contentStamp($state.snapshot(this.data) as UserData) === stamp
+    );
   }
 
   /** 내려받은 뒤의 상태: 마지막 내려받기 시각, 변경 횟수 0, 백업 배지 */
@@ -482,14 +504,24 @@ class AppStore {
     };
   }
 
-  markBackedUp(at: string): void {
-    if (!this.data) return;
+  /**
+   * 내려받은(복사한) 것으로 기록한다. stamp 를 주면 지금 내용이 그때와 같을 때만 기록하고,
+   * 그 사이 바뀌었으면 아무것도 바꾸지 않고 false 를 돌려준다(파일에 없는 변경을 '백업됨'으로 세지 않게).
+   */
+  markBackedUp(at: string, stamp?: string): boolean {
+    if (stamp !== undefined) {
+      // storage 이벤트가 아직 오지 않았어도 다른 탭이 바꿨는지 먼저 따라가 본다
+      this.#recheckStore();
+      if (!this.isSameContent(stamp)) return false;
+    }
+    if (!this.data) return false;
     const marked = AppStore.withBackupMark($state.snapshot(this.data) as UserData, at);
     this.data.meta.lastBackupAt = marked.meta.lastBackupAt;
     this.data.meta.changesSinceBackup = 0;
     if (!this.data.achievements['evt-backup'])
       this.data.achievements['evt-backup'] = marked.achievements['evt-backup'] as { at: Ymd };
     this.#persist();
+    return true;
   }
 
   /** 파일 내용을 검사만 한다(아직 아무것도 바꾸지 않는다) */

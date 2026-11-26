@@ -254,8 +254,6 @@
       </div>
     </Win>
 
-    <LongLeaveWindow />
-
     <section
       class="win"
       id="leave-entry"
@@ -473,6 +471,10 @@
         {busiestMonthText(leave.byMonth, hpd)}
       </p>
     </Win>
+
+    <!-- 해당이 있을 때만 보인다. 연가를 적는 흐름(올해 연가·기록하기·달력)을 밀어내지 않게
+         넓은 화면에서는 기록 열(가장 짧은 열)에, 좁은 화면에서는 달력 다음(grid-area: long)에 둔다 -->
+    <LongLeaveWindow />
   </div>
   <section class="about">
     <p class="note">
@@ -567,9 +569,9 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'summary'
-      'long'
       'entry'
       'calendar'
+      'long'
       'records'
       'months'
       'bridges'

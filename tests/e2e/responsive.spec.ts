@@ -445,4 +445,56 @@ test.describe('반응형과 조작', () => {
       });
     }
   }
+
+  // 안내 띠 닫기(#15)·장기재직휴가 창(#14): 좁은 폭에서 글과 닫기 버튼이 겹치지 않고 44px 이상이다
+  for (const width of [360, 1280]) {
+    test(`${width}px: 닫을 수 있는 안내 띠와 장기재직휴가 창이 넘치지 않고 44px 이상이다`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      // 정년이 지난 사람이 2028년(공휴일 데이터 없음)에 연다 → 정년·공휴일 띠 둘 다
+      const seed = makeSeed(
+        {
+          birthDate: '1960-03-01',
+          hireDate: '1985-03-01',
+          gradeDate: '1985-03-01',
+          step: 29,
+          nextStepDate: '2021-01-01',
+          stepAsOf: '2020-06-30',
+        },
+        { visits: { days: ['2028-01-04'], lastVisit: '2028-01-04' } },
+      );
+      await openApp(page, { seed, time: '2028-01-05T10:00:00+09:00' });
+      const closes = page.getByRole('button', { name: /안내 닫기$/ });
+      await expect(closes).toHaveCount(2);
+      const layout = await page.evaluate(() =>
+        ['#notice-retired', '#notice-holidays'].map((id) => {
+          const banner = document.querySelector(id)!;
+          const text = banner.querySelector('p')!.getBoundingClientRect();
+          const button = banner.querySelector('[data-dismiss]')!.getBoundingClientRect();
+          const box = banner.getBoundingClientRect();
+          return {
+            gap: button.left - text.right,
+            inside: button.right <= box.right + 1 && button.top >= box.top - 1,
+          };
+        }),
+      );
+      for (const item of layout) {
+        expect(item.gap, '글과 닫기 버튼이 겹침').toBeGreaterThanOrEqual(0);
+        expect(item.inside, '닫기 버튼이 띠 밖으로 나감').toBe(true);
+      }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(0);
+      expect(await page.evaluate(smallTargets), '안내 띠의 작은 터치 대상').toEqual([]);
+
+      // 장기재직휴가 창(부칙 특례 문구·긴 근거 조항)
+      await openApp(page, { seed: makeSeed({ hireDate: '2016-09-01' }), hash: 'leave' });
+      await expect(page.locator('#leave-long')).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(0);
+      expect(await page.evaluate(smallTargets), '연가 화면의 작은 터치 대상').toEqual([]);
+    });
+  }
 });

@@ -43,8 +43,9 @@
   );
 
   const year = $derived(view.recap.year);
-  /** 올해 찍힌 출근 도장 수 */
-  const yearVisits = $derived(view.yearGrid.filter((d) => d.visited).length);
+  /** 올해 찍힌 출근 도장 수(앱을 연 날. 정년퇴직 뒤에 연 날도 센다)와 모두 찍힌 수(배지와 같은 기준) */
+  const yearVisits = $derived(view.yearGrid.filter((d) => d.opened).length);
+  const allVisits = $derived(view.data.visits.days.length);
   const holidaysKnown = $derived(calendar.hasHolidayData(year));
 
   const badges = $derived(view.badges);
@@ -151,7 +152,7 @@
     </Win>
 
     <Win title="출근 도장" icon="icon-stamp" id="visits" area="visits">
-      {#snippet aside()}{year}년 · 도장 {yearVisits}개{/snippet}
+      {#snippet aside()}{year}년 {yearVisits}개 · 모두 {allVisits}개{/snippet}
       <div class="stack wide">
         <YearPixelCalendar
           grid={view.yearGrid}

@@ -50,6 +50,8 @@ export interface YearRecap {
   from: Ymd;
   /** min(오늘, 정년퇴직일) */
   to: Ymd;
+  /** 결산을 낸 날(오늘). 카드의 기간 글('11월까지')은 이 달로 적는다(정년퇴직일을 드러내지 않게) */
+  asOf: Ymd;
   hiredThisYear: boolean;
   /** 정년퇴직일이 올해이고 오늘 이전·당일 */
   retiredThisYear: boolean;
@@ -141,6 +143,7 @@ export function yearRecap(input: RecapInput): YearRecap {
       status: 'none',
       from,
       to,
+      asOf: today,
       hiredThisYear: false,
       retiredThisYear: false,
       workdays: 0,
@@ -193,6 +196,7 @@ export function yearRecap(input: RecapInput): YearRecap {
     status: 'active',
     from,
     to,
+    asOf: today,
     hiredThisYear: profile.hireDate >= jan1,
     retiredThisYear: yearOf(retireDate) === year && retireDate <= today,
     workdays: cal.workdaysBetween(from, addDays(to, 1)),
@@ -222,7 +226,11 @@ export interface YearDay {
   hours: number;
   /** 연가가 오늘 뒤(예정) */
   planned: boolean;
+  /** 재직 기간 안에 들른 날(결산의 출근 도장과 같은 기준) */
   visited: boolean;
+  /** 이 브라우저에서 앱을 연 날(재직 기간과 상관없이. 앱 안 달력은 이것으로 도장을 찍는다) */
+  opened: boolean;
+  /** 실제로 호봉이 오르는 날. 오늘 뒤면 예정(future 와 함께 본다) */
   raise: boolean;
   today: boolean;
   future: boolean;
@@ -265,6 +273,7 @@ export function yearGrid(year: number, input: GridInput): YearDay[] {
         hours: records ? records.reduce((sum, r) => sum + r.hours, 0) : 0,
         planned: leave !== null && date > today,
         visited: !outside && visits.has(date),
+        opened: visits.has(date),
         raise: raises.has(date),
         today: date === today,
         future: date > today,
@@ -277,6 +286,7 @@ export function yearGrid(year: number, input: GridInput): YearDay[] {
 
 export interface MonthSummary {
   month: number;
+  /** 그 달에 앱을 연 날(재직 기간과 상관없이) */
   visits: number;
   /** '연가 1일 4시간(3일, 12일 오전, 28일 예정)'. 없으면 '' */
   leaveText: string;
@@ -306,7 +316,8 @@ export function monthSummaries(grid: readonly YearDay[], hoursPerDay: number): M
     const hours = leaveDays.reduce((sum, d) => sum + d.hours, 0);
     out.push({
       month: m,
-      visits: days.filter((d) => d.visited).length,
+      // 앱 안 달력용: 재직 기간 밖에 연 날도 센다(결산 숫자는 yearRecap 의 visits)
+      visits: days.filter((d) => d.opened).length,
       leaveText:
         leaveDays.length > 0
           ? `연가 ${formatLeaveHours(hours, hoursPerDay)}(${leaveDays.map(leaveMark).join(', ')})`
@@ -316,6 +327,14 @@ export function monthSummaries(grid: readonly YearDay[], hoursPerDay: number): M
     });
   }
   return out;
+}
+
+/**
+ * 올해 임용했거나 올해 정년퇴직한 결산인지. 이런 결산의 근무일·1년 달력은 재직 기간의 시작·끝을 짐작하게 하므로
+ * 카드에서는 기본으로 빼 둔다(사용자가 켜면 넣는다).
+ */
+export function recapRevealsService(recap: YearRecap): boolean {
+  return recap.status === 'active' && (recap.hiredThisYear || recap.retiredThisYear);
 }
 
 /** 결산의 연가 한 줄: '12일 4시간'(오늘까지 쓴 것) */

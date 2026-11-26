@@ -3,6 +3,9 @@
  *
  * - 사실만 적는다(근무일·연가·출근 도장·배지·승급). 사람을 평가하는 말은 넣지 않는다.
  * - 날짜는 하루 단위로 적지 않는다('11월까지'). 결산 시작일(올해 임용이면 임용일)이 드러나지 않게 한다.
+ * - 정년은 카드에 적지 않는다(나이를 짐작할 수 있다). 기간 글도 정년퇴직일이 아니라 오늘의 달로 적는다.
+ * - 1년 달력은 재직 기간 밖(임용 전·정년퇴직 뒤)과 오늘 뒤를 평범한 칸으로 그린다. 그래서 임용일·정년퇴직일과
+ *   앞으로 쉴 날(예정 연가)·예정 승급일이 카드에 드러나지 않는다.
  * - 금액(올해 번 봉급)은 호출한 쪽이 켰을 때만 model 에 들어온다. 글자 카드에는 넣지 않는다.
  * - 1년 달력은 칸 3·5픽셀에 간격 1픽셀(정수 좌표)이라 내보내기 ×4 에서도 정수배다.
  */
@@ -34,7 +37,7 @@ export interface RecapFact {
 export interface RecapCardModel {
   nickname: string;
   year: number;
-  /** '11월까지', 정년퇴직한 해면 '정년퇴직일까지' */
+  /** '11월까지'(오늘의 달. 정년퇴직한 해에도 정년을 적지 않는다) */
   periodText: string;
   look: Look;
   formName: string;
@@ -60,20 +63,25 @@ export interface RecapOmitted {
   salary: boolean;
 }
 
-/** 결산의 네 가지 사실(화면·카드·글자 카드가 같은 문구를 쓴다) */
-export function recapFacts(recap: YearRecap): RecapFact[] {
+/**
+ * 결산의 사실(화면·카드·글자 카드가 같은 문구를 쓴다): 근무일·연가·출근 도장·배지.
+ * workdays 가 false 면 근무일을 뺀다(올해 임용·정년퇴직이면 근무일로 임용일·정년퇴직일을 거꾸로 셀 수 있다).
+ */
+export function recapFacts(recap: YearRecap, opts: { workdays?: boolean } = {}): RecapFact[] {
   return [
-    { label: '근무일', value: `${recap.workdays}일` },
+    ...(opts.workdays === false ? [] : [{ label: '근무일', value: `${recap.workdays}일` }]),
     { label: '연가', value: recapLeaveText(recap) },
     { label: '출근 도장', value: `${recap.visits}개` },
     { label: '배지', value: `${recap.badges.length}개` },
   ];
 }
 
-/** 카드 제목 줄 오른쪽의 기간: 하루 단위 날짜를 적지 않는다 */
+/**
+ * 카드 제목 줄 오른쪽의 기간: 하루 단위 날짜를 적지 않고, 정년퇴직한 해에도 정년(퇴직 달)을 적지 않는다.
+ * 결산을 낸 달까지라고만 적는다.
+ */
 export function recapPeriodText(recap: YearRecap): string {
-  if (recap.retiredThisYear) return '정년퇴직일까지';
-  return `${Number(recap.to.slice(5, 7))}월까지`;
+  return `${Number(recap.asOf.slice(5, 7))}월까지`;
 }
 
 /** 금액 줄의 이름표(긴 것이 들어가지 않으면 짧은 것) */
@@ -86,7 +94,6 @@ export { recapStepText };
 const P = characterRules.palette;
 const VISIT = P[2] as string;
 const LEAVE = P[6] as string;
-const PLANNED = P[5] as string;
 
 /** 1년 달력의 칸 크기(논리 픽셀). 간격은 1 */
 const CELL: Record<CardRatio, number> = { square: 3, portrait: 5 };
@@ -96,42 +103,60 @@ export function calendarSize(ratio: CardRatio): { w: number; h: number } {
   return { w: 31 * pitch - 1, h: 12 * pitch - 1 };
 }
 
+/**
+ * 카드용 1년 달력. 칸마다 반드시 한 번은 그린다(빈칸이 없다).
+ * - 재직 기간 밖·오늘 뒤 칸은 기록을 그리지 않고 평일·주말·공휴일 바탕만 그린다(경계가 보이지 않게).
+ * - showRaise 가 false 면(범례에 '승급'을 넣을 자리가 없으면) 승급일도 평범한 칸으로 그린다.
+ */
 function drawCalendar(
   ctx: Ctx,
   grid: readonly YearDay[],
   x: number,
   y: number,
   ratio: CardRatio,
+  showRaise: boolean,
 ): void {
   const c = CELL[ratio];
   const pitch = c + 1;
   const half = Math.ceil(c / 2);
   for (const day of grid) {
-    if (day.outside) continue;
     const cx = x + (day.day - 1) * pitch;
     const cy = y + (day.month - 1) * pitch;
     const base = day.holiday ? C.SHADOW : day.weekend ? C.PANEL2 : C.DESK;
-    const leave = day.planned ? PLANNED : LEAVE;
+    if (day.outside || day.future) {
+      rect(ctx, cx, cy, c, c, base);
+      continue;
+    }
     // 칸 하나에 한 가지 바탕: 연가 > 승급 > 들른 날 > 공휴일 > 주말 > 평일
-    if (day.leave === 'full') rect(ctx, cx, cy, c, c, leave);
-    else if (day.raise) rect(ctx, cx, cy, c, c, C.BLUE);
+    if (day.leave === 'full') rect(ctx, cx, cy, c, c, LEAVE);
+    else if (showRaise && day.raise) rect(ctx, cx, cy, c, c, C.BLUE);
     else if (day.visited) rect(ctx, cx, cy, c, c, VISIT);
     else rect(ctx, cx, cy, c, c, base);
-    if (day.leave === 'am') rect(ctx, cx, cy, c, half, leave);
-    else if (day.leave === 'pm') rect(ctx, cx, cy + c - half, c, half, leave);
+    if (day.leave === 'am') rect(ctx, cx, cy, c, half, LEAVE);
+    else if (day.leave === 'pm') rect(ctx, cx, cy + c - half, c, half, LEAVE);
     else if (day.leave === 'hours') {
       const dot = c - 2;
-      rect(ctx, cx + 1, cy + 1, dot, dot, leave);
+      rect(ctx, cx + 1, cy + 1, dot, dot, LEAVE);
     }
   }
+}
+
+const LEGEND_SWATCH = 9;
+const LEGEND_GAP = 8;
+
+function legendWidth(ctx: Ctx, items: [string, string][]): number {
+  let w = 0;
+  for (const [, label] of items)
+    w += LEGEND_SWATCH + Math.ceil(widthOf(ctx, label, 12)) + LEGEND_GAP;
+  return w - LEGEND_GAP;
 }
 
 function legend(ctx: Ctx, items: [string, string][], x: number, y: number): void {
   let lx = x;
   for (const [color, label] of items) {
     rect(ctx, lx, y + 3, 6, 6, color);
-    lx += 9;
-    lx += Math.ceil(text(ctx, label, lx, y, 12, C.MUTED)) + 8;
+    lx += LEGEND_SWATCH;
+    lx += Math.ceil(text(ctx, label, lx, y, 12, C.MUTED)) + LEGEND_GAP;
   }
 }
 
@@ -215,11 +240,16 @@ export function drawRecapCard(
   let y = top + stageH + 8;
   const omitted: RecapOmitted = { calendar: false, salary: false };
   const cal = calendarSize(ratio);
-  const legendItems: [string, string][] = [
+  const baseLegend: [string, string][] = [
     [VISIT, '들른 날'],
     [LEAVE, '연가'],
-    ...(model.grid?.some((d) => d.raise) ? ([[C.BLUE, '승급']] as [string, string][]) : []),
   ];
+  // 승급은 오늘까지 실제로 오른 날이 있고 범례에 자리가 있을 때만 칠한다(범례 없는 색을 남기지 않는다)
+  const hasRaise = model.grid?.some((d) => d.raise && !d.future && !d.outside) === true;
+  const withRaise: [string, string][] = [...baseLegend, [C.BLUE, '승급']];
+  const legendRoom = ratio === 'square' ? cal.w : inner - 60;
+  const showRaise = hasRaise && legendWidth(ctx, withRaise) <= legendRoom;
+  const legendItems = showRaise ? withRaise : baseLegend;
 
   if (ratio === 'square') {
     // 아래 왼쪽: 사실 네 줄 / 오른쪽: 1년 달력과 범례
@@ -238,8 +268,8 @@ export function drawRecapCard(
         );
       });
       const gx = right - cal.w;
-      drawCalendar(ctx, model.grid as readonly YearDay[], gx, y + 2, ratio);
-      legend(ctx, legendItems.slice(0, 2), gx, y + cal.h + 6);
+      drawCalendar(ctx, model.grid as readonly YearDay[], gx, y + 2, ratio, showRaise);
+      legend(ctx, legendItems, gx, y + cal.h + 6);
       y += Math.max(model.facts.length * lineH, cal.h + 20) + 4;
     } else {
       // 달력이 없으면 두 칸씩 크게
@@ -268,7 +298,7 @@ export function drawRecapCard(
         text(ctx, '1년 달력', left, y, 12, C.MUTED);
         legend(ctx, legendItems, left + 60, y);
         y += 18;
-        drawCalendar(ctx, model.grid, left + Math.floor((inner - cal.w) / 2), y, ratio);
+        drawCalendar(ctx, model.grid, left + Math.floor((inner - cal.w) / 2), y, ratio, showRaise);
         y += cal.h + 8;
       } else {
         omitted.calendar = true;

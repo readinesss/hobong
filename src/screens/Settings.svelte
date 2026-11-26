@@ -39,6 +39,10 @@
   let backupLocked = $state(false);
   /** backupText 를 만든 시각(복사에 성공하면 이 시각으로 내려받은 것으로 기록한다) */
   let backupAt = $state('');
+  /** backupText 에 담긴 내용의 지문(복사할 때 그 뒤 바뀌었는지 본다) */
+  let backupStamp = '';
+  /** 글자 창을 열 때 이미 내용이 바뀌어 있었는지(토스트로 옛 암호문을 다시 열었을 때) */
+  let backupStale = $state(false);
   /** 초기화 확인창에서 "먼저 내려받기"를 누른 뒤, 파일이 생긴 것을 확인했는지 */
   let resetDownloaded = $state(false);
   let resetConfirmed = $state(false);
@@ -106,43 +110,55 @@
   /** 암호 입력 대화상자: 파일로 내려받기 / 글자로 보기 */
   let lockMode = $state<'file' | 'text' | null>(null);
   /** 마지막으로 암호를 건 내용(암호문). '파일이 안 생겼어요'에서 암호를 다시 묻지 않고 보여 준다 */
-  let lastLocked: { text: string; at: string } | null = null;
+  let lastLocked: { text: string; at: string; stamp: string } | null = null;
 
-  function showText(text: string, at: string, locked: boolean) {
+  function showText(text: string, at: string, stamp: string, locked: boolean) {
     backupText = text;
     backupAt = at;
+    backupStamp = stamp;
     backupLocked = locked;
+    backupStale = !app.isSameContent(stamp);
     copyResult = null;
     showBackupText = true;
   }
 
   async function lockAndExport(password: string) {
     const mode = lockMode;
-    const { text, at } = app.exportBackup();
+    const { text, at, stamp } = app.exportBackup();
+    // PBKDF2 를 기다리는 동안 다른 탭이 바꿀 수 있다. 백업 표시는 stamp 가 그대로일 때만 한다(markBackedUp).
     const sealed = await encryptBackup(text, password);
     if (!sealed.ok) return sealed.code;
-    lastLocked = { text: sealed.text, at };
+    lastLocked = { text: sealed.text, at, stamp };
     lockMode = null;
     // 암호 대화상자가 닫히고 포커스가 돌아간 뒤에 다음 창을 연다
     await tick();
     if (mode === 'file') {
       const fileName = backupFileName(view.today, true);
       if (caps.download && downloadText(sealed.text, fileName)) {
-        app.markBackedUp(at);
-        app.toast(
-          `암호를 걸어 내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 암호를 잊으면 되살릴 수 없어요.`,
-          'good',
-          'icon-lock',
-          8000,
-          {
-            label: '파일이 안 생겼어요',
-            run: () => lastLocked && showText(lastLocked.text, lastLocked.at, true),
-          },
-        );
+        const action = {
+          label: '파일이 안 생겼어요',
+          run: () => lastLocked && showText(lastLocked.text, lastLocked.at, lastLocked.stamp, true),
+        };
+        if (app.markBackedUp(at, stamp)) {
+          app.toast(
+            `암호를 걸어 내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 암호를 잊으면 되살릴 수 없어요.`,
+            'good',
+            'icon-lock',
+            8000,
+            action,
+          );
+        } else {
+          app.toast(
+            `암호를 걸어 내려받기를 시작했어요. 다만 암호를 거는 사이 다른 탭에서 바뀐 내용이 있어 ${fileName} 에는 들어 있지 않아요. 한 번 더 내려받아 주세요.`,
+            'warn',
+            'icon-warn',
+            10000,
+          );
+        }
         return 'done' as const;
       }
     }
-    showText(sealed.text, at, true);
+    showText(sealed.text, at, stamp, true);
     return 'done' as const;
   }
 
@@ -153,10 +169,10 @@
       lockMode = 'file';
       return false;
     }
-    const { text, at } = app.exportBackup();
+    const { text, at, stamp } = app.exportBackup();
     const fileName = backupFileName(view.today);
     if (caps.download && downloadText(text, fileName)) {
-      app.markBackedUp(at);
+      app.markBackedUp(at, stamp);
       // 브라우저는 저장이 끝났는지 알려 주지 않는다. 단정하지 않고 확인을 부탁한다.
       if (inDialog) {
         resetFileName = fileName;
@@ -171,7 +187,7 @@
       );
       return true;
     }
-    showText(text, at, false);
+    showText(text, at, stamp, false);
     return false;
   }
   /** 글자로 보기. 암호 걸기를 켰으면 암호부터 묻는다 */
@@ -183,8 +199,8 @@
     openPlainText();
   }
   function openPlainText() {
-    const { text, at } = app.exportBackup();
-    showText(text, at, false);
+    const { text, at, stamp } = app.exportBackup();
+    showText(text, at, stamp, false);
   }
   function downloadBeforeReset() {
     if (download(true)) resetDownloaded = true;
@@ -201,11 +217,19 @@
   async function copyBackup() {
     // 결과는 대화상자 안에 적는다(알림은 대화상자에 가려질 수 있다)
     if (await copyText(backupText)) {
-      app.markBackedUp(backupAt);
-      copyResult = {
-        ok: true,
-        text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
-      };
+      // 글자를 만든 뒤 내용이 바뀌었으면(다른 탭·토스트로 다시 연 옛 내용) 백업 표시를 바꾸지 않는다
+      if (app.markBackedUp(backupAt, backupStamp)) {
+        copyResult = {
+          ok: true,
+          text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
+        };
+      } else {
+        backupStale = true;
+        copyResult = {
+          ok: false,
+          text: '복사했어요. 다만 이 글자를 만든 뒤 바뀐 내용은 들어 있지 않아요. 창을 닫고 한 번 더 내려받아 주세요.',
+        };
+      }
     } else {
       copyResult = { ok: false, text: '복사가 막혀 있어요. 글자를 직접 골라 복사해 주세요.' };
     }
@@ -663,6 +687,12 @@
 {#if showBackupText}
   <Modal title="백업 내용(글자)" icon="icon-text" wide onclose={() => (showBackupText = false)}>
     <div class="stack wide">
+      {#if backupStale}
+        <p class="note warn" id="backup-text-stale">
+          이 글자를 만든 뒤 바뀐 내용이 있어요. 바뀐 내용까지 담으려면 창을 닫고 한 번 더 내려받아
+          주세요.
+        </p>
+      {/if}
       {#if backupLocked}
         <p class="note" id="backup-text-locked">
           암호가 걸린 내용이에요. 불러오기에 그대로 붙여넣고 암호를 넣으면 열려요.

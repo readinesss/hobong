@@ -175,3 +175,63 @@ test.describe('연가 장부(쉬는 날에 열었을 때)', () => {
     await expect(entry).toContainText('11월 30일 (월)');
   });
 });
+
+test.describe('연가 장부의 장기재직휴가 안내(#14)', () => {
+  test('지금 쓸 수 있는 장기재직휴가: 일수·기한·부칙 특례·근거, 연가와 따로다', async ({
+    page,
+  }) => {
+    // 2016-09-01 임용: 5년 구간은 부칙 특례로 2028. 6. 23.까지, 10년 구간은 2026. 9. 1.부터
+    const seed = makeSeed({ hireDate: '2016-09-01', step: 11 });
+    await openApp(page, { seed, hash: 'leave' });
+    const win = page.locator('#leave-long');
+    await expect(page.getByRole('heading', { name: '장기재직휴가' })).toBeVisible();
+    const items = win.getByRole('listitem');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText('3일');
+    await expect(items.nth(0)).toContainText('지금 쓸 수 있어요');
+    await expect(items.nth(0)).toContainText('2028. 6. 23.까지 한 번 쓸 수 있어요');
+    await expect(items.nth(0)).toContainText('부칙 특례');
+    await expect(items.nth(1)).toContainText('5일');
+    await expect(items.nth(1)).toContainText('2036. 8. 31.까지 한 번 쓸 수 있어요');
+    await expect(items.nth(1)).not.toContainText('부칙 특례');
+    await expect(win).toContainText('특별휴가');
+    await expect(win).toContainText('줄지 않아요');
+    await expect(win).toContainText('국가공무원 복무규정 제20조제18항');
+    // 연가 계산은 그대로다: 재직 10년 2개월 → 21일 그대로 남는다
+    await expect(page.locator('#leave-summary')).toContainText('21일');
+    // 연가를 적는 흐름(올해 연가 → 기록하기 → 달력)을 밀어내지 않는다:
+    // 기록하기는 올해 연가 바로 밑이고, 창은 달력보다 아래다
+    const box = (sel: string) =>
+      page.evaluate((q) => {
+        const r = document.querySelector(q)!.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      }, sel);
+    const summaryBox = await box('#leave-summary');
+    const entryBox = await box('#leave-entry');
+    expect(entryBox.top - summaryBox.bottom).toBeLessThanOrEqual(24);
+    expect((await box('#leave-calendar')).top).toBeLessThan((await box('#leave-long')).top);
+    // 좁은 화면에서도 긴 근거 조항이 가로로 넘치지 않는다
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
+  });
+
+  test('1년 안에 생기는 장기재직휴가는 시작일과 함께 미리 알린다', async ({ page }) => {
+    // 기본 seed: 2022-09-01 임용 → 5년이 되는 2027. 9. 1.부터
+    await openApp(page, { seed: makeSeed(), hash: 'leave' });
+    const win = page.locator('#leave-long');
+    await expect(win).toContainText('2027. 9. 1.부터');
+    await expect(win).toContainText(
+      '재직 5년이 되는 2027. 9. 1.부터 2032. 8. 31.까지 한 번 쓸 수 있어요',
+    );
+    await expect(win).not.toContainText('지금 쓸 수 있어요');
+    await expect(page.locator('#leave-summary')).toContainText('17일');
+  });
+
+  test('해당하는 장기재직휴가가 없으면 창이 없다', async ({ page }) => {
+    await openApp(page, { seed: makeSeed({ hireDate: '2024-03-04' }), hash: 'leave' });
+    await expect(page.locator('#leave-summary')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '장기재직휴가' })).toHaveCount(0);
+    await expect(page.locator('#leave-long')).toHaveCount(0);
+  });
+});

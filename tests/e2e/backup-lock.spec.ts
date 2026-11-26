@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { encryptBackup } from '../../src/lib/store/crypto.ts';
+import { decryptBackup, encryptBackup } from '../../src/lib/store/crypto.ts';
 import { makeSeed, openApp, storedData, tick } from './helpers.ts';
 
 const SEED = makeSeed(
@@ -335,6 +335,90 @@ test.describe('백업 파일 암호', () => {
     await expect(dialog.getByRole('alert')).toContainText('암호 파일의 형식이 맞지 않아요');
     await expect(dialog.getByLabel('암호', { exact: true })).toHaveCount(0);
     expect(await storedData(page)).toEqual(before);
+  });
+
+  test('암호를 거는 사이 다른 탭이 바꾸면 백업한 것으로 기록하지 않고 다시 내려받으라고 알린다', async ({
+    page,
+  }) => {
+    await openApp(page, { seed: SEED, hash: 'settings' });
+    await requireWebCrypto(page);
+    await tick(page, 6000);
+    // 느린 기기 흉내: 열쇠 만들기(PBKDF2)를 테스트가 풀어 줄 때까지 붙잡아 둔다(앱 코드는 그대로)
+    await page.evaluate(() => {
+      const orig = SubtleCrypto.prototype.deriveKey;
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      (window as unknown as { releaseDerive: () => void }).releaseDerive = () => release();
+      SubtleCrypto.prototype.deriveKey = function (...args: Parameters<SubtleCrypto['deriveKey']>) {
+        return gate.then(() => orig.apply(this, args));
+      };
+    });
+    await page.getByRole('checkbox', { name: /암호 걸기/ }).check();
+    await page.getByRole('button', { name: '데이터 내려받기' }).click();
+    const dialog = page.getByRole('dialog', { name: '암호 걸어 내려받기' });
+    await dialog.getByLabel('암호', { exact: true }).fill(PASSWORD);
+    await dialog.getByLabel('암호 확인').fill(PASSWORD);
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: '암호 걸고 내려받기' }).click();
+    // 그 사이 다른 탭이 연가 기록을 더해 저장한다(앱이 저장하는 모양 그대로. 이 탭에는 storage 이벤트가 오지 않는다)
+    await page.evaluate(() => {
+      const env = JSON.parse(localStorage.getItem('hobong.data') ?? '{}');
+      env.data.leave.records.push({
+        id: 'from-tab-b',
+        date: '2026-11-20',
+        kind: 'day',
+        hours: 8,
+        memo: '',
+      });
+      env.data.meta.changesSinceBackup += 1;
+      env.data.meta.updatedAt = new Date().toISOString();
+      localStorage.setItem('hobong.data', JSON.stringify(env));
+    });
+    await page.evaluate(() => (window as unknown as { releaseDerive: () => void }).releaseDerive());
+    const file = await download;
+    const opened = await decryptBackup(readFileSync(await file.path(), 'utf8'), PASSWORD);
+    if (!opened.ok) throw new Error(opened.code);
+    const inFile = JSON.parse(opened.plain).data as { leave: { records: { id: string }[] } };
+    expect(inFile.leave.records.map((r) => r.id)).not.toContain('from-tab-b');
+
+    // 파일에 없는 변경을 '백업됨'으로 세지 않는다
+    await expect(page.locator('.toasts')).toContainText('바뀐 내용이 있어');
+    await expect(page.locator('.toasts')).toContainText('한 번 더 내려받아 주세요');
+    const stored = await storedData(page);
+    expect(stored?.leave.records.map((r) => r.id)).toContain('from-tab-b');
+    expect(stored?.meta.changesSinceBackup).toBe(1);
+    expect(stored?.meta.lastBackupAt).toBeNull();
+    await expect(page.locator('dd.num', { hasText: '번' })).toHaveText('1번');
+  });
+
+  test('토스트로 옛 암호문을 다시 열었을 때 그 뒤 바뀐 내용이 있으면 복사해도 백업됨으로 세지 않는다', async ({
+    page,
+  }) => {
+    await openApp(page, { seed: SEED, hash: 'settings' });
+    await requireWebCrypto(page);
+    await tick(page, 6000);
+    const file = await lockedDownload(page);
+    expect((await storedData(page))?.meta.changesSinceBackup).toBe(0);
+    // 알림이 떠 있는 동안 월급날을 바꾼다(세는 변경)
+    const payday = page.getByRole('radiogroup', { name: '월급날' });
+    const other = (await payday.getByRole('radio').allInnerTexts()).find(
+      (t) => !t.startsWith('25'),
+    );
+    await payday.getByRole('radio', { name: other as string }).click();
+    expect((await storedData(page))?.meta.changesSinceBackup).toBe(1);
+
+    await page.locator('.toasts').getByRole('button', { name: '파일이 안 생겼어요' }).click();
+    const textDialog = page.getByRole('dialog', { name: '백업 내용(글자)' });
+    await expect(textDialog.locator('#backup-text-stale')).toContainText('바뀐 내용이 있어요');
+    // 보여 준 것은 내려받은 그 파일이다
+    expect(await textDialog.locator('textarea').inputValue()).toBe(file.text);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await textDialog.getByRole('button', { name: '모두 복사' }).click();
+    await expect(textDialog.locator('#backup-copy-result')).toContainText(
+      '바뀐 내용은 들어 있지 않아요',
+    );
+    const stored = await storedData(page);
+    expect(stored?.meta.changesSinceBackup).toBe(1);
   });
 
   test('WebCrypto 를 쓸 수 없는 브라우저에서는 선택지를 숨기고 까닭을 알린다', async ({ page }) => {

@@ -3,6 +3,8 @@
    * 한 해를 하루 한 칸으로 보는 도트 달력(달 12줄 × 1~31일).
    * 칸은 그림(role="img")이라 낭독기는 요약 한 줄을 읽고, 날짜별 내용은 아래 '달마다 글로 보기'에 글로 둔다.
    * 칸마다 버튼을 두지 않는다(366개라 무겁고, 고를 일이 없다). 마우스로는 칸의 title 로 날짜를 볼 수 있다.
+   * 출근 도장은 앱을 연 날 그대로(opened) 찍는다: 재직 기간 밖(정년퇴직 뒤 등)에 연 날도 사라지지 않는다.
+   * 오늘 뒤의 승급일은 예정이라고 적는다.
    */
   import { formatKorean, formatMonthDay } from '../../lib/calc/date.ts';
   import { formatLeaveHours } from '../../lib/calc/leave.ts';
@@ -38,7 +40,7 @@
     else if (d.leave === 'am') out.push('am');
     else if (d.leave === 'pm') out.push('pm');
     else if (d.leave === 'hours') out.push('hrs');
-    if (d.visited) out.push('v');
+    if (d.opened) out.push('v');
     if (d.raise) out.push('raise');
     if (d.future) out.push('fut');
     if (d.today) out.push('today');
@@ -54,19 +56,21 @@
     else if (d.leave === 'pm') parts.push('연가 오후 반일');
     else if (d.leave === 'hours') parts.push(`연가 ${d.hours}시간`);
     if (d.planned) parts.push('예정');
-    if (d.visited) parts.push('들른 날');
-    if (d.raise) parts.push('승급한 날');
+    if (d.opened) parts.push('들른 날');
+    if (d.raise) parts.push(d.future ? '승급일(예정)' : '승급한 날');
     if (d.today) parts.push('오늘');
     if (d.outside) parts.push('재직 기간 밖');
     return parts.join(', ');
   }
 
   const summary = $derived.by(() => {
-    const visits = grid.filter((d) => d.visited).length;
+    const visits = grid.filter((d) => d.opened).length;
     const used = grid.reduce((sum, d) => sum + (d.leave && !d.planned ? d.hours : 0), 0);
     const planned = grid.reduce((sum, d) => sum + (d.planned ? d.hours : 0), 0);
     const holidays = grid.filter((d) => d.holiday !== null).length;
-    const raises = grid.filter((d) => d.raise).map((d) => `${formatMonthDay(d.date, false)} 승급`);
+    const raises = grid
+      .filter((d) => d.raise)
+      .map((d) => `${formatMonthDay(d.date, false)} 승급${d.future ? ' 예정' : ''}`);
     const today = grid.find((d) => d.today);
     const parts = [
       `들른 날 ${visits}일`,
@@ -83,10 +87,12 @@
     if (m.visits > 0) parts.push(`들른 날 ${m.visits}일`);
     if (m.leaveText) parts.push(m.leaveText);
     if (m.holidays.length > 0) parts.push(`공휴일 ${m.holidays.join(', ')}`);
-    if (m.raise) parts.push(`${formatMonthDay(m.raise, false)} 승급`);
+    if (m.raise)
+      parts.push(`${formatMonthDay(m.raise, false)} 승급${isFuture(m.raise) ? ' 예정' : ''}`);
     return parts.length > 0 ? parts.join(' · ') : '기록 없음';
   }
 
+  const isFuture = (date: string) => grid.find((d) => d.date === date)?.future === true;
   const hasRaise = $derived(grid.some((d) => d.raise));
   const hasOutside = $derived(grid.some((d) => d.outside));
 </script>
@@ -112,7 +118,7 @@
     <li><i class="cell hrs"></i>시간 연가</li>
     <li><i class="cell hol"></i>공휴일</li>
     <li><i class="cell we"></i>주말</li>
-    {#if hasRaise}<li><i class="cell raise"></i>승급한 날</li>{/if}
+    {#if hasRaise}<li><i class="cell raise"></i>승급일</li>{/if}
     <li><i class="cell today"></i>오늘</li>
     <li><i class="cell fut"></i>흐린 칸: 아직 오지 않은 날</li>
     {#if hasOutside}<li><i class="cell out"></i>빈칸: 재직 기간 밖</li>{/if}
@@ -190,7 +196,17 @@
     background: color-mix(in srgb, var(--ink-2) 24%, var(--panel));
   }
   .cell.we {
-    background: color-mix(in srgb, var(--ink-2) 10%, var(--panel));
+    background: color-mix(in srgb, var(--ink-2) var(--we-mix), var(--panel));
+    box-shadow: var(--we-ring);
+  }
+  .yearcal {
+    --we-mix: 10%;
+    --we-ring: none;
+  }
+  /* 어두운 테마: 10%는 판 바탕과 거의 같아 주말 칸·범례가 묻힌다. 더 섞고 1px 테두리로 흐린 칸(오늘 뒤)과도 가른다 */
+  :global(:root[data-theme='dark']) .yearcal {
+    --we-mix: 18%;
+    --we-ring: inset 0 0 0 1px color-mix(in srgb, var(--ink-2) 38%, var(--panel));
   }
   .cell.hol {
     background: color-mix(in srgb, var(--ink-2) 60%, var(--panel));

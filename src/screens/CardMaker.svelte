@@ -13,6 +13,7 @@
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
+  import { recapRevealsService } from '../lib/calc/recap.ts';
   import {
     CARD_SIZES,
     drawCard,
@@ -110,6 +111,10 @@
   const recap = $derived(view.recap);
   /** 올해 재직한 날이 없으면(지난해 이전 정년퇴직 등) 결산 카드를 만들지 않는다 */
   const recapReady = $derived(recap.status === 'active');
+  /** 올해 임용·정년퇴직: 근무일·1년 달력을 기본으로 빼 둔다(재직 시작·끝을 짐작할 수 있다) */
+  const recapEdge = $derived(recapRevealsService(recap));
+  const recapCalendarOn = $derived(session.recapShows('recapCalendar', recapEdge));
+  const recapWorkdaysOn = $derived(session.recapShows('recapWorkdays', recapEdge));
   const recapModel = $derived<RecapCardModel>({
     nickname: view.profile.nickname,
     year: recap.year,
@@ -119,10 +124,10 @@
     grade: view.profile.grade,
     step: view.step,
     stepText: recapStepText(recap),
-    facts: recapFacts(recap),
+    facts: recapFacts(recap, { workdays: recapWorkdaysOn }),
     badges: recap.badges.map((b) => ({ icon: b.icon, tier: b.tier })),
     salary: session.recapSalary ? formatWon(recap.earned) : null,
-    grid: session.recapCalendar ? view.yearGrid : null,
+    grid: recapCalendarOn ? view.yearGrid : null,
     siteName: SITE_NAME,
     siteTagline: SITE_TAGLINE,
     siteUrl: SITE_URL,
@@ -234,7 +239,8 @@
   );
   const fileName = $derived(
     kind === 'recap'
-      ? `hobong-recap-${recap.year}-${view.today.replaceAll('-', '')}.png`
+      ? // 결산 카드 파일 이름에는 날짜를 넣지 않는다(근무일과 함께 임용일을 거꾸로 셀 수 있다)
+        `hobong-recap-${recap.year}.png`
       : `hobong-card-${view.today.replaceAll('-', '')}.png`,
   );
 
@@ -414,7 +420,14 @@
       </div>
 
       {#if kind === 'recap'}
-        <RecapOptions {hideAmounts} holidaysKnown={recap.holidaysKnown} {recap} />
+        <RecapOptions
+          {hideAmounts}
+          holidaysKnown={recap.holidaysKnown}
+          {recap}
+          edge={recapEdge}
+          calendarOn={recapCalendarOn}
+          workdaysOn={recapWorkdaysOn}
+        />
       {:else}
         <fieldset class="stack">
           <legend class="muted">카드에 담을 것</legend>

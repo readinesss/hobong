@@ -160,6 +160,8 @@ describe('yearRecap', () => {
       }),
     );
     expect(r.to).toBe('2026-06-30');
+    // 결산을 낸 날은 오늘(카드의 기간 글은 이 달로 적어 정년퇴직일을 드러내지 않는다)
+    expect(r.asOf).toBe('2026-11-25');
     expect(r.retiredThisYear).toBe(true);
     expect(r.workdays).toBe(cal.workdaysBetween('2026-01-01', '2026-07-01'));
     expect(r.visits).toBe(1);
@@ -320,6 +322,11 @@ describe('yearGrid', () => {
     expect(day('2026-03-04').outside).toBe(false);
     expect(day('2026-10-31').outside).toBe(false);
     expect(day('2026-11-02')).toMatchObject({ outside: true, visited: false });
+    // 앱 안 달력의 출근 도장은 재직 기간과 상관없이 연 날 그대로 남는다
+    expect(day('2026-03-03').opened).toBe(true);
+    expect(day('2026-11-02').opened).toBe(true);
+    expect(day('2026-03-04').opened).toBe(false);
+    expect(monthSummaries(grid, 8)[10]!.visits).toBe(1);
   });
 
   it('달마다 글로 보기 요약', () => {

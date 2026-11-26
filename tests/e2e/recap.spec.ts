@@ -44,7 +44,7 @@ test.describe('올해 결산과 1년 달력', () => {
     await openApp(page, { seed: recapSeed(), hash: 'badges' });
     const win = page.locator('#visits');
     await expect(win.getByRole('heading', { name: '출근 도장' })).toBeVisible();
-    await expect(win.locator('.aside')).toHaveText('2026년 · 도장 4개');
+    await expect(win.locator('.aside')).toHaveText('2026년 4개 · 모두 4개');
     const grid = win.getByRole('img');
     await expect(grid).toHaveAttribute('aria-label', /^2026년 달력\. 들른 날 4일, /);
     await expect(grid).toHaveAttribute('aria-label', /연가 1일 4시간\(예정 1일 따로\)/);
@@ -91,7 +91,8 @@ test.describe('올해 결산과 1년 달력', () => {
     await expect(preview).not.toHaveAttribute('aria-label', /원/);
 
     const square = await savePng(page);
-    expect(square.name).toBe('hobong-recap-2026-20261125.png');
+    // 파일 이름에는 날짜를 넣지 않는다(근무일과 함께 임용일을 거꾸로 셀 수 있다)
+    expect(square.name).toBe('hobong-recap-2026.png');
     expect(pngSize(square.buffer)).toEqual({ width: 1080, height: 1080 });
     await page.getByRole('radio', { name: '세로형' }).click();
     const portrait = await savePng(page);
@@ -154,7 +155,91 @@ test.describe('올해 결산과 1년 달력', () => {
         await page.getByRole('button', { name: '금액 넣어 내보내기' }).click();
       })(),
     ]);
-    expect(file.suggestedFilename()).toMatch(/^hobong-recap-2026-\d{8}\.png$/);
+    expect(file.suggestedFilename()).toBe('hobong-recap-2026.png');
+  });
+
+  test('올해 정년퇴직했다면 카드에 정년을 적지 않고, 근무일·1년 달력은 켤 때만 넣는다', async ({
+    page,
+  }) => {
+    // 1966년 3월생은 2026년 6월 30일에 정년퇴직한다(오늘 11월 25일)
+    const seed = makeSeed({
+      birthDate: '1966-03-10',
+      hireDate: '1992-03-02',
+      gradeDate: '2015-03-01',
+      grade: 6,
+      step: 28,
+      nextStepDate: '2027-03-01',
+    });
+    await openApp(page, { seed, hash: 'card' });
+    await page.getByRole('radio', { name: '올해 결산' }).click();
+    const preview = page.locator('#card-preview [role="img"]');
+    await expect(preview).toHaveAttribute('aria-label', /2026년 11월까지/);
+    await expect(preview).not.toHaveAttribute('aria-label', /정년|퇴직|근무일|1년 달력/);
+    const text = page.locator('#card-text pre');
+    await expect(text).toContainText('[호봉] 김주무관의 2026년 (11월까지)');
+    await expect(text).not.toContainText('정년');
+    await expect(text).not.toContainText('근무일');
+    const calendar = page.getByRole('checkbox', { name: /1년 달력/ });
+    const workdays = page.getByRole('checkbox', { name: /근무일/ });
+    await expect(calendar).not.toBeChecked();
+    await expect(workdays).not.toBeChecked();
+    await expect(page.getByText('정년퇴직일 무렵을 짐작할 수 있어요')).toBeVisible();
+    // 켜면 넣는다(이 탭에서만 기억)
+    await calendar.check();
+    await workdays.check();
+    await expect(preview).toHaveAttribute('aria-label', /근무일 \d+일.*1년 달력/);
+    await expect(text).toContainText('근무일');
+    await expect(preview).not.toHaveAttribute('aria-label', /정년/);
+  });
+
+  test('올해 임용이면 근무일·1년 달력을 기본으로 빼고, 보통 해에는 근무일 스위치가 없다', async ({
+    page,
+  }) => {
+    const seed = makeSeed({
+      hireDate: '2026-03-16',
+      gradeDate: '2026-03-16',
+      step: 1,
+      nextStepDate: '2027-03-16',
+    });
+    await openApp(page, { seed, hash: 'card' });
+    await page.getByRole('radio', { name: '올해 결산' }).click();
+    const preview = page.locator('#card-preview [role="img"]');
+    await expect(preview).not.toHaveAttribute('aria-label', /근무일|1년 달력/);
+    await expect(page.getByRole('checkbox', { name: /근무일/ })).not.toBeChecked();
+    await expect(page.getByText('임용일을 거꾸로 셀 수 있어요')).toBeVisible();
+
+    await openApp(page, { seed: recapSeed(), hash: 'card' });
+    await page.getByRole('radio', { name: '올해 결산' }).click();
+    await expect(page.getByRole('checkbox', { name: /1년 달력/ })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: /근무일/ })).toHaveCount(0);
+    await expect(preview).toHaveAttribute('aria-label', /근무일 \d+일/);
+  });
+
+  test('업적 달력: 오늘 뒤 승급일은 예정이라 적고, 정년퇴직 뒤에 연 날의 도장도 남는다', async ({
+    page,
+  }) => {
+    const future = makeSeed({ nextStepDate: '2026-12-01' });
+    await openApp(page, { seed: future, hash: 'badges' });
+    const grid = page.locator('#visits [role="img"]');
+    await expect(grid).toHaveAttribute('aria-label', /12월 1일 승급 예정/);
+    await expect(grid.locator('i.raise')).toHaveAttribute('title', /승급일\(예정\)/);
+    await expect(page.locator('#visits .legend')).toContainText('승급일');
+    await expect(page.locator('#visits .legend')).not.toContainText('승급한 날');
+
+    const retired = makeSeed({
+      birthDate: '1966-03-10',
+      hireDate: '1992-03-02',
+      gradeDate: '2015-03-01',
+      grade: 6,
+      step: 28,
+      nextStepDate: '2027-03-01',
+    });
+    await openApp(page, { seed: retired, hash: 'badges' });
+    const win = page.locator('#visits');
+    // 11월 24·25일(정년퇴직 뒤)에 연 날도 도장으로 남는다
+    await expect(win.locator('.aside')).toHaveText('2026년 2개 · 모두 2개');
+    await expect(win.locator('[role="img"] i.v')).toHaveCount(2);
+    await expect(win.locator('[role="img"]')).toHaveAttribute('aria-label', /들른 날 2일/);
   });
 
   test('지난해 정년퇴직했다면 결산이 없다고 알리고 저장을 막는다', async ({ page }) => {
