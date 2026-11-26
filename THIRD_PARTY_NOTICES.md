@@ -11,7 +11,8 @@
 | [Svelte](https://svelte.dev) 5 | 화면을 그리는 실행 코드 | MIT | © 2016–2025 Svelte Contributors | [`src/assets/licenses/svelte-MIT.txt`](src/assets/licenses/svelte-MIT.txt) |
 
 - Galmuri는 예약된 글꼴 이름(Reserved Font Name)이 없어 서브셋을 같은 이름으로 배포할 수 있습니다.
-  글자 모양은 바꾸지 않았고, 만드는 방법은 [`scripts/subset-fonts.sh`](scripts/subset-fonts.sh)에 있습니다.
+  글자 모양은 바꾸지 않았고(WOFF2 로 저장하되 Safari 엔진이 읽을 수 있게 glyf 변환은 하지 않음),
+  만드는 방법은 [`scripts/subset-fonts.sh`](scripts/subset-fonts.sh)에 있습니다.
 - 색은 GrafxKid의 16색 팔레트 **Sweetie 16**을 씁니다.
 
 ## 결과물에 들어가지 않는 것

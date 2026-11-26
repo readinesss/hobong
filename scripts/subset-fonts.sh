@@ -40,5 +40,19 @@ pyftsubset package/dist/Galmuri14.ttf --unicodes="${COMMON},U+AC00-D7A3" \
 pyftsubset package/dist/Galmuri11.ttf --unicodes="${COMMON}" --text-file=ksx1001.txt \
   --flavor=woff2 --layout-features='*' --no-hinting --output-file="${OUT}/Galmuri11.subset.woff2"
 
+# WOFF2 의 glyf/loca 변환(transform)은 빼고 저장한다. 변환된 큰 글꼴을 WebKit(Safari 엔진)이
+# 해독하지 못하는 경우가 있어서다(CI 의 WebKit 에서 확인: 변환한 것은 SyntaxError, 뺀 것은 정상).
+# 글자 모양은 그대로이고 파일만 조금 커진다.
+python3 - "${OUT}/Galmuri14.subset.woff2" "${OUT}/Galmuri11.subset.woff2" <<'PY'
+import sys
+from fontTools.ttLib import TTFont
+from fontTools.ttLib.woff2 import WOFF2FlavorData
+for path in sys.argv[1:]:
+    font = TTFont(path)
+    font.flavor = "woff2"
+    font.flavorData = WOFF2FlavorData(transformedTables=set())
+    font.save(path)
+PY
+
 cp package/dist/LICENSE.txt "${OUT}/OFL.txt"
 ls -l "${OUT}"
