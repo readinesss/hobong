@@ -7,11 +7,16 @@
     yearOf,
     type Ymd,
   } from '../lib/calc/date.ts';
-  import { maxStepOf } from '../lib/calc/salary.ts';
-  import { dateReachedStep, nextRaiseDate, stepOn } from '../lib/calc/step.ts';
+  import {
+    careerOf,
+    careerStepOn,
+    raisePeriodOf,
+    stepCeiling,
+  } from '../lib/calc/career-profile.ts';
+  import { dateReachedStep, nextRaiseDate } from '../lib/calc/step.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
   import { formatLongDate } from '../lib/app/format.ts';
-  import { careerLookup, rulesFor } from '../lib/rules/index.ts';
+  import { careerLookup, resolveCareer, rulesFor } from '../lib/rules/index.ts';
   import type { RankKey } from '../lib/rules/types.ts';
   import { GENERAL_RANKS, LIMITS, type Profile } from '../lib/store/schema.ts';
   import { checkProfile, toProfile, type ProfileErrors } from '../lib/store/validate.ts';
@@ -46,10 +51,12 @@
   // 최고호봉이면 다음 승급일이 없으므로 그 자리에 "최고호봉이 된 날"을 보여준다.
   const start = untrack(() => {
     if (!initial) return null;
-    const r = rulesFor(yearOf(clock.today));
-    const max = maxStepOf(r.salary, initial.rank);
-    const period = r.stepRaise.periodMonths;
-    const stepNow = stepOn(initial, clock.today, max, period);
+    const c = careerOf(rulesFor, initial, yearOf(clock.today));
+    const max = stepCeiling(c);
+    const period = raisePeriodOf(c);
+    const stepNow = careerStepOn(c, initial, clock.today);
+    // 정기승급을 계산하지 않는 직종은 입력한 다음 승급일을 그대로 보여 준다
+    if (period === null) return { stepNow, date: initial.nextStepDate };
     const next = nextRaiseDate(initial, clock.today, max, period);
     return { stepNow, date: next ?? dateReachedStep(initial, max, period) };
   });
@@ -76,7 +83,7 @@
   let tried = $state(false);
   let formEl = $state<HTMLFormElement>();
 
-  const maxStep = $derived(maxStepOf(rules.salary, rank));
+  const maxStep = $derived(stepCeiling(resolveCareer(rules, { track, payTable, rank })));
   $effect(() => {
     if (step > maxStep) step = maxStep;
   });

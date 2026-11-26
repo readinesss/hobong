@@ -31,7 +31,7 @@
         passed,
         gradeLabel,
         // 도감에는 소품 없이 기본 모습만 싣는다.
-        look: resolveLook(characterRules, String(level), 0, 'work'),
+        look: resolveLook(characterRules, form.id, 0, 'work'),
       };
     }),
   );

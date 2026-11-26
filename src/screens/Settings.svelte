@@ -273,7 +273,7 @@
         </div>
         <div class="kv">
           <dt>직급·호봉</dt>
-          <dd>{profile.rank}급 {view.step}호봉</dd>
+          <dd>{view.rankStepLabel}</dd>
         </div>
         {#if profile.rankDate !== profile.hireDate}
           <div class="kv">

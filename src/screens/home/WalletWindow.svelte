@@ -10,13 +10,17 @@
 </script>
 
 <Win title="지갑" icon="icon-coin" id="wallet" area="wallet">
-  {#snippet aside()}{salary.tableYear}년 봉급표{/snippet}
+  {#snippet aside()}{salary ? `${salary.tableYear}년 봉급표` : '준비 중'}{/snippet}
   <div class="stack wide">
     <div class="stack">
       <span class="muted">월 봉급</span>
-      <p class="big"><Money value={salary.amount} /></p>
-      <p class="cap muted">{salary.rank}급 {salary.step}호봉 · 공무원보수규정 별표 3</p>
-      {#if view.salaryPending}
+      {#if salary}
+        <p class="big"><Money value={salary.amount} /></p>
+        <p class="cap muted">{view.rankStepLabel} · 공무원보수규정 {salary.annex}</p>
+      {:else}
+        <p class="cap muted">봉급 계산은 준비 중이에요. {view.payOff?.reason ?? ''}</p>
+      {/if}
+      {#if salary && view.salaryPending}
         <p class="note warn">
           {view.rules.year}년 봉급표가 아직 반영되지 않아 {salary.tableYear}년 표로 계산했어요. 새
           봉급표가 나오면 금액이 달라져요.
@@ -24,20 +28,22 @@
       {/if}
     </div>
 
-    <dl class="stack">
-      <div class="kv">
-        <dt>올해 번 봉급</dt>
-        <dd><Money value={view.yearToDate} /></dd>
-      </div>
-      <div class="kv">
-        <dt>지금까지 번 봉급</dt>
-        <dd><Money value={view.cumulative.total} short approx /></dd>
-      </div>
-      <p class="cap muted">
-        지금 직급과 {view.cumulative.tableYear}년 봉급표를 임용일부터 그대로 적용한
-        어림값이에요(과거 봉급표·승진 전 직급은 반영하지 않음).
-      </p>
-    </dl>
+    {#if view.yearToDate !== null && view.cumulative}
+      <dl class="stack">
+        <div class="kv">
+          <dt>올해 번 봉급</dt>
+          <dd><Money value={view.yearToDate} /></dd>
+        </div>
+        <div class="kv">
+          <dt>지금까지 번 봉급</dt>
+          <dd><Money value={view.cumulative.total} short approx /></dd>
+        </div>
+        <p class="cap muted">
+          지금 직급과 {view.cumulative.tableYear}년 봉급표를 임용일부터 그대로 적용한
+          어림값이에요(과거 봉급표·승진 전 직급은 반영하지 않음).
+        </p>
+      </dl>
+    {/if}
 
     <div class="stack">
       <span class="muted">다음 인상</span>

@@ -47,18 +47,23 @@
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
         </p>
-        <p class="big level">{view.profile.rank}급 {view.step}호봉</p>
+        <p class="big level">{view.rankStepLabel}</p>
         <p class="cap muted">{look.form.blurb}</p>
       </div>
 
-      <div class="stack">
-        <div class="pips" role="img" aria-label="호봉 {view.step}, 최고 {view.maxStep}호봉">
-          {#each { length: view.maxStep } as _, i (i)}
-            <i class:on={i < view.step}></i>
-          {/each}
+      {#if view.maxStep !== null}
+        {@const maxStep = view.maxStep}
+        <div class="stack">
+          <div class="pips" role="img" aria-label="호봉 {view.step}, 최고 {maxStep}호봉">
+            {#each { length: maxStep } as _, i (i)}
+              <i class:on={i < view.step}></i>
+            {/each}
+          </div>
+          <p class="cap muted">깃 {view.step} / {maxStep}{wearing ? ` · ${wearing}` : ''}</p>
         </div>
-        <p class="cap muted">깃 {view.step} / {view.maxStep}{wearing ? ` · ${wearing}` : ''}</p>
-      </div>
+      {:else if wearing}
+        <p class="cap muted">{wearing}</p>
+      {/if}
 
       {#if raise && view.nextRaise}
         <div class="stack">

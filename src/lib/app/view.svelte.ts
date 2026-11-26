@@ -17,6 +17,13 @@ import { missingHolidayYearForBonuses, upcomingBonuses } from '../calc/bonus.ts'
 import { findBridges } from '../calc/bridge.ts';
 import { Calendar } from '../calc/calendar.ts';
 import {
+  careerMaxStep,
+  careerOf,
+  careerStepOn,
+  raisePeriodOf,
+  stepCeiling,
+} from '../calc/career-profile.ts';
+import {
   addDays,
   addMonthsClamped,
   diffDays,
@@ -37,28 +44,70 @@ import { yearGrid as buildYearGrid, yearRecap, type GridInput } from '../calc/re
 import {
   longServiceInfo,
   minServiceDate,
+  minServiceMonths,
   promotionPreview,
   seniorAllowance,
   seniorTreatmentInfo,
+  type LongServiceInfo,
+  type SeniorInfo,
 } from '../calc/promotion.ts';
-import { careerProgress, retirementInfo } from '../calc/retirement.ts';
+import {
+  careerProgress,
+  effectiveRetirement,
+  retirePeriodText,
+  serviceDayOf,
+} from '../calc/retirement.ts';
 import {
   cumulativeSalary,
-  maxStepOf,
+  isPayPending,
   nextStepRaise,
   salaryOn,
   yearToDateSalary,
 } from '../calc/salary.ts';
-import { isRaiseDay, prevRaiseDate, stepOn } from '../calc/step.ts';
+import { isRaiseDay, prevRaiseDate } from '../calc/step.ts';
 import { earnings, secondOfDay, todayStatus, toSchedule, type TodayStatus } from '../calc/today.ts';
-import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
+import { decideMood, formIdFor, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
-import { careerLookup, hasHolidayData, isSalaryConfirmed, rulesFor } from '../rules/index.ts';
+import {
+  careerLookup,
+  hasHolidayData,
+  isAvailable,
+  rankLabel,
+  rankStepLabel,
+  rulesFor,
+  type Avail,
+  type Unavailable,
+} from '../rules/index.ts';
 import type { UserData } from '../store/schema.ts';
 import { checkProfile } from '../store/validate.ts';
 
 export const calendar = new Calendar(rulesFor);
+
+/** 꺼진 항목(준비 중·해당 없음)이면 그 상태, 켜져 있으면 null */
+function offOf<T extends object>(value: Avail<T>): Unavailable | null {
+  return isAvailable(value) ? null : value;
+}
+
+const NOT_LONG_SERVICE: LongServiceInfo = {
+  applicable: false,
+  targetRank: null,
+  requiredMonths: null,
+  autoDate: null,
+  date: null,
+  overridden: false,
+  reviewFrom: null,
+  quotaNote: null,
+};
+const NOT_SENIOR: SeniorInfo = {
+  applicable: false,
+  targetRank: null,
+  requiredMonths: null,
+  qualifyDate: null,
+  autoDate: null,
+  date: null,
+  overridden: false,
+};
 
 class View {
   /** 화면이 그려지는 동안에는 항상 데이터가 있다 */
@@ -70,12 +119,24 @@ class View {
 
   today = $derived(clock.today);
   rules = $derived(rulesFor(yearOf(this.today)));
-  /** 올해 봉급표가 아직 없어 이전 연도 표로 계산 중인지 */
-  salaryPending = $derived(!isSalaryConfirmed(this.rules));
   holidayDataMissing = $derived(!hasHolidayData(this.rules));
 
   profile = $derived(this.data.profile);
-  maxStep = $derived(maxStepOf(this.rules.salary, this.profile.rank));
+  /**
+   * 올해 이 사람에게 적용할 직종 규정(resolveCareer). 꺼진 항목은 'pending'·'none'·'external' 상태 그대로다.
+   * 화면은 직종을 가르지 않고 이 값과 아래 계산 결과만 본다.
+   */
+  careerRules = $derived(careerOf(rulesFor, this.profile, yearOf(this.today)));
+  /** 올해 봉급표가 아직 없어 이전 연도 표로 계산 중인지(봉급을 계산하지 않는 직종은 false) */
+  salaryPending = $derived(isPayPending(this.careerRules));
+  /** 봉급이 꺼져 있으면 그 상태(준비 중·계급을 골라 주세요 등) */
+  payOff = $derived(offOf(this.careerRules.pay));
+  /** 계급 이름('7급'·'경위'·'우정7급'). 교원·사다리 없는 직종은 '' */
+  rankLabel = $derived(rankLabel(this.careerRules));
+  /** 봉급표의 최고호봉. 봉급표가 없는 직종(준비 중)은 null(최고호봉이 필요한 표시는 숨긴다) */
+  maxStep = $derived(careerMaxStep(this.careerRules));
+  /** 정기승급을 계산하는지(꺼지면 입력한 호봉을 그대로 쓰고 자동으로 올리지 않는다) */
+  raisesAutomatically = $derived(isAvailable(this.careerRules.stepRaise));
   /**
    * 저장된 내 정보 중 지금 기준으로 맞지 않는 값(PC 시계가 뒤로 갔거나 규정이 바뀐 경우).
    * 저장본은 그대로 열고, 화면에서 확인을 부탁한다.
@@ -90,36 +151,72 @@ class View {
   );
 
   // ── 정년 ─────────────────────────────────────────────────────────────
-  retire = $derived(retirementInfo(this.rules.retirement, this.profile.birthDate));
+  /** 정년(연령정년·계급정년 중 먼저 오는 날). 정년 규정이 꺼진 직종은 그 상태 */
+  retirement = $derived(effectiveRetirement(this.careerRules, this.profile));
+  retirementOff = $derived(offOf(this.retirement));
+  /**
+   * 정년퇴직일(연령·계급정년 중 이른 날). 정년을 계산하지 않는 직종(준비 중)은 null.
+   * reachDate 는 늘 연령정년의 '정년 나이가 되는 날'(age 세 생일)이다. 계급정년은 rankLimit 에 따로 둔다.
+   * periodText·basis 는 규정 데이터(periods·source)로 만든 퇴직 구간 규칙과 근거 조문이다.
+   */
+  retire = $derived.by(() => {
+    const r = this.retirement;
+    const rules = this.careerRules.retirement;
+    if (!isAvailable(r) || !isAvailable(rules)) return null;
+    const law = this.rules.laws[rules.source.law]?.name ?? rules.source.law;
+    return {
+      reachDate: r.age.reachDate,
+      retireDate: r.retireDate,
+      age: r.ageYears,
+      cause: r.cause,
+      rankLimit: r.rankLimit,
+      periodText: retirePeriodText(rules),
+      basis: `${law} ${rules.source.article}`,
+    };
+  });
+  /** 정년퇴직일(없으면 null) */
+  retireDate = $derived(this.retire ? this.retire.retireDate : null);
   /** 정년퇴직일이 지났는지 */
-  retired = $derived(this.today > this.retire.retireDate);
+  retired = $derived(this.retireDate !== null && this.today > this.retireDate);
   /**
    * 재직 중의 값(호봉·봉급·재직기간·누적 봉급)을 계산하는 날.
    * 정년퇴직일이 지나면 그날에서 멈춘다(퇴직 뒤에도 숫자가 계속 늘어나지 않게).
    */
-  serviceDay = $derived(this.retired ? this.retire.retireDate : this.today);
+  serviceDay = $derived(serviceDayOf(this.retirement, this.today));
 
-  step = $derived(
-    stepOn(this.profile, this.serviceDay, this.maxStep, this.rules.stepRaise.periodMonths),
-  );
+  step = $derived(careerStepOn(this.careerRules, this.profile, this.serviceDay));
+  /** '7급 12호봉' / '경위 12호봉' / '12호봉'(교원·사다리 없는 직종) */
+  rankStepLabel = $derived(rankStepLabel(this.careerRules, this.step));
+  /** 지금 봉급. 봉급을 계산하지 않는 직종(준비 중)은 null */
   salary = $derived(salaryOn(rulesFor, this.profile, this.serviceDay));
+  /** 정기승급을 계산하지 않는 직종에서 입력한 다음 승급일이 지났는지(호봉을 고쳐 달라고 한다) */
+  manualRaiseOverdue = $derived(
+    !this.raisesAutomatically && this.profile.nextStepDate <= this.today,
+  );
 
   // ── 승급 ─────────────────────────────────────────────────────────────
-  /** 다음 정기승급. 최고호봉이거나 정년퇴직일 뒤라면 null */
+  /** 다음 정기승급. 최고호봉이거나 정년퇴직일 뒤이거나 봉급·정기승급을 계산하지 않으면 null */
   nextRaise = $derived.by(() => {
     const next = nextStepRaise(rulesFor, this.profile, this.serviceDay);
-    return next && next.date <= this.retire.retireDate ? next : null;
+    return next && (this.retireDate === null || next.date <= this.retireDate) ? next : null;
   });
-  /** 다음 승급이 없는 까닭 */
-  noRaiseReason = $derived.by<'max' | 'retire' | null>(() => {
+  /**
+   * 다음 승급이 없는 까닭.
+   * 'manual': 정기승급을 계산하지 않는 직종(입력한 날만 보여 준다).
+   * 'payOff': 정기승급은 계산하지만 봉급표(최고호봉)를 몰라 다음 승급을 셀 수 없음(계급을 모름 등 — payOff.reason).
+   */
+  noRaiseReason = $derived.by<'max' | 'retire' | 'manual' | 'payOff' | null>(() => {
     if (this.nextRaise) return null;
+    if (!this.raisesAutomatically) return 'manual';
+    if (this.maxStep === null) return 'payOff';
     return this.step >= this.maxStep ? 'max' : 'retire';
   });
   /** 직전 승급일~다음 승급일 사이의 진행 정도 */
   raiseProgress = $derived.by(() => {
     const next = this.nextRaise;
-    if (!next) return null;
-    const prev = prevRaiseDate(this.profile, this.today, this.rules.stepRaise.periodMonths);
+    const period = raisePeriodOf(this.careerRules);
+    if (!next || period === null) return null;
+    const prev = prevRaiseDate(this.profile, this.today, period);
     const total = Math.max(1, diffDays(prev, next.date));
     const done = diffDays(prev, this.today);
     return {
@@ -131,13 +228,21 @@ class View {
       ratio: Math.min(1, Math.max(0, done / total)),
     };
   });
-  raisedToday = $derived(
-    isRaiseDay(this.profile, this.today, this.maxStep, this.rules.stepRaise.periodMonths),
-  );
+  raisedToday = $derived.by(() => {
+    const period = raisePeriodOf(this.careerRules);
+    return (
+      period !== null && isRaiseDay(this.profile, this.today, stepCeiling(this.careerRules), period)
+    );
+  });
   nextUnlock = $derived(nextUnlock(characterRules, this.step));
 
   // ── 재직 ─────────────────────────────────────────────────────────────
-  career = $derived(careerProgress(this.profile.hireDate, this.retire.retireDate, this.today));
+  /** 임용부터 정년까지의 진행. 정년을 계산하지 않으면 null */
+  career = $derived(
+    this.retireDate === null
+      ? null
+      : careerProgress(this.profile.hireDate, this.retireDate, this.today),
+  );
   tenure = $derived(spanBetween(this.profile.hireDate, addDays(this.serviceDay, 1)));
   /** 오늘이 임용 N주년이면 N */
   anniversaryYears = $derived.by(() => {
@@ -149,11 +254,18 @@ class View {
   });
 
   // ── 승진 ─────────────────────────────────────────────────────────────
-  longService = $derived(longServiceInfo(this.rules.promotion, this.profile));
-  senior = $derived(seniorTreatmentInfo(this.rules.promotion, this.profile));
-  minService = $derived(
-    minServiceDate(this.rules.promotion, this.profile.rank, this.profile.rankDate),
+  /** 근속승진 규정이 꺼진 직종이면 그 상태(준비 중·해당 없음). 그때 longService 는 applicable false */
+  longServiceAvail = $derived(longServiceInfo(this.careerRules, this.profile));
+  longServiceOff = $derived(offOf(this.longServiceAvail));
+  longService = $derived(
+    isAvailable(this.longServiceAvail) ? this.longServiceAvail : NOT_LONG_SERVICE,
   );
+  seniorAvail = $derived(seniorTreatmentInfo(this.careerRules, this.profile));
+  seniorOff = $derived(offOf(this.seniorAvail));
+  senior = $derived(isAvailable(this.seniorAvail) ? this.seniorAvail : NOT_SENIOR);
+  minService = $derived(minServiceDate(this.careerRules, this.profile.rankDate));
+  minServiceMonths = $derived(minServiceMonths(this.careerRules));
+  minServiceOff = $derived(offOf(this.careerRules.minService));
   /** 근속승진 요건일(이미 지났으면 오늘)에 승진한다면 */
   promotion = $derived.by(() => {
     const info = this.longService;
@@ -168,13 +280,13 @@ class View {
   });
 
   // ── 돈 ───────────────────────────────────────────────────────────────
+  /** 지금까지 번 봉급. 봉급·정기승급을 계산하지 않는 직종은 null */
   cumulative = $derived(cumulativeSalary(rulesFor, this.profile, this.serviceDay));
-  /** 올해 번 봉급. 지난해 이전에 퇴직했다면 0 */
-  yearToDate = $derived(
-    yearOf(this.serviceDay) < yearOf(this.today)
-      ? 0
-      : yearToDateSalary(rulesFor, this.profile, this.serviceDay),
-  );
+  /** 올해 번 봉급. 지난해 이전에 퇴직했다면 0, 봉급을 계산하지 않는 직종은 null */
+  yearToDate = $derived.by(() => {
+    const amount = yearToDateSalary(rulesFor, this.profile, this.serviceDay);
+    return amount !== null && yearOf(this.serviceDay) < yearOf(this.today) ? 0 : amount;
+  });
   /** 기준일에 재직 중인 보너스만(정년퇴직일 뒤의 정근수당·명절휴가비는 없다) */
   bonuses = $derived(
     upcomingBonuses(
@@ -184,7 +296,7 @@ class View {
       this.data.settings.payday,
       this.today,
       3,
-      this.retire.retireDate,
+      this.retireDate ?? undefined,
     ),
   );
   /** 공휴일 데이터가 없어 명절휴가비가 목록에서 빠졌을 수 있는 해 */
@@ -210,35 +322,43 @@ class View {
   });
 
   // ── 연가 ─────────────────────────────────────────────────────────────
+  /** 올해 연가. 연가 일수 규정이 꺼진 직종은 자동 부여 0(leave.needsManualGrant: 직접 넣어 달라고 한다) */
   leave = $derived(
     summarizeLeave(
-      this.rules.leave,
+      this.careerRules.leave,
       this.profile.hireDate,
       this.data.leave,
       this.today,
-      this.retire.retireDate,
+      this.retireDate ?? undefined,
     ),
   );
   /** 올해가 정년퇴직하는 해라 연가가 근무 개월 수만큼만 나오는지 */
   leaveProrated = $derived(
-    yearOf(this.retire.retireDate) === yearOf(this.today) &&
-      !this.retire.retireDate.endsWith('-12-31'),
+    this.retireDate !== null &&
+      yearOf(this.retireDate) === yearOf(this.today) &&
+      !this.retireDate.endsWith('-12-31'),
   );
-  leaveDayPrice = $derived(compensationPerDay(this.rules.leave, this.salary.amount));
-  advanceLimit = $derived(advanceLimitDays(this.rules.leave, this.profile.hireDate, this.today));
+  /** 연가보상비 1일 단가. 보상비가 없거나(교원) 준비 중이거나 봉급이 없으면 null */
+  leaveDayPrice = $derived(
+    this.salary ? compensationPerDay(this.careerRules.leave, this.salary.amount) : null,
+  );
+  leaveCompensationOff = $derived(offOf(this.careerRules.leave.compensation));
+  /** 미리 쓸 수 있는 연가 일수. 준비 중인 직종은 null */
+  advanceLimit = $derived(
+    advanceLimitDays(this.careerRules.leave, this.profile.hireDate, this.today),
+  );
   fullDayLeave = $derived(
     fullDayLeaveDates(this.data.leave.records, this.rules.leave.units.hoursPerDay),
   );
   bridges = $derived(findBridges(calendar, this.today, this.fullDayLeave));
+  /** 장기재직휴가 규정이 꺼진 직종이면 그 상태(소방: 조례, 준비 중 등) */
+  longLeaveOff = $derived(offOf(this.careerRules.leave.longService));
   /** 지금 쓸 수 있거나 1년 안에 생기는 장기재직휴가(특별휴가라 위 연가 계산과는 따로다) */
-  longLeave = $derived(
-    longLeaveNotices(
-      this.rules.leave.longService.tiers,
-      this.profile.hireDate,
-      this.today,
-      this.retire.retireDate,
-    ),
-  );
+  longLeave = $derived.by(() => {
+    const rule = this.careerRules.leave.longService;
+    if (!isAvailable(rule)) return [];
+    return longLeaveNotices(rule.tiers, this.profile.hireDate, this.today, this.retireDate);
+  });
 
   // ── 일정·업적 ────────────────────────────────────────────────────────
   milestones = $derived(buildMilestones(rulesFor, this.profile, this.today));
@@ -268,9 +388,9 @@ class View {
   recapInput = $derived<GridInput>({
     today: this.today,
     profile: this.profile,
-    retireDate: this.retire.retireDate,
-    maxStep: this.maxStep,
-    periodMonths: this.rules.stepRaise.periodMonths,
+    retireDate: this.retireDate,
+    maxStep: stepCeiling(this.careerRules),
+    periodMonths: raisePeriodOf(this.careerRules),
     cal: calendar,
     records: this.data.leave.records,
     hoursPerDay: this.rules.leave.units.hoursPerDay,
@@ -295,17 +415,18 @@ class View {
       secondsToEnd: null,
     };
   });
+  /** 오늘·이번 달 번 돈. 봉급을 계산하지 않는 직종은 null(화면이 그 칸을 숨긴다) */
   earn = $derived(
-    earnings(this.retired ? 0 : this.salary.amount, calendar, this.schedule, clock.now),
+    this.salary
+      ? earnings(this.retired ? 0 : this.salary.amount, calendar, this.schedule, clock.now)
+      : null,
   );
-  /** 하루 중 지난 만큼을 더한 정년 진행률(소수점이 움직인다) */
+  /** 하루 중 지난 만큼을 더한 정년 진행률(소수점이 움직인다). 정년을 계산하지 않으면 0 */
   careerRatio = $derived(
-    careerProgress(
-      this.profile.hireDate,
-      this.retire.retireDate,
-      this.today,
-      this.status.dayFraction,
-    ).ratio,
+    this.retireDate === null
+      ? 0
+      : careerProgress(this.profile.hireDate, this.retireDate, this.today, this.status.dayFraction)
+          .ratio,
   );
 
   // ── 오늘의 연가(반차 구분) ───────────────────────────────────────────
@@ -350,7 +471,16 @@ class View {
       hasLeaveLeft: this.leave.remainingHours > 0,
     });
   });
-  look = $derived(resolveLook(characterRules, this.profile.rank, this.step, this.mood));
+  /** 지금 형태 id: 일반직은 직급, 다른 사다리는 evolution.byRank, 교원·사다리 없는 직종은 재직 연수 */
+  formId = $derived(
+    formIdFor(characterRules, {
+      ladderId: this.careerRules.ladderId,
+      rank: this.profile.rank,
+      hireDate: this.profile.hireDate,
+      today: this.serviceDay,
+    }),
+  );
+  look = $derived(resolveLook(characterRules, this.formId, this.step, this.mood));
   line = $derived.by(() => {
     void clock.minute;
     const now = untrack(() => clock.now);
@@ -378,7 +508,7 @@ class View {
       const { y, m } = parseYmd(cur);
       if (calendar.payday(y, m, this.data.settings.payday) === cur) paydays += 1;
     }
-    const before = stepOn(this.profile, date, this.maxStep, this.rules.stepRaise.periodMonths);
+    const before = careerStepOn(this.careerRules, this.profile, date);
     return {
       workdays: calendar.workdaysBetween(from, to),
       raises: Math.max(0, this.step - before),

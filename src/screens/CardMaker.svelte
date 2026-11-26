@@ -66,7 +66,7 @@
     maxStep: view.maxStep,
     formName: view.look.form.name,
     // 카드에는 언제 찍어도 같은 근무 중 모습을 담는다(기분·시간대에 따라 달라지지 않게).
-    look: resolveLook(characterRules, view.profile.rank, view.step, 'work'),
+    look: resolveLook(characterRules, view.formId, view.step, 'work'),
     line: view.line,
     dateText: formatKorean(view.today, false),
     raise:
@@ -76,13 +76,13 @@
     facts: [
       // 일수까지 적으면 카드 날짜에서 임용일이 하루 단위로 역산되므로 연·월까지만 쓴다.
       ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
-      ...(card.showRetirement
+      ...(card.showRetirement && view.retireDate !== null && view.career
         ? [
-            `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}% 왔어요)`,
+            `정년 ${formatDday(view.today, view.retireDate)} (${(view.career.ratio * 100).toFixed(1)}% 왔어요)`,
           ]
         : []),
       // 카드는 앱 밖으로 나가므로 금액이 봉급표 기준(수당·공제 전)임을 카드 안에도 적는다.
-      ...(card.showSalary ? [salaryFact(formatWon(view.salary.amount))] : []),
+      ...(card.showSalary && view.salary ? [salaryFact(formatWon(view.salary.amount))] : []),
     ],
     badges: card.showBadges
       ? view.badges
@@ -101,7 +101,9 @@
       ? {
           ...model,
           facts: model.facts.map((f) =>
-            f === salaryFact(formatWon(view.salary.amount)) ? salaryFact(MASKED_WON) : f,
+            view.salary && f === salaryFact(formatWon(view.salary.amount))
+              ? salaryFact(MASKED_WON)
+              : f,
           ),
         }
       : model,
@@ -119,14 +121,14 @@
     nickname: view.profile.nickname,
     year: recap.year,
     periodText: recapPeriodText(recap),
-    look: resolveLook(characterRules, view.profile.rank, view.step, 'work'),
+    look: resolveLook(characterRules, view.formId, view.step, 'work'),
     formName: view.look.form.name,
     rank: view.profile.rank ?? '',
     step: view.step,
     stepText: recapStepText(recap),
     facts: recapFacts(recap, { workdays: recapWorkdaysOn }),
     badges: recap.badges.map((b) => ({ icon: b.icon, tier: b.tier })),
-    salary: session.recapSalary ? formatWon(recap.earned) : null,
+    salary: session.recapSalary && recap.earned !== null ? formatWon(recap.earned) : null,
     grid: recapCalendarOn ? view.yearGrid : null,
     siteName: SITE_NAME,
     siteTagline: SITE_TAGLINE,
@@ -139,7 +141,10 @@
 
   /** 저장·복사 전에 금액이 들어간다고 확인받아야 하는지 */
   const needsAmountConfirm = $derived(
-    hideAmounts && (kind === 'recap' ? session.recapSalary : card.showSalary),
+    hideAmounts &&
+      (kind === 'recap'
+        ? session.recapSalary && recap.earned !== null
+        : card.showSalary && view.salary !== null),
   );
   /** 내보낼 수 있는지(결산이 없는 해에는 막는다) */
   const exportable = $derived(kind === 'character' || recapReady);
@@ -554,14 +559,15 @@
     <div class="stack wide">
       {#if kind === 'recap'}
         <p>
-          금액 가리기가 켜져 있어요. 내보내는 이미지에는 올해 번 봉급({formatWon(recap.earned)},
-          봉급표 기준 추정치)이 그대로 들어가요.
+          금액 가리기가 켜져 있어요. 내보내는 이미지에는 올해 번 봉급({formatWon(
+            recap.earned ?? 0,
+          )}, 봉급표 기준 추정치)이 그대로 들어가요.
         </p>
         <p class="cap muted">금액을 빼려면 '올해 번 봉급'을 끄고 저장해 주세요.</p>
       {:else}
         <p>
           금액 가리기가 켜져 있어요. 내보내는 이미지에는 월 봉급 금액({formatWon(
-            view.salary.amount,
+            view.salary?.amount ?? 0,
           )}, 봉급표 기준)이 그대로 들어가요.
         </p>
         <p class="cap muted">금액을 빼려면 '월 봉급'을 끄고 저장해 주세요.</p>

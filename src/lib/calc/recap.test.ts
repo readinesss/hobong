@@ -21,7 +21,7 @@ import { maxStepOf, yearToDateSalary } from './salary.ts';
 import { stepOn } from './step.ts';
 
 const cal = new Calendar(rulesFor);
-const MAX9 = maxStepOf(rulesFor(2026).salary, '9');
+const MAX9 = maxStepOf(rulesFor(2026).salary.table['9']);
 
 const profile: Profile = {
   nickname: '호봉이',
@@ -170,7 +170,7 @@ describe('yearRecap', () => {
     expect(r.leave.usedHours).toBe(8);
     expect(r.leave.plannedHours).toBe(0);
     expect(r.earned).toBe(yearToDateSalary(rulesFor, profile, '2026-06-30'));
-    expect(r.earned).toBeLessThan(yearToDateSalary(rulesFor, profile, '2026-11-25'));
+    expect(r.earned).toBeLessThan(yearToDateSalary(rulesFor, profile, '2026-11-25') ?? 0);
   });
 
   it('지난해 정년퇴직: 결산이 없고 달력 칸은 모두 바깥이다', () => {

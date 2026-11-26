@@ -1,89 +1,103 @@
-/** 승진소요최저연수, 근속승진, 대우공무원 (공무원임용령 제31조·제35조의4·제35조의5, 임용규칙 제19조·제21조) */
+/**
+ * 승진소요최저연수, 근속승진, 대우공무원, 승진 시 호봉.
+ * 일반직은 공무원임용령 제31조·제35조의4·제35조의5와 임용규칙 제19조·제21조, 다른 직종은 그 직종의 규정
+ * (어느 규정인지는 resolveCareer 가 정한다. 여기서는 직종을 가르지 않는다).
+ */
 import { addDays, onOrNextDayOfMonth, periodCompleteDate, yearOf, type Ymd } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
+import { careerOf, type CareerProfile } from './career-profile.ts';
 import { floorRate } from './money.ts';
+import { maxStepOf, monthlySalary, salaryOn, type PayProfile } from './salary.ts';
+import { resolveCareer, type CareerRules } from '../rules/career.ts';
 import {
-  gradeKey,
-  gradeOf,
-  maxStepOf,
-  monthlySalary,
-  salaryOn,
-  type PayProfile,
-} from './salary.ts';
-import type { PromotionRules, PromotionStepRules, RankKey } from '../rules/types.ts';
-import type { Grade, Profile } from '../store/schema.ts';
+  isAvailable,
+  type Avail,
+  type LadderRank,
+  type PromotionStepRules,
+  type RankKey,
+} from '../rules/types.ts';
 
-export function higherGrade(grade: Grade): Grade | null {
-  return grade > 1 ? ((grade - 1) as Grade) : null;
+/** 계급 기준 규정에서 지금 계급의 개월 수(계급을 모르면 undefined) */
+function monthsFor(
+  monthsByGrade: Partial<Record<RankKey, number>>,
+  c: CareerRules,
+): number | undefined {
+  return c.rank ? monthsByGrade[c.rank.key] : undefined;
 }
 
-/** 승진소요최저연수를 채우는 날. 규정에 없는 직급이면 null */
-export function minServiceDate(
-  rules: PromotionRules,
-  rank: RankKey | null,
-  rankDate: Ymd,
-): Ymd | null {
-  const months = rules.minService.monthsByGrade[gradeKey(rank)];
+/**
+ * 승진소요최저연수를 채우는 날. 규정이 꺼져 있거나(준비 중·해당 없음), 지금 계급의 값이 없거나,
+ * 바로 위 계급이 없으면 null.
+ */
+export function minServiceDate(c: CareerRules, rankDate: Ymd): Ymd | null {
+  if (!isAvailable(c.minService) || c.nextRank === null) return null;
+  const months = monthsFor(c.minService.monthsByGrade, c);
   return months === undefined ? null : periodCompleteDate(rankDate, months);
 }
 
+/** 승진소요최저연수 개월 수(화면 문구용). 위 minServiceDate 가 null 이면 null */
+export function minServiceMonths(c: CareerRules): number | null {
+  if (!isAvailable(c.minService) || c.nextRank === null) return null;
+  return monthsFor(c.minService.monthsByGrade, c) ?? null;
+}
+
 export interface LongServiceInfo {
-  /** 근속승진 대상 직급(9·8·7급)인지 */
+  /** 근속승진 대상 계급(일반직 9·8·7급, 경찰 순경~경위 등)인지 */
   applicable: boolean;
-  targetGrade: Grade | null;
+  /** 근속승진하면 오르는 계급 */
+  targetRank: LadderRank | null;
   requiredMonths: number | null;
   /** 규정으로 계산한 요건 충족일 */
   autoDate: Ymd | null;
   /** 화면에 쓰는 날짜(직접 입력값 우선) */
   date: Ymd | null;
   overridden: boolean;
-  /** 요건 충족 5일 전부터 심사 가능(그런 규정이 없으면 null) */
+  /** 요건 충족 N일 전부터 심사 가능(그런 규정이 없으면 null) */
   reviewFrom: Ymd | null;
-  /** 인원 제한이 걸리는 목표 직급(일반직 6급)으로의 근속승진 안내 */
+  /** 인원 제한이 걸리는 목표 계급(일반직 6급, 경찰 경감, 소방 소방경)으로의 근속승진 안내 */
   quotaNote: string | null;
 }
 
+const NOT_LONG_SERVICE: LongServiceInfo = {
+  applicable: false,
+  targetRank: null,
+  requiredMonths: null,
+  autoDate: null,
+  date: null,
+  overridden: false,
+  reviewFrom: null,
+  quotaNote: null,
+};
+
+/** 근속승진 요건. 규정이 꺼진 직종은 그 상태(pending·none)를 그대로 돌려준다 */
 export function longServiceInfo(
-  rules: PromotionRules,
-  profile: Pick<Profile, 'rank' | 'rankDate' | 'overrides'>,
-): LongServiceInfo {
-  const months = rules.longService.monthsByGrade[gradeKey(profile.rank)];
-  if (months === undefined) {
-    return {
-      applicable: false,
-      targetGrade: null,
-      requiredMonths: null,
-      autoDate: null,
-      date: null,
-      overridden: false,
-      reviewFrom: null,
-      quotaNote: null,
-    };
-  }
+  c: CareerRules,
+  profile: Pick<CareerProfile, 'rankDate' | 'overrides'>,
+): Avail<LongServiceInfo> {
+  const rule = c.longService;
+  if (!isAvailable(rule)) return rule;
+  const months = monthsFor(rule.monthsByGrade, c);
+  if (months === undefined || c.nextRank === null) return NOT_LONG_SERVICE;
   const autoDate = periodCompleteDate(profile.rankDate, months);
   const override = profile.overrides.longServiceDate;
   const date = override ?? autoDate;
-  const targetGrade = higherGrade(gradeOf(profile.rank));
+  const targetRank = c.nextRank;
   return {
     applicable: true,
-    targetGrade,
+    targetRank,
     requiredMonths: months,
     autoDate,
     date,
     overridden: override !== null,
-    reviewFrom:
-      rules.longService.reviewLeadDays === null
-        ? null
-        : addDays(date, -rules.longService.reviewLeadDays),
-    quotaNote:
-      targetGrade !== null && String(targetGrade) === rules.longService.quotaTo
-        ? rules.longService.quotaNote
-        : null,
+    reviewFrom: rule.reviewLeadDays === null ? null : addDays(date, -rule.reviewLeadDays),
+    quotaNote: targetRank.key === rule.quotaTo ? rule.quotaNote : null,
   };
 }
 
 export interface SeniorInfo {
   applicable: boolean;
+  /** 대우받는 계급(바로 위 계급) */
+  targetRank: LadderRank | null;
   requiredMonths: number | null;
   /** 근무기간 요건을 채우는 날 */
   qualifyDate: Ymd | null;
@@ -93,26 +107,31 @@ export interface SeniorInfo {
   overridden: boolean;
 }
 
+const NOT_SENIOR: SeniorInfo = {
+  applicable: false,
+  targetRank: null,
+  requiredMonths: null,
+  qualifyDate: null,
+  autoDate: null,
+  date: null,
+  overridden: false,
+};
+
+/** 대우공무원 요건. 규정이 꺼진 직종은 그 상태(pending·none)를 그대로 돌려준다 */
 export function seniorTreatmentInfo(
-  rules: PromotionRules,
-  profile: Pick<Profile, 'rank' | 'rankDate' | 'overrides'>,
-): SeniorInfo {
-  const months = rules.seniorTreatment.monthsByGrade[gradeKey(profile.rank)];
-  if (months === undefined) {
-    return {
-      applicable: false,
-      requiredMonths: null,
-      qualifyDate: null,
-      autoDate: null,
-      date: null,
-      overridden: false,
-    };
-  }
+  c: CareerRules,
+  profile: Pick<CareerProfile, 'rankDate' | 'overrides'>,
+): Avail<SeniorInfo> {
+  const rule = c.seniorTreatment;
+  if (!isAvailable(rule)) return rule;
+  const months = monthsFor(rule.monthsByGrade, c);
+  if (months === undefined) return NOT_SENIOR;
   const qualifyDate = periodCompleteDate(profile.rankDate, months);
-  const autoDate = onOrNextDayOfMonth(qualifyDate, rules.seniorTreatment.appointDayOfMonth);
+  const autoDate = onOrNextDayOfMonth(qualifyDate, rule.appointDayOfMonth);
   const override = profile.overrides.seniorDate;
   return {
     applicable: true,
+    targetRank: c.nextRank,
     requiredMonths: months,
     qualifyDate,
     autoDate,
@@ -133,19 +152,23 @@ export function promotedStep(rule: PromotionStepRules, step: number, maxStep?: n
 
 export interface PromotionPreview {
   date: Ymd;
-  fromGrade: Grade;
-  toGrade: Grade;
+  fromRank: LadderRank;
+  toRank: LadderRank;
   fromStep: number;
-  toStep: number;
+  /** 승진 후 계급의 봉급표 열이 없으면(치안정감 → 치안총감) null */
+  toStep: number | null;
   fromAmount: number;
-  toAmount: number;
-  diff: number;
+  toAmount: number | null;
+  diff: number | null;
+  /** toAmount 가 null 인 까닭 */
+  toUnavailableReason?: string;
   /** 그 해 봉급표가 확정돼 있는지 */
   confirmed: boolean;
 }
 
 /**
- * date에 한 직급 승진한다면의 호봉과 봉급(그 해 봉급표 기준).
+ * date에 한 계급 승진한다면의 호봉과 봉급(그 해 봉급표 기준).
+ * 다음 계급이 없거나, 승진 시 호봉 규정·봉급이 꺼져 있으면 null.
  * 잔여기간 12개월 이상일 때의 선(先)승급(보수규정 제11조제5항)은 반영하지 않는다.
  */
 export function promotionPreview(
@@ -153,18 +176,34 @@ export function promotionPreview(
   profile: PayProfile,
   date: Ymd,
 ): PromotionPreview | null {
-  const fromGrade = gradeOf(profile.rank);
-  const toGrade = higherGrade(fromGrade);
-  if (toGrade === null) return null;
-  const toRank = String(toGrade);
   const r = rules(yearOf(date));
+  const c = careerOf(rules, profile, yearOf(date));
+  const fromRank = c.rank;
+  const toRank = c.nextRank;
+  if (!fromRank || !toRank || !isAvailable(c.promotionStep)) return null;
   const before = salaryOn(rules, profile, date);
-  const toStep = promotedStep(r.promotionStep, before.step, maxStepOf(r.salary, toRank));
-  const toAmount = monthlySalary(r.salary, toRank, toStep);
+  if (!before) return null;
+  const toPay = resolveCareer(r, { ...c.sel, rank: toRank.key }).pay;
+  if (!isAvailable(toPay)) {
+    return {
+      date,
+      fromRank,
+      toRank,
+      fromStep: before.step,
+      toStep: null,
+      fromAmount: before.amount,
+      toAmount: null,
+      diff: null,
+      toUnavailableReason: toPay.reason,
+      confirmed: before.confirmed,
+    };
+  }
+  const toStep = promotedStep(c.promotionStep, before.step, maxStepOf(toPay.row));
+  const toAmount = monthlySalary(toPay.row, toStep);
   return {
     date,
-    fromGrade,
-    toGrade,
+    fromRank,
+    toRank,
     fromStep: before.step,
     toStep,
     fromAmount: before.amount,
@@ -176,13 +215,21 @@ export function promotionPreview(
 
 /**
  * 대우공무원수당 월액 추정(수당규정 제6조의2제1항): 월봉급액의 4.1%.
- * 봉급과 합친 금액이 상위 직급 승진 시 봉급을 넘으면 그 차액만 지급한다.
+ * 봉급과 합친 금액이 상위 계급 승진 시 봉급을 넘으면 그 차액만 지급한다.
+ * 수당이 꺼진 직종이나 봉급이 없으면 null. 승진 시 봉급을 알 수 없으면 상한 비교 없이 비율대로.
  */
-export function seniorAllowance(rules: RulesProvider, profile: PayProfile, date: Ymd): number {
-  const r = rules(yearOf(date));
+export function seniorAllowance(
+  rules: RulesProvider,
+  profile: PayProfile,
+  date: Ymd,
+): number | null {
+  const c = careerOf(rules, profile, yearOf(date));
+  const rule = c.allowances.seniorTreatment;
+  if (!isAvailable(rule)) return null;
   const now = salaryOn(rules, profile, date);
-  const byRate = floorRate(now.amount, r.allowances.seniorTreatment.rate);
+  if (!now) return null;
+  const byRate = floorRate(now.amount, rule.rate);
   const preview = promotionPreview(rules, profile, date);
-  if (!preview) return byRate;
+  if (!preview || preview.toAmount === null) return byRate;
   return Math.max(0, Math.min(byRate, preview.toAmount - now.amount));
 }

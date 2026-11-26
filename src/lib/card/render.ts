@@ -17,7 +17,8 @@ export interface CardModel {
   nickname: string;
   rank: string;
   step: number;
-  maxStep: number;
+  /** 봉급표의 최고호봉. 봉급표가 없는 직종(준비 중)은 null('깃' 줄·게이지를 그리지 않는다) */
+  maxStep: number | null;
   formName: string;
   look: Look;
   /** 호봉이의 한마디 */
@@ -330,7 +331,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     cy += big + 4;
     text(ctx, stepText, cx, cy, big, INK);
     cy += big + 8;
-    text(ctx, `깃 ${model.step}/${model.maxStep}`, cx, cy, 12, MUTED);
+    if (model.maxStep !== null) text(ctx, `깃 ${model.step}/${model.maxStep}`, cx, cy, 12, MUTED);
     cy += 18;
     if (model.raise) {
       text(ctx, `승급 ${model.raise.dday}`, cx, cy, 12, INK);
@@ -353,20 +354,22 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     y += 26;
     text(ctx, `${model.rank}급 ${model.step}호봉`, left, y, 30, INK);
     // 아래 점 막대의 이름표(정사각형의 '깃 14/31'과 같다)
-    text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
+    const maxStep = model.maxStep ?? 0;
+    if (model.maxStep !== null)
+      text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
     y += 36;
     // 깃 게이지
     const pipW = 5;
     const pipGap = 2;
     const perRow = Math.floor((inner + pipGap) / (pipW + pipGap));
-    for (let i = 0; i < model.maxStep; i += 1) {
+    for (let i = 0; i < maxStep; i += 1) {
       const rx = left + (i % perRow) * (pipW + pipGap);
       const ry = y + Math.floor(i / perRow) * 10;
       rect(ctx, rx, ry, pipW, 8, i < model.step ? ORANGE : SHADOW);
       rect(ctx, rx + 1, ry + 1, pipW - 2, 6, i < model.step ? GOLD : PANEL2);
     }
     // 점 막대와 아래 '다음 승급까지' 사이를 띄워, 그 줄이 금색 막대에 붙어 보이게 한다
-    y += Math.ceil(model.maxStep / perRow) * 10 + 8;
+    if (maxStep > 0) y += Math.ceil(maxStep / perRow) * 10 + 8;
     if (model.raise) {
       text(ctx, '다음 승급까지', left, y, 12, MUTED);
       text(ctx, model.raise.dday, right, y, 12, INK, 'right');

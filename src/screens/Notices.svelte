@@ -18,7 +18,7 @@
   // 알리기만 하는 띠는 닫을 수 있다(이 탭에서만 기억). 내용이 바뀌면 키가 바뀌어 다시 보인다.
   // 데이터를 지키는 띠(다른 탭·저장 막힘·저장 실패)는 닫을 수 없다.
   const profileKey = $derived(`profile:${view.profileIssues.join('|')}`);
-  const retiredKey = $derived(`retired:${view.retire.retireDate}`);
+  const retiredKey = $derived(`retired:${view.retireDate ?? ''}`);
   const holidaysKey = $derived(`holidays:${view.rules.year}`);
   const showProfile = $derived(view.profileIssues.length > 0 && !session.isDismissed(profileKey));
   const showRetired = $derived(view.retired && !session.isDismissed(retiredKey));
@@ -84,8 +84,8 @@
 {#if showRetired}
   <div class="note banner row" role="status" id="notice-retired">
     <p class="grow">
-      정년퇴직일({formatKorean(view.retire.retireDate, false)})이 지났어요. 호봉·봉급·재직기간은
-      퇴직일 기준에서 멈춰 있어요. 그동안 수고 많으셨어요.
+      정년퇴직일({formatKorean(view.retireDate ?? view.today, false)})이 지났어요.
+      호봉·봉급·재직기간은 퇴직일 기준에서 멈춰 있어요. 그동안 수고 많으셨어요.
     </p>
     <DismissButton label="정년 안내 닫기" onclick={() => close(retiredKey)} />
   </div>

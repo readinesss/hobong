@@ -47,7 +47,7 @@ function input(over: Partial<RecapInput> = {}): RecapInput {
     today: '2026-11-25',
     profile,
     retireDate: '2056-12-31',
-    maxStep: maxStepOf(rulesFor(2026).salary, '9'),
+    maxStep: maxStepOf(rulesFor(2026).salary.table['9']),
     periodMonths: 12,
     cal,
     rules: rulesFor,

@@ -257,7 +257,7 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
         errors[key] = '현 직급 임용일보다 뒤여야 해요.';
     }
     // 계급정년 날짜(직접 고침)는 형식만 본다. 승진 뒤처럼 현 직급 임용일보다 이른 값이 남아 있어도,
-    // 계급정년이 없는 계급에 있어도 지우거나 거부하지 않고 보존한다(설계 §6.3, 계산에 쓰는 것은 #20 묶음 3).
+    // 계급정년이 없는 계급에 있어도 지우거나 거부하지 않고 보존한다(설계 §6.3, 계산은 retirement.ts rankLimitInfo).
     const limit = overrides.rankLimitDate;
     if (limit !== null && limit !== undefined && limit !== '' && !isValidYmd(limit))
       errors.rankLimitDate = '날짜를 다시 확인해 주세요.';

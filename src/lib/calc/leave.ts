@@ -14,8 +14,21 @@ import {
 } from './date.ts';
 import type { Calendar } from './calendar.ts';
 import { floorRate } from './money.ts';
-import type { LeaveRules, MonthTier } from '../rules/types.ts';
+import { isAvailable, type Avail, type LeaveRules, type MonthTier } from '../rules/types.ts';
 import type { LeaveData, LeaveKind, LeaveRecord } from '../store/schema.ts';
+
+/**
+ * 연가 계산이 받는 규정. 기본 구역(LeaveRules)도, 직종별 해석 결과(CareerRules['leave'])도 받는다.
+ * 꺼진 항목(pending·none)이면 숫자를 만들지 않는다: 연가 일수는 자동 부여 0(직접 넣기),
+ * 미리 쓰기·연가보상비는 null. 첫해 비례(firstYear)는 연가 일수를 따라간다.
+ */
+export interface LeaveRulesLike {
+  annual: Avail<LeaveRules['annual']>;
+  units: LeaveRules['units'];
+  firstYear: LeaveRules['firstYear'];
+  advance: Avail<LeaveRules['advance']>;
+  compensation: Avail<LeaveRules['compensation']>;
+}
 
 export function tierDays(tiers: readonly MonthTier[], months: number): number {
   for (const tier of tiers) {
@@ -65,11 +78,12 @@ export function firstYearMonths(hireDate: Ymd, minDaysForMonth: number): number 
  * - 가산(유사경력 3일, 성실근무 1~2일)·저축연가·공제는 반영하지 않는다.
  */
 export function annualLeaveDays(
-  rules: LeaveRules,
+  rules: LeaveRulesLike,
   hireDate: Ymd,
   on: Ymd,
   retireDate?: Ymd,
 ): number {
+  if (!isAvailable(rules.annual)) return 0;
   if (on < hireDate) return 0;
   if (retireDate !== undefined && on > retireDate) return 0;
   const base = tierDays(rules.annual.tiers, completedMonths(hireDate, on));
@@ -91,13 +105,14 @@ export interface GrantStep {
   days: number;
 }
 
-/** 한 해 동안 연가 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만) */
+/** 한 해 동안 연가 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만). 연가 일수가 꺼져 있으면 [] */
 export function grantTimeline(
-  rules: LeaveRules,
+  rules: LeaveRulesLike,
   hireDate: Ymd,
   year: number,
   retireDate?: Ymd,
 ): GrantStep[] {
+  if (!isAvailable(rules.annual)) return [];
   const jan1 = formatYmd({ y: year, m: 1, d: 1 });
   const dec31 = formatYmd({ y: year, m: 12, d: 31 });
   const candidates = new Set<Ymd>([jan1]);
@@ -122,6 +137,8 @@ export interface LeaveSummary {
   /** 실제 적용하는 부여 시간(직접 수정값 우선) */
   grantedHours: number;
   overridden: boolean;
+  /** 연가 일수 규정이 꺼져 있어(준비 중) 자동 부여가 없고, 올해 일수를 아직 직접 넣지 않았는지 */
+  needsManualGrant: boolean;
   /** 올해 안에 부여 일수가 늘어나는 다음 시점(자동 계산일 때만) */
   nextChange: { date: Ymd; hours: number } | null;
   /** 올해 기록 전체(예정 포함) */
@@ -147,7 +164,7 @@ export function recordsOfYear(records: readonly LeaveRecord[], year: number): Le
 }
 
 export function summarizeLeave(
-  rules: LeaveRules,
+  rules: LeaveRulesLike,
   hireDate: Ymd,
   leave: LeaveData,
   today: Ymd,
@@ -193,6 +210,7 @@ export function summarizeLeave(
     autoHours,
     grantedHours,
     overridden,
+    needsManualGrant: !overridden && !isAvailable(rules.annual),
     nextChange,
     usedHours,
     plannedHours,
@@ -249,7 +267,11 @@ export function kindLabel(kind: LeaveKind, hours: number): string {
   }
 }
 
-export function hoursOfKind(rules: LeaveRules, kind: LeaveKind, hours: number): number {
+export function hoursOfKind(
+  rules: Pick<LeaveRulesLike, 'units'>,
+  kind: LeaveKind,
+  hours: number,
+): number {
   if (kind === 'day') return rules.units.hoursPerDay;
   if (kind === 'am' || kind === 'pm') return rules.units.halfDayHours;
   return hours;
@@ -264,7 +286,7 @@ export interface NewLeave {
 
 /** 새 기록을 넣을 수 있는지 검사한다. 문제가 없으면 null, 있으면 이유 */
 export function checkNewLeave(
-  rules: LeaveRules,
+  rules: Pick<LeaveRulesLike, 'units'>,
   cal: Calendar,
   records: readonly LeaveRecord[],
   hireDate: Ymd,
@@ -301,13 +323,28 @@ export function workdaysInRange(cal: Calendar, from: Ymd, to: Ymd, limit = 62): 
   return out;
 }
 
-/** 연가보상비 1일 단가(원 미만 버림): 월봉급액 × 86% ÷ 30 (수당규정 제18조의5) */
-export function compensationPerDay(rules: LeaveRules, monthlySalary: number): number {
+/**
+ * 연가보상비 1일 단가(원 미만 버림): 월봉급액 × 86% ÷ 30 (수당규정 제18조의5).
+ * 보상비가 없거나(교원) 준비 중인 직종은 null.
+ */
+export function compensationPerDay(
+  rules: Pick<LeaveRulesLike, 'compensation'>,
+  monthlySalary: number,
+): number | null {
+  if (!isAvailable(rules.compensation)) return null;
   const { rate, divisor } = rules.compensation;
   return floorRate(monthlySalary, rate, 1, divisor);
 }
 
-/** 다음 재직기간 연가를 미리 쓸 수 있는 최대 일수(복무규정 제16조제6항) */
-export function advanceLimitDays(rules: LeaveRules, hireDate: Ymd, on: Ymd): number {
+/**
+ * 다음 재직기간 연가를 미리 쓸 수 있는 최대 일수(복무규정 제16조제6항, 교원은 교원휴가 예규 제5조제6항).
+ * 준비 중인 직종은 null.
+ */
+export function advanceLimitDays(
+  rules: Pick<LeaveRulesLike, 'advance'>,
+  hireDate: Ymd,
+  on: Ymd,
+): number | null {
+  if (!isAvailable(rules.advance)) return null;
   return tierDays(rules.advance.tiers, completedMonths(hireDate, on));
 }

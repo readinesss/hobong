@@ -125,7 +125,8 @@
     if (!app.data) return;
     const rank = view.profile.rank;
     const step = view.step;
-    untrack(() => app.checkGrowth(rank, step));
+    const form = view.formId;
+    untrack(() => app.checkGrowth(rank, step, form));
   });
 
   // 도감 등록
@@ -211,7 +212,7 @@
         </div>
       </div>
       <span class="tag gold basis" title="규정 데이터 기준 연도">
-        {view.salary.tableYear}년 기준
+        {view.salary?.tableYear ?? view.rules.year}년 기준
       </span>
     </header>
 

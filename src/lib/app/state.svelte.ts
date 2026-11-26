@@ -4,9 +4,12 @@
  */
 import { addDays, diffDays, todayYmd, yearOf, type Ymd } from '../calc/date.ts';
 import { Calendar } from '../calc/calendar.ts';
-import { maxStepOf } from '../calc/salary.ts';
-import { stepOn } from '../calc/step.ts';
-import { careerLookup, rulesFor } from '../rules/index.ts';
+import { careerOf, careerStepOn } from '../calc/career-profile.ts';
+import { effectiveRetirement, serviceDayOf } from '../calc/retirement.ts';
+import { decideGrowth } from '../character/growth.ts';
+import { formIdFor } from '../character/look.ts';
+import { characterRules } from '../character/rules.ts';
+import { careerLookup, rankStepLabel, rulesFor } from '../rules/index.ts';
 import type { RankKey } from '../rules/types.ts';
 import {
   makeEnvelope,
@@ -22,12 +25,10 @@ import {
   clearCorrupt,
   clearUndo,
   hasCorrupt,
-  isCalculableData,
   isNewerData,
   KEYS,
   loadData,
   loadUndo,
-  NOT_CALCULABLE_REASON,
   openStore,
   readCorrupt,
   saveData,
@@ -60,11 +61,34 @@ export interface WelcomeBack {
 }
 
 export interface Celebration {
-  kind: 'step' | 'hatch';
+  /** step: 같은 계급에서 호봉이 오름 / grow: 형태·계급 순서가 오름 / hatch: 처음 깨어남 */
+  kind: 'step' | 'grow' | 'hatch';
   fromRank: RankKey | null;
   fromStep: number;
+  /** 연출 전 형태 id. 마지막 형태를 모르면 지금 형태 */
+  fromForm: string;
   toRank: RankKey | null;
   toStep: number;
+  toForm: string;
+  /** '7급 12호봉' / '경위 12호봉' / '12호봉'(교원) */
+  toLabel: string;
+}
+
+/**
+ * today 기준 이 프로필의 호봉·형태·계급 이름(연출 기준을 맞추는 데 쓴다).
+ * 화면(view.step·view.formId)과 같이 정년퇴직일이 지나면 그날 기준으로 센다(serviceDayOf).
+ */
+function growthMarkOf(profile: Profile, today: Ymd) {
+  const c = careerOf(rulesFor, profile, yearOf(today));
+  const day = serviceDayOf(effectiveRetirement(c, profile), today);
+  const step = careerStepOn(c, profile, day);
+  const form = formIdFor(characterRules, {
+    ladderId: c.ladderId,
+    rank: profile.rank,
+    hireDate: profile.hireDate,
+    today: day,
+  });
+  return { rank: profile.rank, step, form, label: rankStepLabel(c, step), career: c };
 }
 
 function newId(): string {
@@ -317,56 +341,81 @@ class AppStore {
       now.toISOString(),
       today,
     );
-    data.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.rank));
+    const mark = growthMarkOf(profile, today);
+    data.character.lastStep = mark.step;
+    data.character.lastForm = mark.form;
     this.data = data;
     this.#persist();
     this.celebration = {
       kind: 'hatch',
       fromRank: profile.rank,
-      fromStep: data.character.lastStep,
+      fromStep: mark.step,
+      fromForm: mark.form,
       toRank: profile.rank,
-      toStep: data.character.lastStep,
+      toStep: mark.step,
+      toForm: mark.form,
+      toLabel: mark.label,
     };
   }
 
   updateProfile(profile: Profile): void {
     const today = todayYmd(new Date());
-    const rules = rulesFor(yearOf(today));
+    const mark = growthMarkOf(profile, today);
     this.commit((d) => {
       d.profile = profile;
-      // 직접 고친 값이 연출을 일으키지 않게 기준을 맞춘다.
+      // 직접 고친 값(직종·계급을 바꾼 경우 포함)이 연출을 일으키지 않게 기준을 맞춘다.
       d.character.lastRank = profile.rank;
-      d.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.rank));
+      d.character.lastStep = mark.step;
+      d.character.lastForm = mark.form;
     });
   }
 
-  /** 승급·승진 연출을 본 것으로 기록한다 */
-  acknowledgeGrowth(rank: RankKey | null, step: number): void {
+  /** 승급·성장 연출을 본 것으로 기록한다 */
+  acknowledgeGrowth(rank: RankKey | null, step: number, form: string): void {
     this.celebration = null;
     if (!this.data) return;
-    if (this.data.character.lastRank === rank && this.data.character.lastStep === step) return;
+    const c = this.data.character;
+    if (c.lastRank === rank && c.lastStep === step && c.lastForm === form) return;
     this.commit((d) => {
       d.character.lastRank = rank;
       d.character.lastStep = step;
+      d.character.lastForm = form;
     }, false);
   }
 
-  /** 오늘 기준 호봉이 마지막으로 본 호봉보다 올랐으면 연출을 준비한다 */
-  checkGrowth(rank: RankKey | null, step: number): void {
+  /**
+   * 오늘 기준 호봉·형태가 마지막으로 본 것보다 올랐으면 연출을 준비한다(decideGrowth).
+   * 형태가 내려갔거나 마지막 형태를 모르면(null·모르는 id) 연출 없이 지금 값으로 기록한다.
+   */
+  checkGrowth(rank: RankKey | null, step: number, form: string): void {
     const data = this.data;
     if (!data || this.celebration) return;
-    const { lastRank, lastStep } = data.character;
-    if (rank === lastRank && step > lastStep) {
+    const { lastRank, lastStep, lastForm } = data.character;
+    const today = todayYmd(new Date());
+    const c = careerOf(rulesFor, data.profile, yearOf(today));
+    const decision = decideGrowth(
+      characterRules,
+      { rank: lastRank, step: lastStep, form: lastForm },
+      { rank, step, form },
+      c.ladder?.ranks ?? null,
+    );
+    if (decision.kind === 'step' || decision.kind === 'grow') {
       this.celebration = {
-        kind: 'step',
+        kind: decision.kind,
         fromRank: lastRank,
         fromStep: lastStep,
+        fromForm:
+          lastForm !== null && characterRules.forms.some((f) => f.id === lastForm)
+            ? lastForm
+            : form,
         toRank: rank,
         toStep: step,
+        toForm: form,
+        toLabel: rankStepLabel(c, step),
       };
-    } else if (rank !== lastRank || step !== lastStep) {
-      // 직급이 바뀌었거나 호봉이 내려간 경우(직접 수정)는 조용히 맞춘다.
-      this.acknowledgeGrowth(rank, step);
+    } else if (decision.kind === 'record') {
+      // 계급이 바뀌었거나 호봉·형태가 내려간 경우(직접 수정·규칙 변경)는 조용히 맞춘다.
+      this.acknowledgeGrowth(rank, step, form);
     }
   }
 
@@ -522,11 +571,7 @@ class AppStore {
 
   /** 파일 내용을 검사만 한다(아직 아무것도 바꾸지 않는다) */
   inspect(text: string): ParseResult {
-    const result = parseBackup(text, this.context());
-    // 이 버전이 아직 계산하지 못하는 직종·계급의 파일은 받지 않는다(받으면 화면이 열리지 않거나 틀린 숫자가 나온다)
-    if (result.ok && !isCalculableData(result.data))
-      return { ok: false, reason: NOT_CALCULABLE_REASON, details: [], code: 'newer' };
-    return result;
+    return parseBackup(text, this.context());
   }
 
   /**
@@ -537,7 +582,7 @@ class AppStore {
     incoming: UserData,
     exportedAt: string | null = null,
   ): 'imported' | 'replaced' | 'failed' {
-    if (!this.#store || !this.canWrite || !isCalculableData(incoming)) return 'failed';
+    if (!this.#store || !this.canWrite) return 'failed';
     const nowIso = new Date().toISOString();
     const replacing = this.data !== null;
     if (this.data) {

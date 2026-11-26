@@ -16,20 +16,26 @@ import { Calendar } from '../../src/lib/calc/calendar.ts';
 import { upcomingBonuses } from '../../src/lib/calc/bonus.ts';
 import { annualLeaveDays } from '../../src/lib/calc/leave.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
+import { careerOf } from '../../src/lib/calc/career-profile.ts';
 import {
   longServiceInfo,
   minServiceDate,
   promotionPreview,
   seniorAllowance,
   seniorTreatmentInfo,
+  type LongServiceInfo,
+  type PromotionPreview,
+  type SeniorInfo,
 } from '../../src/lib/calc/promotion.ts';
-import { retirementInfo } from '../../src/lib/calc/retirement.ts';
+import { effectiveRetirement, retirementInfo } from '../../src/lib/calc/retirement.ts';
 import {
   cumulativeSalary,
   nextStepRaise,
   salaryOn,
   yearToDateSalary,
+  type SalaryPoint,
 } from '../../src/lib/calc/salary.ts';
+import { isAvailable, type Avail, type LadderRank } from '../../src/lib/rules/types.ts';
 import type { Profile } from '../../src/lib/store/schema.ts';
 
 const FIXTURE = join(process.cwd(), 'tests/fixtures/golden-general.json');
@@ -156,16 +162,51 @@ const SEEDS: Record<string, Profile> = {
 const rules = (year: number) => rulesFor(year);
 const cal = new Calendar(rules);
 
-/** 묶음 0 에서 뜬 기대값의 모양으로: 봉급 시점의 계급 키('7')를 그때의 직급 수(grade: 7)로 */
-function legacyPoint<T extends { rank: string }>(point: T) {
-  const { rank, ...rest } = point;
+/** 일반직은 늘 켜져 있다(꺼져 있으면 테스트 실패) */
+function on<T>(value: T | null): T {
+  if (value === null) throw new Error('일반직 계산이 null 을 돌려줬습니다');
+  return value;
+}
+function availableOf<T extends object>(value: Avail<T>): T {
+  if (!isAvailable(value)) throw new Error(`일반직 항목이 꺼져 있습니다: ${value.reason}`);
+  return value;
+}
+
+/**
+ * 묶음 0 에서 뜬 기대값의 모양으로: 봉급 시점의 계급 키('7')를 그때의 직급 수(grade: 7)로.
+ * 묶음 3 에서 더한 봉급표 이름(annex: 늘 '별표 3')은 비교에서 뺀다.
+ */
+function legacyPoint(point: SalaryPoint | null) {
+  const { rank, annex, ...rest } = on(point);
+  expect(annex).toBe('별표 3');
   return { ...rest, grade: Number(rank) };
+}
+/** 계급(LadderRank)을 그때의 직급 수로: 근속승진 targetRank → targetGrade */
+const gradeNo = (rank: LadderRank | null) => (rank ? Number(rank.key) : null);
+function legacyLongService(info: LongServiceInfo) {
+  const { targetRank, ...rest } = info;
+  return { ...rest, targetGrade: gradeNo(targetRank) };
+}
+/** 대우공무원 targetRank 는 묶음 3 에서 더한 필드라 뺀다 */
+function legacySenior(info: SeniorInfo) {
+  const { targetRank: _targetRank, ...rest } = info;
+  return rest;
+}
+/** 승진 미리보기의 fromRank·toRank 를 그때의 fromGrade·toGrade 로 */
+function legacyPreview(preview: PromotionPreview | null) {
+  if (!preview) return null;
+  const { fromRank, toRank, toUnavailableReason, ...rest } = preview;
+  expect(toUnavailableReason).toBeUndefined();
+  return { ...rest, fromGrade: gradeNo(fromRank), toGrade: gradeNo(toRank) };
 }
 
 /** 지금 코드의 서명으로 부른 결과. 서명이 바뀌면 이 함수 안에서만 맞춘다 */
 function snapshot(id: string, p: Profile) {
   const r = rulesFor(2026);
+  const c = careerOf(rules, p, 2026);
   const retire = retirementInfo(r.retirement, p.birthDate);
+  // 연령정년만 있는 일반직은 effectiveRetirement 가 연령정년과 같다
+  expect(availableOf(effectiveRetirement(c, p)).retireDate).toBe(retire.retireDate);
   const byDate = Object.fromEntries(
     DATES.map((date) => {
       const rd = rulesFor(Number(date.slice(0, 4)));
@@ -174,11 +215,16 @@ function snapshot(id: string, p: Profile) {
         {
           salaryOn: legacyPoint(salaryOn(rules, p, date)),
           nextStepRaise: nextStepRaise(rules, p, date),
-          cumulativeSalary: cumulativeSalary(rules, p, date),
-          yearToDateSalary: yearToDateSalary(rules, p, date),
-          promotionPreview: promotionPreview(rules, p, date),
-          seniorAllowance: seniorAllowance(rules, p, date),
-          annualLeaveDays: annualLeaveDays(rd.leave, p.hireDate, date, retire.retireDate),
+          cumulativeSalary: on(cumulativeSalary(rules, p, date)),
+          yearToDateSalary: on(yearToDateSalary(rules, p, date)),
+          promotionPreview: legacyPreview(promotionPreview(rules, p, date)),
+          seniorAllowance: on(seniorAllowance(rules, p, date)),
+          annualLeaveDays: annualLeaveDays(
+            careerOf(rules, p, rd.year).leave,
+            p.hireDate,
+            date,
+            retire.retireDate,
+          ),
           upcomingBonuses: upcomingBonuses(rules, cal, p, paydayOf(id), date, 6, retire.retireDate),
           milestones: buildMilestones(rules, p, date).map((m) => ({
             id: m.id,
@@ -194,9 +240,9 @@ function snapshot(id: string, p: Profile) {
   );
   return {
     retirementInfo: retire,
-    minServiceDate: minServiceDate(r.promotion, p.rank, p.rankDate),
-    longServiceInfo: longServiceInfo(r.promotion, p),
-    seniorTreatmentInfo: seniorTreatmentInfo(r.promotion, p),
+    minServiceDate: minServiceDate(c, p.rankDate),
+    longServiceInfo: legacyLongService(availableOf(longServiceInfo(c, p))),
+    seniorTreatmentInfo: legacySenior(availableOf(seniorTreatmentInfo(c, p))),
     byDate,
   };
 }

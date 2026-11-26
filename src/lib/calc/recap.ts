@@ -5,13 +5,17 @@
  * - 연가는 연가 장부의 기록 그대로다. 오늘 뒤의 기록은 '예정'으로 따로 센다.
  * - 출근 도장은 이 브라우저에서 앱을 연 날이다(출근 여부가 아니다).
  * - 승급은 지금 직급과 기준점(현재 호봉·다음 승급일)에서 거꾸로 셈한 추정이다(직급 이력은 저장하지 않는다).
+ * - 정기승급을 계산하지 않는 직종(periodMonths null)은 승급을 세지 않고 입력한 호봉 그대로다.
+ * - 정년을 계산하지 않는 직종(retireDate null)은 끝이 없다고 보고, 봉급이 없으면 번 봉급은 null 이다.
  */
 import type { AchievementView, Tier } from '../achievements.ts';
 import type { Calendar, RulesProvider } from './calendar.ts';
 import { addDays, daysInMonth, formatYmd, maxYmd, minYmd, yearOf, type Ymd } from './date.ts';
 import { dayLeaveKind, formatLeaveHours, recordsOfYear, type DayLeave } from './leave.ts';
+import { careerOf } from './career-profile.ts';
 import { yearToDateSalary } from './salary.ts';
-import { isRaiseDay, raiseDate, raiseIndexOn, stepOn } from './step.ts';
+import { isRaiseDay, raiseDate, raiseIndexOn, stepOn, type StepAnchor } from './step.ts';
+import { isAvailable } from '../rules/types.ts';
 import type { LeaveRecord, Profile } from '../store/schema.ts';
 
 export interface RecapBadge {
@@ -67,18 +71,20 @@ export interface YearRecap {
   raises: RecapRaise[];
   /** 결산 기간에 얻은 배지 */
   badges: RecapBadge[];
-  /** 올해 번 봉급 추정(지갑의 '올해 번 봉급'과 같은 계산). 'none'이면 0 */
-  earned: number;
-  /** 계산에 쓴 봉급표 연도(그 해 봉급표가 아직 없으면 이전 연도) */
-  salaryTableYear: number;
+  /** 올해 번 봉급 추정(지갑의 '올해 번 봉급'과 같은 계산). 'none'이면 0, 봉급을 계산하지 않는 직종은 null */
+  earned: number | null;
+  /** 계산에 쓴 봉급표 연도(그 해 봉급표가 아직 없으면 이전 연도). 봉급을 계산하지 않는 직종은 null */
+  salaryTableYear: number | null;
 }
 
 export interface RecapInput {
   today: Ymd;
   profile: Profile;
-  retireDate: Ymd;
+  /** 정년퇴직일. 정년을 계산하지 않는 직종은 null(끝이 없다고 본다) */
+  retireDate: Ymd | null;
   maxStep: number;
-  periodMonths: number;
+  /** 정기승급 기간. 정기승급을 계산하지 않는 직종은 null(호봉이 그대로다) */
+  periodMonths: number | null;
   cal: Calendar;
   rules: RulesProvider;
   records: readonly LeaveRecord[];
@@ -92,6 +98,14 @@ const MAX_RAISES_PER_YEAR = 12;
 
 const jan1Of = (year: number): Ymd => formatYmd({ y: year, m: 1, d: 1 });
 const dec31Of = (year: number): Ymd => formatYmd({ y: year, m: 12, d: 31 });
+/** 정년이 없을 때의 끝(어떤 날짜보다도 뒤). 문자열 비교에만 쓰고 날짜로 풀지 않는다 */
+const NO_END: Ymd = '9999-12-31';
+
+/** date 현재 호봉. 정기승급을 계산하지 않으면 입력한 호봉 그대로 */
+function stepAt(anchor: StepAnchor, date: Ymd, maxStep: number, periodMonths: number | null) {
+  if (periodMonths === null) return Math.min(maxStep, Math.max(1, Math.floor(anchor.step)));
+  return stepOn(anchor, date, maxStep, periodMonths);
+}
 
 /** from~to(양끝 포함) 사이에 실제로 호봉이 오르는 날 */
 export function raisesBetween(
@@ -99,9 +113,9 @@ export function raisesBetween(
   from: Ymd,
   to: Ymd,
   maxStep: number,
-  periodMonths: number,
+  periodMonths: number | null,
 ): RecapRaise[] {
-  if (to < from) return [];
+  if (to < from || periodMonths === null) return [];
   const out: RecapRaise[] = [];
   let k = raiseIndexOn(profile, from, periodMonths);
   if (raiseDate(profile, k, periodMonths) < from) k += 1;
@@ -119,13 +133,15 @@ export function raisesBetween(
 }
 
 export function yearRecap(input: RecapInput): YearRecap {
-  const { today, profile, retireDate, maxStep, periodMonths, cal, hoursPerDay } = input;
+  const { today, profile, maxStep, periodMonths, cal, hoursPerDay } = input;
+  const retireDate = input.retireDate ?? NO_END;
   const year = yearOf(today);
   const jan1 = jan1Of(year);
   const from = maxYmd(jan1, profile.hireDate);
   const to = minYmd(today, retireDate);
   const active = from <= to;
-  const salaryTableYear = input.rules(year).meta.sectionYear.salary;
+  const pay = careerOf(input.rules, profile, year).pay;
+  const salaryTableYear = isAvailable(pay) ? pay.tableYear : null;
   const holidaysKnown = cal.hasHolidayData(year);
 
   const leave: RecapLeave = {
@@ -137,7 +153,7 @@ export function yearRecap(input: RecapInput): YearRecap {
     hoursPerDay,
   };
   if (!active) {
-    const step = stepOn(profile, to, maxStep, periodMonths);
+    const step = stepAt(profile, to, maxStep, periodMonths);
     return {
       year,
       status: 'none',
@@ -154,7 +170,7 @@ export function yearRecap(input: RecapInput): YearRecap {
       stepTo: step,
       raises: [],
       badges: [],
-      earned: 0,
+      earned: salaryTableYear === null ? null : 0,
       salaryTableYear,
     };
   }
@@ -182,8 +198,8 @@ export function yearRecap(input: RecapInput): YearRecap {
 
   const visits = new Set(input.visits.filter((d) => d >= from && d <= to)).size;
   const raises = raisesBetween(profile, from, to, maxStep, periodMonths);
-  const stepTo = stepOn(profile, to, maxStep, periodMonths);
-  const stepFrom = raises[0]?.from ?? stepOn(profile, from, maxStep, periodMonths);
+  const stepTo = stepAt(profile, to, maxStep, periodMonths);
+  const stepFrom = raises[0]?.from ?? stepAt(profile, from, maxStep, periodMonths);
   const badges: RecapBadge[] = [];
   for (const b of input.badges) {
     if (b.at === null || b.at < jan1 || b.at > to) continue;
@@ -198,7 +214,8 @@ export function yearRecap(input: RecapInput): YearRecap {
     to,
     asOf: today,
     hiredThisYear: profile.hireDate >= jan1,
-    retiredThisYear: yearOf(retireDate) === year && retireDate <= today,
+    retiredThisYear:
+      input.retireDate !== null && yearOf(retireDate) === year && retireDate <= today,
     workdays: cal.workdaysBetween(from, addDays(to, 1)),
     holidaysKnown,
     leave,
@@ -242,7 +259,8 @@ export type GridInput = Omit<RecapInput, 'badges' | 'rules'>;
 
 /** 그 해의 날마다 한 칸(365·366개). 기록·방문은 미리 묶어 한 번만 돈다 */
 export function yearGrid(year: number, input: GridInput): YearDay[] {
-  const { today, profile, retireDate, maxStep, periodMonths, cal, hoursPerDay } = input;
+  const { today, profile, maxStep, periodMonths, cal, hoursPerDay } = input;
+  const retireDate = input.retireDate ?? NO_END;
   const byDate = new Map<Ymd, LeaveRecord[]>();
   for (const record of recordsOfYear(input.records, year)) {
     const list = byDate.get(record.date);

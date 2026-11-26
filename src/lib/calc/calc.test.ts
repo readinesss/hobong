@@ -73,6 +73,15 @@ import {
 } from './milestones.ts';
 import { findBridges } from './bridge.ts';
 import type { LeaveData, LeaveRecord, Profile } from '../store/schema.ts';
+import { careerOf } from './career-profile.ts';
+import { resolveCareer } from '../rules/career.ts';
+import { isAvailable, type Avail } from '../rules/types.ts';
+
+/** 켜져 있어야 하는 계산 결과(꺼져 있으면 테스트 실패) */
+function availableOf<T extends object>(value: Avail<T>): T {
+  if (!isAvailable(value)) throw new Error(`꺼져 있음: ${value.status} ${value.reason}`);
+  return value;
+}
 
 const R = rulesFor(2026);
 const cal = new Calendar(rulesFor);
@@ -237,18 +246,18 @@ describe('호봉 추이 (보수규정 제13조)', () => {
 
 describe('봉급 (보수규정 별표 3)', () => {
   it('봉급표 조회', () => {
-    expect(monthlySalary(R.salary, '9', 1)).toBe(2_133_000);
-    expect(monthlySalary(R.salary, '9', 31)).toBe(3_731_100);
-    expect(monthlySalary(R.salary, '7', 12)).toBe(3_331_900);
-    expect(monthlySalary(R.salary, '6', 32)).toBe(4_967_800);
-    expect(monthlySalary(R.salary, '1', 23)).toBe(8_001_400);
-    expect(maxStepOf(R.salary, '9')).toBe(31);
-    expect(maxStepOf(R.salary, '6')).toBe(32);
-    expect(maxStepOf(R.salary, '1')).toBe(23);
+    expect(monthlySalary(R.salary.table['9'], 1)).toBe(2_133_000);
+    expect(monthlySalary(R.salary.table['9'], 31)).toBe(3_731_100);
+    expect(monthlySalary(R.salary.table['7'], 12)).toBe(3_331_900);
+    expect(monthlySalary(R.salary.table['6'], 32)).toBe(4_967_800);
+    expect(monthlySalary(R.salary.table['1'], 23)).toBe(8_001_400);
+    expect(maxStepOf(R.salary.table['9'])).toBe(31);
+    expect(maxStepOf(R.salary.table['6'])).toBe(32);
+    expect(maxStepOf(R.salary.table['1'])).toBe(23);
   });
   it('표 범위를 벗어난 호봉은 가장 가까운 값', () => {
-    expect(monthlySalary(R.salary, '9', 0)).toBe(2_133_000);
-    expect(monthlySalary(R.salary, '9', 99)).toBe(3_731_100);
+    expect(monthlySalary(R.salary.table['9'], 0)).toBe(2_133_000);
+    expect(monthlySalary(R.salary.table['9'], 99)).toBe(3_731_100);
   });
 
   const pay: PayProfile = {
@@ -302,7 +311,7 @@ describe('봉급 (보수규정 별표 3)', () => {
       step: 1,
       nextStepDate: '2027-01-01',
     };
-    expect(cumulativeSalary(rulesFor, fresh, '2026-03-31').total).toBe(3 * 2_133_000);
+    expect(cumulativeSalary(rulesFor, fresh, '2026-03-31')?.total).toBe(3 * 2_133_000);
     const mid: PayProfile = {
       track: 'general',
       payTable: 'table3',
@@ -311,7 +320,7 @@ describe('봉급 (보수규정 별표 3)', () => {
       step: 1,
       nextStepDate: '2027-03-01',
     };
-    expect(cumulativeSalary(rulesFor, mid, '2026-03-31').total).toBe(
+    expect(cumulativeSalary(rulesFor, mid, '2026-03-31')?.total).toBe(
       Math.floor((2_133_000 * 16) / 31),
     );
     const raised: PayProfile = {
@@ -323,11 +332,11 @@ describe('봉급 (보수규정 별표 3)', () => {
       nextStepDate: '2027-01-01',
     };
     // 2025년은 1호봉, 2026년은 2호봉(모두 2026년 봉급표로 환산)
-    expect(cumulativeSalary(rulesFor, raised, '2026-02-28').total).toBe(
+    expect(cumulativeSalary(rulesFor, raised, '2026-02-28')?.total).toBe(
       12 * 2_133_000 + 2 * 2_147_600,
     );
     expect(yearToDateSalary(rulesFor, raised, '2026-02-28')).toBe(2 * 2_147_600);
-    expect(cumulativeSalary(rulesFor, fresh, '2025-12-31').total).toBe(0);
+    expect(cumulativeSalary(rulesFor, fresh, '2025-12-31')?.total).toBe(0);
   });
   it('올해 임용자의 올해 번 봉급은 임용일부터 센다', () => {
     const mid: PayProfile = {
@@ -517,19 +526,22 @@ describe('연가 (복무규정 제15조~제17조)', () => {
 });
 
 describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
-  const P = R.promotion;
+  const general = (rank: string) =>
+    resolveCareer(R, { track: 'general', payTable: 'table3', rank });
+  const lsOf = (p: Profile) => availableOf(longServiceInfo(careerOf(rulesFor, p, 2026), p));
+  const stOf = (p: Profile) => availableOf(seniorTreatmentInfo(careerOf(rulesFor, p, 2026), p));
   it('승진소요최저연수', () => {
-    expect(minServiceDate(P, '9', '2024-03-01')).toBe('2025-03-01');
-    expect(minServiceDate(P, '7', '2024-03-01')).toBe('2025-03-01');
-    expect(minServiceDate(P, '6', '2024-03-01')).toBe('2026-03-01');
-    expect(minServiceDate(P, '5', '2024-03-01')).toBe('2027-03-01');
-    expect(minServiceDate(P, '3', '2024-03-01')).toBeNull();
+    expect(minServiceDate(general('9'), '2024-03-01')).toBe('2025-03-01');
+    expect(minServiceDate(general('7'), '2024-03-01')).toBe('2025-03-01');
+    expect(minServiceDate(general('6'), '2024-03-01')).toBe('2026-03-01');
+    expect(minServiceDate(general('5'), '2024-03-01')).toBe('2027-03-01');
+    expect(minServiceDate(general('3'), '2024-03-01')).toBeNull();
   });
   it('근속승진 기간: 9급 5년 6개월, 8급 7년, 7급 11년', () => {
-    const nine = longServiceInfo(P, profile({ rank: '9', rankDate: '2021-04-15' }));
+    const nine = lsOf(profile({ rank: '9', rankDate: '2021-04-15' }));
     expect(nine).toMatchObject({
       applicable: true,
-      targetGrade: 8,
+      targetRank: { key: '8', label: '8급' },
       requiredMonths: 66,
       autoDate: '2026-10-15',
       date: '2026-10-15',
@@ -537,17 +549,14 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
       reviewFrom: '2026-10-10',
       quotaNote: null,
     });
-    expect(longServiceInfo(P, profile({ rank: '8', rankDate: '2020-01-01' })).date).toBe(
-      '2027-01-01',
-    );
-    const seven = longServiceInfo(P, profile({ rank: '7', rankDate: '2016-07-01' }));
+    expect(lsOf(profile({ rank: '8', rankDate: '2020-01-01' })).date).toBe('2027-01-01');
+    const seven = lsOf(profile({ rank: '7', rankDate: '2016-07-01' }));
     expect(seven.date).toBe('2027-07-01');
     expect(seven.quotaNote).toContain('50%');
-    expect(longServiceInfo(P, profile({ rank: '6' })).applicable).toBe(false);
+    expect(lsOf(profile({ rank: '6' })).applicable).toBe(false);
   });
   it('직접 입력한 날짜가 우선한다', () => {
-    const info = longServiceInfo(
-      P,
+    const info = lsOf(
       profile({
         rank: '9',
         rankDate: '2021-04-15',
@@ -557,20 +566,16 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
     expect(info).toMatchObject({ autoDate: '2026-10-15', date: '2027-04-15', overridden: true });
   });
   it('대우공무원: 9~6급 4년, 5·4급 7년, 다음 달 1일 발령', () => {
-    expect(seniorTreatmentInfo(P, profile({ rank: '9', rankDate: '2022-11-15' }))).toMatchObject({
+    expect(stOf(profile({ rank: '9', rankDate: '2022-11-15' }))).toMatchObject({
       applicable: true,
       requiredMonths: 48,
       qualifyDate: '2026-11-15',
       autoDate: '2026-12-01',
       date: '2026-12-01',
     });
-    expect(seniorTreatmentInfo(P, profile({ rank: '6', rankDate: '2022-12-01' })).date).toBe(
-      '2026-12-01',
-    );
-    expect(seniorTreatmentInfo(P, profile({ rank: '5', rankDate: '2020-01-02' })).date).toBe(
-      '2027-02-01',
-    );
-    expect(seniorTreatmentInfo(P, profile({ rank: '3' })).applicable).toBe(false);
+    expect(stOf(profile({ rank: '6', rankDate: '2022-12-01' })).date).toBe('2026-12-01');
+    expect(stOf(profile({ rank: '5', rankDate: '2020-01-02' })).date).toBe('2027-02-01');
+    expect(stOf(profile({ rank: '3' })).applicable).toBe(false);
   });
   it('승진 후 호봉(별표 28)과 봉급 미리보기', () => {
     expect(promotedStep(R.promotionStep, 1)).toBe(1);
@@ -586,8 +591,8 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
     };
     expect(promotionPreview(rulesFor, pay, '2026-11-25')).toEqual({
       date: '2026-11-25',
-      fromGrade: 9,
-      toGrade: 8,
+      fromRank: { key: '9', label: '9급', payColumn: '9' },
+      toRank: { key: '8', label: '8급', payColumn: '8' },
       fromStep: 6,
       toStep: 5,
       fromAmount: 2_264_600,

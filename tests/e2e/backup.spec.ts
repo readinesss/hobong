@@ -168,49 +168,77 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt'))).toBeNull();
   });
 
-  // #20 묶음 3(직종별 계산) 전까지: 저장 형식(v4)은 같아도 이 버전이 계산하지 못하는 직종·계급의 데이터는
-  // 더 새 버전의 데이터처럼 다룬다(화면이 멈추거나 별표 3 으로 틀린 숫자를 보이지 않게)
-  test('이 버전이 아직 계산하지 못하는 직종의 v4 저장본은 열지 않고 그대로 둔다', async ({
-    page,
-  }) => {
+  // #20 묶음 3(직종별 계산): 묶음 2 가 '더 새 버전'처럼 막아 두던 직종의 v4 데이터는 이제 그 직종 규정으로
+  // 계산하고, 확인하지 못한 항목은 숫자 없이 '준비 중'으로 보인다(화면 칸·문구 다듬기는 묶음 4)
+  const TRACK_SEEDS: [string, string, RegExp][] = [
+    ['경찰', fixture('backup-v4-police.json'), /별표 10/],
+    ['교원', fixture('backup-v4-teacher.json'), /별표 11/],
+    ['그 밖의 특정직', fixture('backup-v4-other.json'), /준비 중/],
+    ['일반직 계급 없음', makeSeedV4({ rank: null }), /계급을 골라 주세요/],
+    ['외무 1등급', makeSeedV4({ track: 'foreign', payTable: null, rank: '1' }), /별표 3/],
+    [
+      '일반직 별표 8',
+      makeSeedV4({ payTable: 'table8', rank: '7' }),
+      /우정7급 5호봉 · 공무원보수규정 별표 8/,
+    ],
+  ];
+
+  test('직종별 v4 저장본은 열리고, 계산되거나 준비 중으로 보인다', async ({ page }) => {
     const errors = collectErrors(page);
-    const seeds = [
-      fixture('backup-v4-police.json'),
-      fixture('backup-v4-other.json'),
-      makeSeedV4({ rank: null }),
-      makeSeedV4({ track: 'foreign', payTable: null, rank: '1' }),
-    ];
-    for (const seed of seeds) {
+    for (const [name, seed, wallet] of TRACK_SEEDS) {
       await openApp(page, { seed });
-      await expect(page.locator('#welcome-newer')).toContainText('더 새 버전의 호봉');
-      await expect(page.getByRole('button', { name: '새로 시작' })).toHaveCount(0);
-      expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(seed);
-      expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt'))).toBeNull();
+      await tick(page, 6000);
+      for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
+        await page.getByRole('dialog').getByRole('button').last().click();
+        await tick(page);
+      }
+      await expect(page.locator('#welcome-newer'), name).toHaveCount(0);
+      await expect(page.locator('#status'), name).toBeVisible();
+      await expect(page.locator('#wallet'), name).toContainText(wallet);
+      expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt')), name).toBeNull();
+      expect((await storedData(page))?.profile.track, name).toBe(
+        JSON.parse(seed).data.profile.track,
+      );
     }
     expect(errors).toEqual([]);
   });
 
-  test('이 버전이 아직 계산하지 못하는 직종의 v4 파일은 불러오지 않는다', async ({ page }) => {
+  test('직종별 v4 저장본으로 모든 탭(연가·업적·카드·설정)을 열어도 오류가 없다', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    for (const [name, seed] of TRACK_SEEDS) {
+      for (const hash of ['leave', 'badges', 'card', 'settings']) {
+        await openApp(page, { seed, hash });
+        await tick(page, 3000);
+        await expect(page.locator('main'), `${name} #${hash}`).toBeVisible();
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('직종별 v4 파일도 불러올 수 있다', async ({ page }) => {
+    const errors = collectErrors(page);
     await openApp(page, { seed: SEED, hash: 'settings' });
     await tick(page, 6000);
-    const before = await storedData(page);
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
-    const dialog = page.getByRole('dialog');
     for (const [name, text] of [
       ['police.json', fixture('backup-v4-police.json')],
       ['teacher.json', fixture('backup-v4-teacher.json')],
       ['other.json', fixture('backup-v4-other.json')],
-      ['foreign.json', makeSeedV4({ track: 'foreign', payTable: null, rank: '1' })],
-      ['table8.json', makeSeedV4({ payTable: 'table8', rank: '7' })],
     ] as const) {
+      await page.getByRole('button', { name: '데이터 불러오기' }).click();
       await importFile(page, tempFile(name, text));
-      await expect(dialog.getByRole('alert'), name).toContainText('아직 계산하지 못하는 직종');
-      await expect(dialog.getByRole('button', { name: /불러오기$/ }), name).toHaveCount(0);
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: /불러오기$/ }).click();
+      await tick(page, 6000);
+      expect((await storedData(page))?.profile.track, name).toBe(
+        JSON.parse(text).data.profile.track,
+      );
     }
-    expect(await storedData(page)).toEqual(before);
+    expect(errors).toEqual([]);
   });
 
-  test('다른 탭이 이 버전이 계산하지 못하는 직종으로 저장하면 이 탭은 더는 쓰지 않는다', async ({
+  test('다른 탭이 다른 직종으로 저장하면 이 탭도 그 데이터를 따라간다', async ({
     page,
     context,
   }) => {
@@ -220,11 +248,11 @@ test.describe('데이터 내려받기·불러오기', () => {
     await other.goto(page.url());
     const police = fixture('backup-v4-police.json');
     await other.evaluate((value) => localStorage.setItem('hobong.data', value), police);
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(police);
-    await page.getByRole('button', { name: '금액 가리기' }).click();
-    await tick(page);
-    await expect(page.locator('#notice-stale')).toContainText('새 버전');
-    expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(police);
+    // 이 탭은 '더 새 버전'으로 막지 않고 그 데이터를 읽어 별표 10 으로 계산한다
+    await expect(page.locator('#wallet')).toContainText('별표 10');
+    await expect(page.locator('#status')).toContainText('경위');
+    await expect(page.locator('#notice-stale')).toHaveCount(0);
+    expect((await storedData(page))?.profile.track).toBe('police');
     await other.close();
   });
 
@@ -334,7 +362,8 @@ test.describe('데이터 내려받기·불러오기', () => {
       overrides: { rankLimitDate: null },
     });
     expect(fromV3?.profile).not.toHaveProperty('grade');
-    expect(fromV3?.character).toMatchObject({ lastRank: '8', lastForm: null });
+    // 변환은 lastForm 을 비워 두고(null), 앱이 열면서 연출 없이 지금 형태(8급 → 솜봉이)로 채운다(#20 §5.8)
+    expect(fromV3?.character).toMatchObject({ lastRank: '8', lastForm: 'chick' });
     expect(fromV3?.settings.card.showRank).toBe(true);
     const version = () =>
       page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}').schemaVersion);

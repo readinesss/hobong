@@ -71,12 +71,16 @@
           <span class="cap">금액 가리기</span>
         </button>
       </div>
-      <p class="big earn"><Money value={earn.today} /></p>
-      <p class="cap muted">
-        이번 달 <Money value={earn.month} />{!hidden && status.workday
-          ? ` · 근무 1초에 약 ${earn.perSecond.toFixed(1)}원`
-          : ''}
-      </p>
+      {#if earn}
+        <p class="big earn"><Money value={earn.today} /></p>
+        <p class="cap muted">
+          이번 달 <Money value={earn.month} />{!hidden && status.workday
+            ? ` · 근무 1초에 약 ${earn.perSecond.toFixed(1)}원`
+            : ''}
+        </p>
+      {:else}
+        <p class="cap muted">봉급 계산은 준비 중이에요. {view.payOff?.reason ?? ''}</p>
+      {/if}
     </div>
 
     <div class="stack">
@@ -133,10 +137,10 @@
         {/if}
       </li>
     </ul>
-    <p class="cap muted">
-      월 봉급을 이번 달 근무일 {formatNumber(earn.workdays)}일과 하루 근무시간에 나눠 근무시간 동안
-      쌓이는 것으로 본 추정치예요.
-    </p>
+    {#if earn}<p class="cap muted">
+        월 봉급을 이번 달 근무일 {formatNumber(earn.workdays)}일과 하루 근무시간에 나눠 근무시간
+        동안 쌓이는 것으로 본 추정치예요.
+      </p>{/if}
   </div>
 </Win>
 

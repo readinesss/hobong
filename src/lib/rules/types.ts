@@ -178,6 +178,11 @@ export interface PromotionRules {
     /** 인원 제한이 걸리는 목표 계급(일반직 '6', 경찰 '경감', 소방 '소방경') */
     quotaTo: RankKey | null;
     quotaNote: string;
+    /**
+     * 근속승진이 '할 수 있다' 규정이라 요건일이 곧 승진일이 아님을 일정에 덧붙이는 문구
+     * (경찰공무원법 제16조제1항, 소방공무원법 제15조제1항). 없으면 덧붙이지 않는다
+     */
+    discretionNote?: string;
     source: SourceRef;
   };
   seniorTreatment: {

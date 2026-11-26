@@ -4,8 +4,7 @@ import { Calendar } from '../../src/lib/calc/calendar.ts';
 import { addDays } from '../../src/lib/calc/date.ts';
 import { summarizeLeave } from '../../src/lib/calc/leave.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
-import { maxStepOf } from '../../src/lib/calc/salary.ts';
-import { stepOn } from '../../src/lib/calc/step.ts';
+import { careerOf, careerStepOn } from '../../src/lib/calc/career-profile.ts';
 import {
   achievementViews,
   evaluateAchievements,
@@ -56,7 +55,7 @@ function inputOf(data: UserData, today = TODAY): AchievementInput {
     today,
     data,
     milestones: buildMilestones(rulesFor, data.profile, today),
-    currentStep: stepOn(data.profile, today, maxStepOf(R.salary, data.profile.rank)),
+    currentStep: careerStepOn(careerOf(rulesFor, data.profile, 2026), data.profile, today),
     anchor: data.profile,
     leave: summarizeLeave(R.leave, data.profile.hireDate, data.leave, today),
     cal,

@@ -25,7 +25,6 @@ import {
   clearCorrupt,
   clearUndo,
   hasCorrupt,
-  isCalculableData,
   isNewerData,
   KEYS,
   loadData,
@@ -45,7 +44,7 @@ import {
 } from '../../src/lib/store/validate.ts';
 import { nextRaiseDate, stepOn } from '../../src/lib/calc/step.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
-import { calculableHere, salaryOn } from '../../src/lib/calc/salary.ts';
+import { salaryOn } from '../../src/lib/calc/salary.ts';
 
 const TODAY = '2026-11-25';
 const NOW = '2026-11-25T01:00:00.000Z';
@@ -971,7 +970,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
       const r = parseBackup(envelope(data), ctx);
       expect(!r.ok && r.details.join('\n')).toContain(expected);
     }
-    // 일반직의 별표 4·8 은 받는다(계산은 아직 별표 3 — #20 묶음 3)
+    // 일반직의 별표 4·8 은 받는다(그 표로 계산한다 — #20 묶음 3)
     for (const payTable of ['table4', 'table8']) {
       expect(
         validateUserData(
@@ -1088,7 +1087,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
   });
 });
 
-describe('이 버전이 아직 계산하지 못하는 v4 데이터(#20 묶음 3 전까지)', () => {
+describe('직종별 v4 데이터는 열리고, 계산되거나 준비 중으로 보인다(#20 묶음 3)', () => {
   const fixture = (name: string) =>
     readFileSync(join(process.cwd(), 'tests/fixtures', name), 'utf8');
   const stored = { ...ctx, stored: true };
@@ -1106,75 +1105,66 @@ describe('이 버전이 아직 계산하지 못하는 v4 데이터(#20 묶음 3 
     data.character.lastRank = data.profile.rank;
     return data;
   };
-  /** 저장 형식으로는 맞지만 이 버전의 계산(일반직 별표 3)으로는 틀리거나 예외가 나는 것 */
-  const cases: [string, string][] = [
-    ['경찰', fixture('backup-v4-police.json')],
-    ['교원', fixture('backup-v4-teacher.json')],
-    ['그 밖의 특정직', fixture('backup-v4-other.json')],
-    ['외무 1등급', envelope(withProfile({ track: 'foreign', payTable: null, rank: '1' }))],
-    ['경찰인데 계급 키 7', envelope(withProfile({ track: 'police', payTable: null, rank: '7' }))],
-    ['일반직 별표 4', envelope(withProfile({ payTable: 'table4' }))],
-    ['일반직 별표 8', envelope(withProfile({ payTable: 'table8', rank: '7' }))],
-    ['일반직 계급 없음', envelope(withProfile({ rank: null }))],
+  /**
+   * 묶음 2 에서는 계산이 일반직 별표 3 만 받아 '더 새 버전'처럼 막아 두던 데이터.
+   * 이제는 직종 규정(resolveCareer)으로 계산하거나, 확인하지 못한 항목은 숫자 없이 꺼진 상태로 둔다.
+   * pay: 'on' = 봉급을 계산, 'off' = 봉급은 준비 중(숫자 없음)
+   */
+  const cases: [string, string, 'on' | 'off'][] = [
+    ['경찰', fixture('backup-v4-police.json'), 'on'],
+    ['교원', fixture('backup-v4-teacher.json'), 'on'],
+    ['그 밖의 특정직', fixture('backup-v4-other.json'), 'off'],
+    ['외무 1등급', envelope(withProfile({ track: 'foreign', payTable: null, rank: '1' })), 'on'],
+    [
+      '경찰인데 계급 키 7(사다리에 없음)',
+      envelope(withProfile({ track: 'police', payTable: null, rank: '7' })),
+      'off',
+    ],
+    ['일반직 별표 4', envelope(withProfile({ payTable: 'table4' })), 'on'],
+    ['일반직 별표 8', envelope(withProfile({ payTable: 'table8', rank: '7' })), 'on'],
+    ['일반직 계급 없음', envelope(withProfile({ rank: null })), 'off'],
   ];
 
-  it('저장 형식 검사는 통과한다(저장본 기준) — 그래서 따로 막아야 한다', () => {
-    for (const [name, text] of cases) {
-      const parsed = parseBackup(text, stored);
-      expect(parsed.ok, name).toBe(true);
-      expect(parsed.ok && isCalculableData(parsed.data), name).toBe(false);
-    }
-    expect(isCalculableData(sampleData())).toBe(true);
-  });
-
-  it('저장본은 "더 새 버전"처럼 열지 않고, 옮기지도 덮어쓰지도 않는다', () => {
+  it('저장본으로 열리고(더 새 버전으로 보지 않는다), 옮기지도 않는다', () => {
     for (const [name, text] of cases) {
       const store = memoryStore();
       store.setItem(KEYS.data, text);
-      expect(loadData(store, stored).status, name).toBe('newer');
-      expect(loadData(store, stored, { readOnly: true }).status, name).toBe('newer');
-      expect(isNewerData(store, stored), name).toBe(true);
-      expect(store.getItem(KEYS.data), name).toBe(text);
+      expect(loadData(store, stored).status, name).toBe('ok');
+      expect(loadData(store, stored, { readOnly: true }).status, name).toBe('ok');
+      expect(isNewerData(store, stored), name).toBe(false);
       expect(hasCorrupt(store), name).toBe(false);
     }
-    // 대조군: 일반직 별표 3 은 그대로 열린다
-    const store = memoryStore();
-    saveData(store, sampleData(), '0.1.0', NOW);
-    expect(loadData(store, stored).status).toBe('ok');
-    expect(isNewerData(store, stored)).toBe(false);
   });
 
-  it('손상본 자리·되돌리기 보관본에 있어도 되살리지 않고 그대로 둔다', () => {
-    const [, police] = cases[0] as [string, string];
+  it('손상본 자리·되돌리기 보관본에 있으면 되살리거나 되돌릴 수 있다', () => {
+    const [, police] = cases[0] as [string, string, 'on' | 'off'];
     const store = memoryStore();
     store.setItem(KEYS.corrupt, police);
-    expect(loadData(store, stored).status).toBe('empty');
-    expect(store.getItem(KEYS.corrupt)).toBe(police);
-    expect(store.getItem(KEYS.data)).toBeNull();
+    expect(loadData(store, stored).status).toBe('ok');
+    expect(store.getItem(KEYS.corrupt)).toBeNull();
 
     const undo = memoryStore();
     undo.setItem(KEYS.undo, police);
-    expect(loadUndo(undo, stored)).toBeNull();
-    expect(undo.getItem(KEYS.undo)).toBe(police);
+    expect(loadUndo(undo, stored)?.data.profile.track).toBe('police');
   });
 
-  it('계산 입구(salaryOn)도 일반직 별표 3 밖이면 숫자를 내지 않는다', () => {
-    const base = sampleProfile();
-    for (const over of [
-      { track: 'foreign', payTable: null, rank: '1' },
-      { track: 'foreign', payTable: null, rank: '6' },
-      { track: 'police', payTable: null, rank: '7' },
-      { track: 'otherSpecial', payTable: null, rank: '7' },
-      { payTable: 'table4', rank: '7' },
-      { payTable: 'table8', rank: '7' },
-      { rank: null },
-    ] as Partial<Profile>[]) {
-      const profile = { ...base, ...over };
-      expect(calculableHere(profile), JSON.stringify(over)).toBe(false);
-      expect(() => salaryOn(rulesFor, profile, TODAY), JSON.stringify(over)).toThrow();
-      expect(() => buildMilestones(rulesFor, profile, TODAY), JSON.stringify(over)).toThrow();
+  it('계산 입구: 봉급을 계산하는 직종은 그 직종 봉급표로, 준비 중이면 숫자 없이(null) — 예외는 없다', () => {
+    for (const [name, text, pay] of cases) {
+      const parsed = parseBackup(text, stored);
+      if (!parsed.ok) throw new Error(`${name}: ${parsed.reason}`);
+      const profile = parsed.data.profile;
+      const point = salaryOn(rulesFor, profile, TODAY);
+      if (pay === 'on') expect(point?.amount, name).toBeGreaterThan(0);
+      else expect(point, name).toBeNull();
+      expect(() => buildMilestones(rulesFor, profile, TODAY), name).not.toThrow();
     }
-    expect(salaryOn(rulesFor, base, TODAY).amount).toBeGreaterThan(0);
+    // 일반직 별표 4·8 은 별표 3 숫자가 아니라 그 표의 숫자다
+    const base = sampleProfile();
+    const t3 = salaryOn(rulesFor, base, TODAY);
+    const t4 = salaryOn(rulesFor, { ...base, payTable: 'table4' }, TODAY);
+    expect(t4?.annex).toBe('별표 4');
+    expect(t4?.amount).not.toBe(t3?.amount);
+    expect(salaryOn(rulesFor, { ...base, payTable: 'table8' }, TODAY)?.annex).toBe('별표 8');
   });
 });
 

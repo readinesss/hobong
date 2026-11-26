@@ -233,10 +233,14 @@
             )} 늘어요.
           </p>
         {/if}
-        {#if leave.grantedHours === 0 && !leave.overridden}
+        {#if leave.needsManualGrant}
+          <p class="note">
+            올해 연가 일수를 직접 넣어 주세요(이 직종의 연가 계산은 준비 중이에요).
+          </p>
+        {:else if leave.grantedHours === 0 && !leave.overridden}
           <p class="note">임용 후 1개월이 지나면 연가가 생겨요.</p>
         {/if}
-        {#if leave.remainingHours < 0}
+        {#if leave.remainingHours < 0 && view.advanceLimit !== null}
           <p class="note warn">
             부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요(복무규정
             제16조).
@@ -484,15 +488,19 @@
         올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
       {/if}
     </p>
-    <p class="note">
-      연가보상비 1일 단가: {view.data.settings.hideAmounts
-        ? MASKED_WON
-        : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(
-        rules.compensation.rate * 100,
-      )}% ÷
-      {rules.compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관
-      방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
-    </p>
+    {#if view.leaveDayPrice !== null}
+      <p class="note">
+        연가보상비 1일 단가: {view.data.settings.hideAmounts
+          ? MASKED_WON
+          : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(
+          rules.compensation.rate * 100,
+        )}% ÷
+        {rules.compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관
+        방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
+      </p>
+    {:else if view.leaveCompensationOff}
+      <p class="note">연가보상비: {view.leaveCompensationOff.reason}</p>
+    {/if}
   </section>
 </div>
 

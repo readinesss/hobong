@@ -13,13 +13,20 @@ import {
   type Ymd,
 } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
+import { careerMaxStep, careerOf, type CareerProfile } from './career-profile.ts';
 import { tierDays } from './leave.ts';
-import { longServiceInfo, minServiceDate, seniorTreatmentInfo } from './promotion.ts';
-import { retirementInfo } from './retirement.ts';
-import { assertCalculable, gradeKey, gradeOf, maxStepOf } from './salary.ts';
+import {
+  longServiceInfo,
+  minServiceDate,
+  minServiceMonths,
+  seniorTreatmentInfo,
+} from './promotion.ts';
+import { effectiveRetirement } from './retirement.ts';
 import { nextRaiseDate, stepOn } from './step.ts';
-import type { LongLeaveTier } from '../rules/types.ts';
-import type { Profile } from '../store/schema.ts';
+import { withRo } from '../app/format.ts';
+import { rankSlug } from '../rules/career.ts';
+import { GENERAL_RANKS } from '../store/schema.ts';
+import { isAvailable, type LongLeaveTier } from '../rules/types.ts';
 
 export type MilestoneKind = 'career' | 'leave' | 'pay' | 'promotion' | 'retire';
 
@@ -113,22 +120,26 @@ export interface LongLeaveNotice {
 /**
  * today 기준으로 지금 쓸 수 있거나 1년 안에 생기는 장기재직휴가(시작일 순).
  * 이미 썼는지는 저장하지 않으므로 알 수 없다. 정년퇴직일 뒤에는 빈 목록이다.
+ * retireDate 가 null 이면(정년 규정이 꺼진 직종) 상한 없는 구간은 마지막 날을 몰라 넣지 않는다.
  */
 export function longLeaveNotices(
   tiers: readonly LongLeaveTier[],
   hireDate: Ymd,
   today: Ymd,
-  retireDate: Ymd,
+  retireDate: Ymd | null,
 ): LongLeaveNotice[] {
-  if (today > retireDate) return [];
+  if (retireDate !== null && today > retireDate) return [];
   const horizon = addMonthsClamped(today, 12);
   const out: LongLeaveNotice[] = [];
   for (const tier of tiers) {
     const w = longLeaveWindow(tier, hireDate);
     if (!w) continue;
-    const byRetirement = w.until === null || retireDate < w.until;
-    const lastDay = byRetirement ? retireDate : (w.until as Ymd);
-    if (lastDay < today || w.from > retireDate || w.from > horizon) continue;
+    // 정년을 계산하지 않는 직종(준비 중)은 상한 없는 구간의 마지막 날을 알 수 없어 넣지 않는다.
+    if (retireDate === null && w.until === null) continue;
+    const byRetirement = retireDate !== null && (w.until === null || retireDate < w.until);
+    const lastDay = byRetirement ? (retireDate as Ymd) : (w.until as Ymd);
+    if (lastDay < today || (retireDate !== null && w.from > retireDate) || w.from > horizon)
+      continue;
     out.push({
       fromYears: tier.fromYears,
       toYears: tier.toYears,
@@ -157,17 +168,27 @@ function percent(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
-/** 임용일부터 정년퇴직일까지의 모든 일정(날짜순) */
-export function buildMilestones(rules: RulesProvider, profile: Profile, today: Ymd): Milestone[] {
-  assertCalculable(profile);
-  const r = rules(yearOf(today));
-  const { hireDate, rankDate, rank } = profile;
-  /** 일반직 직급 수(7급 → 7). 한 직급 위·시보 대상 비교에 쓴다 */
-  const level = gradeOf(rank);
-  const retire = retirementInfo(r.retirement, profile.birthDate).retireDate;
+/** 정년이 꺼진 직종(준비 중)에서 일정을 늘어놓는 끝: 임용 45주년까지 */
+const MAX_ANNIVERSARY = 45;
+
+/**
+ * 임용일부터 정년퇴직일까지의 모든 일정(날짜순).
+ * 규정이 꺼진 항목(준비 중·해당 없음)의 일정은 넣지 않는다. 정년이 꺼져 있으면 정년 계열도 없다.
+ */
+export function buildMilestones(
+  rules: RulesProvider,
+  profile: CareerProfile,
+  today: Ymd,
+): Milestone[] {
+  const c = careerOf(rules, profile, yearOf(today));
+  const { hireDate, rankDate } = profile;
+  const rank = c.rank;
+  const eff = effectiveRetirement(c, profile);
+  const retirement = isAvailable(eff) ? eff : null;
+  const retire = retirement ? retirement.retireDate : null;
   const out: Milestone[] = [];
   const push = (m: Milestone) => {
-    if (m.date >= hireDate && m.date <= retire) out.push(m);
+    if (m.date >= hireDate && (retire === null || m.date <= retire)) out.push(m);
   };
 
   push({
@@ -180,10 +201,14 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
     badge: true,
   });
 
-  // 시보 해제: 6급 이하로 재직 중이면 임용 당시에도 6급 이하였으므로 6개월로 본다.
-  // 5급 이상은 임용 당시 계급을 알 수 없어 넣지 않는다.
-  const probationMonths = r.probation.monthsByGrade[gradeKey(rank)];
-  if (probationMonths !== undefined && level >= 6) {
+  // 시보 해제: 일반직 6급 이하로 재직 중이면 임용 당시에도 6급 이하였으므로 6개월로 본다.
+  // 5급 이상은 임용 당시 계급을 알 수 없어 넣지 않는다. 일반직 사다리가 아니면 넣지 않는다(설계 §5.6).
+  const probation = c.probation;
+  const generalLevel =
+    c.ladderId === 'general' && rank && GENERAL_RANKS.includes(rank.key) ? Number(rank.key) : null;
+  const probationMonths =
+    isAvailable(probation) && rank ? probation.monthsByGrade[rank.key] : undefined;
+  if (probationMonths !== undefined && generalLevel !== null && generalLevel >= 6) {
     push({
       id: 'probation',
       date: periodCompleteDate(hireDate, probationMonths),
@@ -196,40 +221,47 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   }
 
   // 연가 일수가 늘어나는 날
-  const leaveTiers = r.leave.annual.tiers;
-  leaveTiers.forEach((tier, i) => {
-    if (tier.fromMonths < 12) return;
-    const before = tierDays(leaveTiers, tier.fromMonths - 1);
-    const isLast = i === leaveTiers.length - 1;
-    push({
-      id: `leave-${tier.days}`,
-      date: periodCompleteDate(hireDate, tier.fromMonths),
-      title: `연가 ${tier.days}일`,
-      detail: `재직 ${yearsLabel(tier.fromMonths)}. 한 해 연가가 ${before}일에서 ${tier.days}일로 늘어나요.`,
-      icon: 'icon-palm',
-      kind: 'leave',
-      badge: isLast,
+  const annual = c.leave.annual;
+  if (isAvailable(annual)) {
+    const leaveTiers = annual.tiers;
+    leaveTiers.forEach((tier, i) => {
+      if (tier.fromMonths < 12) return;
+      const before = tierDays(leaveTiers, tier.fromMonths - 1);
+      const isLast = i === leaveTiers.length - 1;
+      push({
+        id: `leave-${tier.days}`,
+        date: periodCompleteDate(hireDate, tier.fromMonths),
+        title: `연가 ${tier.days}일`,
+        detail: `재직 ${yearsLabel(tier.fromMonths)}. 한 해 연가가 ${before}일에서 ${tier.days}일로 늘어나요.`,
+        icon: 'icon-palm',
+        kind: 'leave',
+        badge: isLast,
+      });
     });
-  });
+  }
 
   // 정근수당 지급률이 오르는 날
-  const dTiers = r.allowances.diligence.tiers;
-  dTiers.forEach((tier, i) => {
-    const next = dTiers[i + 1];
-    if (tier.underYears === null || !next) return;
-    push({
-      id: `diligence-${tier.underYears}`,
-      date: periodCompleteDate(hireDate, tier.underYears * 12),
-      title: `정근수당 ${percent(next.rate)}`,
-      detail: `근무연수 ${tier.underYears}년. 지급률이 ${percent(tier.rate)}에서 ${percent(next.rate)}로 올라요(다음 1·7월 지급분부터).`,
-      icon: 'icon-gift',
-      kind: 'pay',
-      badge: false,
+  const diligence = c.allowances.diligence;
+  if (isAvailable(diligence)) {
+    const dTiers = diligence.tiers;
+    dTiers.forEach((tier, i) => {
+      const next = dTiers[i + 1];
+      if (tier.underYears === null || !next) return;
+      push({
+        id: `diligence-${tier.underYears}`,
+        date: periodCompleteDate(hireDate, tier.underYears * 12),
+        title: `정근수당 ${percent(next.rate)}`,
+        detail: `근무연수 ${tier.underYears}년. 지급률이 ${percent(tier.rate)}에서 ${percent(next.rate)}로 올라요(다음 1·7월 지급분부터).`,
+        icon: 'icon-gift',
+        kind: 'pay',
+        badge: false,
+      });
     });
-  });
+  }
 
   // 장기재직휴가: 조항이 생긴 날 이후에만, 그 구간에 있는 동안만 있는 휴가다.
-  for (const tier of r.leave.longService.tiers) {
+  const longLeave = c.leave.longService;
+  for (const tier of isAvailable(longLeave) ? longLeave.tiers : []) {
     const window = longLeaveWindow(tier, hireDate);
     if (!window) continue;
     const until = window.until ? `${formatKorean(window.until, false)}까지` : '재직하는 동안';
@@ -248,59 +280,92 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
     });
   }
 
-  // 현 직급 기준 일정
-  const minDate = minServiceDate(r.promotion, rank, rankDate);
-  const minMonths = r.promotion.minService.monthsByGrade[gradeKey(rank)];
-  if (minDate && minMonths !== undefined && level > 1) {
+  // 현 계급 기준 일정(계급 이름은 사다리의 이름: '7급', '경위', '우정7급'…)
+  const slug = rankSlug(c);
+  const minDate = minServiceDate(c, rankDate);
+  const minMonths = minServiceMonths(c);
+  if (rank && c.nextRank && minDate && minMonths !== null) {
     push({
-      id: `min-service-${level}`,
+      id: `min-service-${slug}`,
       date: minDate,
       title: '승진소요최저연수 충족',
-      detail: `${level}급으로 ${yearsLabel(minMonths)} 재직. ${level - 1}급 승진 심사 대상이 될 수 있는 최소 기간을 채워요.`,
+      detail: `${withRo(rank.label)} ${yearsLabel(minMonths)} 재직. ${c.nextRank.label} 승진 심사 대상이 될 수 있는 최소 기간을 채워요.`,
       icon: 'icon-stairs',
       kind: 'promotion',
       badge: false,
     });
   }
-  const senior = seniorTreatmentInfo(r.promotion, profile);
-  if (senior.applicable && senior.date && senior.requiredMonths !== null) {
+  const senior = seniorTreatmentInfo(c, profile);
+  if (
+    rank &&
+    isAvailable(senior) &&
+    senior.applicable &&
+    senior.targetRank &&
+    senior.date &&
+    senior.requiredMonths !== null
+  ) {
     push({
-      id: `senior-${level}`,
+      id: `senior-${slug}`,
       date: senior.date,
-      title: `${level - 1}급 대우공무원 요건`,
+      title: `${senior.targetRank.label} 대우공무원 요건`,
       detail: senior.overridden
         ? '직접 입력한 선발 예정일.'
-        : `${level}급으로 ${yearsLabel(senior.requiredMonths)} 근무. 요건을 채운 뒤 처음 오는 1일에 선발될 수 있다(근무실적 요건 별도).`,
+        : `${withRo(rank.label)} ${yearsLabel(senior.requiredMonths)} 근무. 요건을 채운 뒤 처음 오는 1일에 선발될 수 있다(근무실적 요건 별도).`,
       icon: 'icon-medal',
       kind: 'promotion',
       badge: false,
     });
   }
-  const longService = longServiceInfo(r.promotion, profile);
-  if (longService.applicable && longService.date && longService.requiredMonths !== null) {
+  const longService = longServiceInfo(c, profile);
+  if (
+    rank &&
+    isAvailable(longService) &&
+    longService.applicable &&
+    longService.targetRank &&
+    longService.date &&
+    longService.requiredMonths !== null
+  ) {
+    // '할 수 있다' 규정임을 밝히는 문구는 규정 데이터(longService.discretionNote)에서 읽는다.
+    const note = isAvailable(c.longService) ? c.longService.discretionNote : undefined;
+    const discretion = note ? ` ${note}` : '';
     push({
-      id: `long-service-${level}`,
+      id: `long-service-${slug}`,
       date: longService.date,
-      title: `${level - 1}급 근속승진 요건`,
+      title: `${longService.targetRank.label} 근속승진 요건`,
       detail: longService.overridden
         ? '직접 입력한 요건 충족일.'
-        : `${level}급으로 ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(승진후보자명부 등재 등 요건 별도).`,
+        : `${withRo(rank.label)} ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(승진후보자명부 등재 등 요건 별도).${discretion}`,
       icon: 'icon-stairs',
       kind: 'promotion',
       badge: false,
     });
   }
 
-  // 다음 정기승급
-  const maxStep = maxStepOf(r.salary, rank);
-  const nextRaise = nextRaiseDate(profile, today, maxStep, r.stepRaise.periodMonths);
-  if (nextRaise) {
-    const to = stepOn(profile, nextRaise, maxStep, r.stepRaise.periodMonths);
+  // 다음 정기승급. 정기승급을 계산하지 않는 직종은 입력한 다음 승급일만 보여 준다(설계 §5.4).
+  // 정기승급은 계산하지만 최고호봉을 모르면(계급을 모름 등, 봉급이 꺼짐) 상한을 알 수 없어 일정을 넣지 않는다.
+  const stepRaise = c.stepRaise;
+  const knownMax = careerMaxStep(c);
+  if (isAvailable(stepRaise) && knownMax !== null) {
+    const maxStep = knownMax;
+    const nextRaise = nextRaiseDate(profile, today, maxStep, stepRaise.periodMonths);
+    if (nextRaise) {
+      const to = stepOn(profile, nextRaise, maxStep, stepRaise.periodMonths);
+      push({
+        id: `step-${nextRaise}`,
+        date: nextRaise,
+        title: `정기승급 ${to}호봉`,
+        detail: `${to - 1}호봉에서 ${to}호봉으로. 호봉이의 깃이 하나 더 자라요.`,
+        icon: 'icon-arrow-up',
+        kind: 'pay',
+        badge: false,
+      });
+    }
+  } else if (!isAvailable(stepRaise) && profile.nextStepDate > today) {
     push({
-      id: `step-${nextRaise}`,
-      date: nextRaise,
-      title: `정기승급 ${to}호봉`,
-      detail: `${to - 1}호봉에서 ${to}호봉으로. 호봉이의 깃이 하나 더 자라요.`,
+      id: `step-${profile.nextStepDate}`,
+      date: profile.nextStepDate,
+      title: '다음 승급일(입력한 날)',
+      detail: '내 정보에 넣은 다음 승급일이에요. 승급하면 내 정보에서 호봉을 고쳐 주세요.',
       icon: 'icon-arrow-up',
       kind: 'pay',
       badge: false,
@@ -308,9 +373,9 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   }
 
   // 근속 N주년
-  for (let n = 1; n <= 45; n += 1) {
+  for (let n = 1; n <= MAX_ANNIVERSARY; n += 1) {
     const date = addMonthsClamped(hireDate, n * 12);
-    if (date > retire) break;
+    if (retire !== null && date > retire) break;
     push({
       id: `anniv-${n}`,
       date,
@@ -335,39 +400,46 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
     });
   }
 
-  // 정년까지
-  const total = diffDays(hireDate, retire);
-  if (total > 0) {
+  // 정년까지(연령정년·계급정년 중 먼저 오는 날. 계급정년 전용 일정은 두지 않는다 — 설계 §5.6)
+  if (retirement && retire !== null) {
+    const total = diffDays(hireDate, retire);
+    if (total > 0) {
+      push({
+        id: 'retire-half',
+        date: addDays(hireDate, Math.ceil(total / 2)),
+        title: '반환점',
+        detail: '임용부터 정년까지의 길, 절반을 지나요.',
+        icon: 'icon-mountain',
+        kind: 'retire',
+        badge: true,
+      });
+    }
+    for (const mark of RETIRE_COUNTDOWNS) {
+      push({
+        id: `retire-d${mark.days}`,
+        date: addDays(retire, -mark.days),
+        title: `정년까지 ${mark.label}`,
+        detail: '날아오를 날이 가까워져요.',
+        icon: 'icon-hourglass',
+        kind: 'retire',
+        badge: false,
+      });
+    }
+    const limit = retirement.cause === 'rankLimit' ? retirement.rankLimit : null;
     push({
-      id: 'retire-half',
-      date: addDays(hireDate, Math.ceil(total / 2)),
-      title: '반환점',
-      detail: '임용부터 정년까지의 길, 절반을 지나요.',
-      icon: 'icon-mountain',
-      kind: 'retire',
-      badge: true,
-    });
-  }
-  for (const mark of RETIRE_COUNTDOWNS) {
-    push({
-      id: `retire-d${mark.days}`,
-      date: addDays(retire, -mark.days),
-      title: `정년까지 ${mark.label}`,
-      detail: '날아오를 날이 가까워져요.',
-      icon: 'icon-hourglass',
+      id: 'retire',
+      date: retire,
+      title: limit ? '계급정년 퇴직' : '정년퇴직',
+      detail: !limit
+        ? '긴 길의 끝. 호봉이가 날개를 펴고 날아올라요.'
+        : limit.overridden
+          ? '직접 넣은 계급정년에 이르는 날로 퇴직해요.'
+          : `계급정년(${rank && limit.years !== null ? `${rank.label} ${limit.years}년` : '현 계급'})으로 퇴직해요. 승진하면 달라져요.`,
+      icon: 'icon-flag',
       kind: 'retire',
       badge: false,
     });
   }
-  push({
-    id: 'retire',
-    date: retire,
-    title: '정년퇴직',
-    detail: '긴 길의 끝. 호봉이가 날개를 펴고 날아올라요.',
-    icon: 'icon-flag',
-    kind: 'retire',
-    badge: false,
-  });
 
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
 }

@@ -4,6 +4,9 @@
   import { app } from '../lib/app/state.svelte.ts';
   import { readFileText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
+  import { careerOf } from '../lib/calc/career-profile.ts';
+  import { todayYmd, yearOf } from '../lib/calc/date.ts';
+  import { rankStepLabel, rulesFor } from '../lib/rules/index.ts';
   import { type ParseResult } from '../lib/store/backup.ts';
   import {
     canEncrypt,
@@ -47,6 +50,15 @@
 
   const hasExisting = $derived(app.data !== null);
   const ok = $derived(result && result.ok ? (result as Ok) : null);
+  /** 불러올 파일의 '경위 12호봉' / '12호봉'(교원) / '7급 12호봉'(저장된 호봉 그대로) */
+  const importedRankStep = $derived(
+    ok
+      ? rankStepLabel(
+          careerOf(rulesFor, ok.data.profile, yearOf(todayYmd(new Date()))),
+          ok.data.profile.step,
+        )
+      : '',
+  );
 
   function lockMessage(code: LockError, from: 'file' | 'paste'): string {
     switch (code) {
@@ -201,7 +213,7 @@
         </div>
         <div class="kv">
           <dt>직급·호봉</dt>
-          <dd>{ok.data.profile.rank}급 {ok.data.profile.step}호봉</dd>
+          <dd>{importedRankStep}</dd>
         </div>
         <div class="kv">
           <dt>연가 기록</dt>

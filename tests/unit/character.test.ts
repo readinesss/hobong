@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { characterRules as C } from '../../src/lib/character/rules.ts';
+import { decideGrowth } from '../../src/lib/character/growth.ts';
+import type { Ladder, LadderId } from '../../src/lib/rules/types.ts';
 import {
   decideMood,
+  formById,
   formFor,
+  formIdFor,
+  tenureStage,
   itemsAt,
   nextUnlock,
   resolveLook,
@@ -163,7 +168,7 @@ describe('캐릭터 규칙 (data/character.json)', () => {
 
 describe('모습 정하기', () => {
   it('근무 중: 그림자 + 호봉 소품', () => {
-    const look = resolveLook(C, '8', 5, 'work');
+    const look = resolveLook(C, formFor(C, '8').id, 5, 'work');
     expect(look.form.id).toBe('chick');
     expect(look.eyes).toBe('eyes-open');
     expect(look.canBlink).toBe(true);
@@ -175,7 +180,7 @@ describe('모습 정하기', () => {
     ]);
   });
   it('연가 중: 업무 소품을 내려놓고 휴가 복장', () => {
-    const look = resolveLook(C, '7', 20, 'vacation');
+    const look = resolveLook(C, formFor(C, '7').id, 20, 'vacation');
     expect(look.parts.map((p) => p.sprite)).toEqual([
       'shadow',
       'item-sunglasses',
@@ -186,23 +191,27 @@ describe('모습 정하기', () => {
     expect(look.moodLabel).toBe('연가 중');
   });
   it('지친 모습·월급날·축하', () => {
-    expect(resolveLook(C, '9', 1, 'tired').parts.map((p) => p.sprite)).toEqual([
+    expect(resolveLook(C, formFor(C, '9').id, 1, 'tired').parts.map((p) => p.sprite)).toEqual([
       'shadow',
       'item-lanyard',
       'fx-sweat',
     ]);
-    expect(resolveLook(C, '9', 1, 'tired').eyes).toBe('eyes-tired');
-    expect(resolveLook(C, '9', 1, 'payday').parts.at(-1)).toEqual({
+    expect(resolveLook(C, formFor(C, '9').id, 1, 'tired').eyes).toBe('eyes-tired');
+    expect(resolveLook(C, formFor(C, '9').id, 1, 'payday').parts.at(-1)).toEqual({
       sprite: 'fx-coin',
       animated: true,
     });
-    const party = resolveLook(C, '6', 22, 'celebrate');
+    const party = resolveLook(C, formFor(C, '6').id, 22, 'celebrate');
     expect(party.parts.map((p) => p.sprite)).toContain('item-partyhat');
     expect(party.parts.map((p) => p.sprite)).not.toContain('item-crest-gold');
   });
   it('높은 호봉의 반짝이', () => {
-    expect(resolveLook(C, '6', 28, 'work').parts.map((p) => p.sprite)).toContain('fx-sparkle');
-    expect(resolveLook(C, '6', 27, 'work').parts.map((p) => p.sprite)).not.toContain('fx-sparkle');
+    expect(resolveLook(C, formFor(C, '6').id, 28, 'work').parts.map((p) => p.sprite)).toContain(
+      'fx-sparkle',
+    );
+    expect(resolveLook(C, formFor(C, '6').id, 27, 'work').parts.map((p) => p.sprite)).not.toContain(
+      'fx-sparkle',
+    );
   });
 
   const base: MoodInput = {
@@ -313,5 +322,148 @@ describe('직종별 진화(#20, data/character.json evolution)', () => {
     expect(C.evolution.byRank.police?.['경위']).toBe(generalForm(6));
     expect(C.evolution.byRank.police?.['경감']).toBe(generalForm(6));
     expect(C.evolution.byRank.police?.['경정']).toBe(generalForm(5));
+  });
+});
+
+describe('형태 고르기(formIdFor, #20 설계 §5.7)', () => {
+  const R = rulesFor(2026);
+  const today = '2026-11-25';
+  const formOf = (ladderId: LadderId | null, rank: string | null, hireDate = '2020-03-02') =>
+    formIdFor(C, { ladderId, rank, hireDate, today });
+
+  it('일반직 사다리는 지금과 같다(forms[].grades)', () => {
+    for (let g = 1; g <= 9; g += 1)
+      expect(formOf('general', String(g))).toBe(formFor(C, String(g)).id);
+  });
+  it('그 밖의 사다리는 evolution.byRank, 모든 계급이 매핑된다', () => {
+    for (const [id, ladder] of Object.entries(R.tracks.ladders) as [LadderId, Ladder][]) {
+      if (id === 'general' || id === 'teacher') continue;
+      for (const r of ladder.ranks) expect(formOf(id, r.key)).toBe(C.evolution.byRank[id]?.[r.key]);
+    }
+    expect(formOf('police', '순경')).toBe('egg');
+    expect(formOf('police', '경정')).toBe('phoenix');
+    // 우정N급(별표 8)은 일반직 N급과 같은 진화 단계(7~9급)
+    expect(formOf('postal', '7')).toBe(formOf('general', '7'));
+    expect(formOf('postal', '9')).toBe(formOf('general', '9'));
+  });
+  it('교원·사다리 없는 직종·계급을 모름: 재직 연수(0·2·5·10·20년)', () => {
+    // 1년 364일이면 아직 첫해(알), 2년이 되는 날 솜봉이
+    expect(formOf('teacher', '교원', '2024-11-26')).toBe('egg');
+    expect(formOf('teacher', '교원', '2024-11-25')).toBe('chick');
+    expect(formOf('teacher', '교원', '2021-11-26')).toBe('chick');
+    expect(formOf('teacher', '교원', '2021-11-25')).toBe('fledgling');
+    expect(formOf('teacher', '교원', '2016-11-25')).toBe('bird');
+    expect(formOf('teacher', '교원', '2006-11-25')).toBe('phoenix');
+    expect(formOf(null, null, '2016-11-25')).toBe('bird');
+    expect(formOf('police', null, '2016-11-25')).toBe('bird');
+    expect(formOf('police', '없는계급', '2026-11-25')).toBe('egg');
+    // 임용 전(오늘보다 뒤 임용일)도 첫해
+    expect(formOf(null, null, '2027-03-02')).toBe('egg');
+    expect(tenureStage(C, '2024-11-25', today)?.label).toBe('2년');
+  });
+  it('모르는 형태 id 는 첫 형태로 그린다(손상·옛 데이터)', () => {
+    expect(formById(C, 'unknown-form').id).toBe(C.forms[0]?.id);
+    expect(resolveLook(C, 'unknown-form', 3, 'work').form.id).toBe('egg');
+  });
+});
+
+describe('성장 연출(decideGrowth, #20 설계 §5.8)', () => {
+  const R = rulesFor(2026);
+  const general = R.tracks.ladders.general.ranks;
+  const mark = <F extends string | null>(rank: string | null, step: number, form: F) => ({
+    rank,
+    step,
+    form,
+  });
+
+  it('같은 계급에서 호봉만 오름 → 승급 연출', () => {
+    expect(decideGrowth(C, mark('9', 5, 'egg'), mark('9', 6, 'egg'), general)).toEqual({
+      kind: 'step',
+    });
+  });
+  it('lastForm 이 null(새 사용자·v3 변환)이면 형태 연출 없이 지금 형태로 기록만', () => {
+    expect(decideGrowth(C, mark('9', 5, null), mark('9', 5, 'egg'), general)).toEqual({
+      kind: 'record',
+    });
+    // 호봉이 올랐으면 승급 연출은 한다(형태 변화로는 보지 않는다 — state 가 출발 형태를 지금 형태로 그린다)
+    expect(decideGrowth(C, mark('9', 5, null), mark('9', 6, 'egg'), general)).toEqual({
+      kind: 'step',
+    });
+    expect(decideGrowth(C, mark('교원', 10, 'nope'), mark('교원', 11, 'bird'), null)).toEqual({
+      kind: 'step',
+    });
+    // 계급 순서가 오른 성장 연출은 하지 않는다(형태 변화를 그리는 연출이라 출발 형태를 모르면 기록만)
+    const police = R.tracks.ladders.police.ranks;
+    expect(decideGrowth(C, mark('경정', 3, null), mark('총경', 3, 'phoenix'), police)).toEqual({
+      kind: 'record',
+    });
+  });
+  it('형태 순서가 내려가면 호봉·계급이 올라도 연출 없이 기록만(작아지는 연출을 그리지 않는다)', () => {
+    // 같은 계급에서 호봉이 오르며 형태가 내려감(교원: 데이터 문턱이 바뀐 경우)
+    expect(decideGrowth(C, mark('교원', 9, 'chick'), mark('교원', 10, 'egg'), null)).toEqual({
+      kind: 'record',
+    });
+    // 같은 사다리에서 계급이 오르며 형태가 내려감
+    const police = R.tracks.ladders.police.ranks;
+    expect(decideGrowth(C, mark('경사', 3, 'fledgling'), mark('경위', 3, 'chick'), police)).toEqual(
+      { kind: 'record' },
+    );
+  });
+  it('형태 순서가 오르면(교원: 재직 연수) 성장 연출', () => {
+    expect(decideGrowth(C, mark('교원', 9, 'egg'), mark('교원', 9, 'chick'), null)).toEqual({
+      kind: 'grow',
+    });
+    // 호봉과 형태가 같이 오르면 성장 연출로 한 번만
+    expect(decideGrowth(C, mark('교원', 9, 'egg'), mark('교원', 10, 'chick'), null)).toEqual({
+      kind: 'grow',
+    });
+  });
+  it('같은 사다리에서 계급 순서가 오르면 성장 연출, 내려가면 기록만', () => {
+    const police = R.tracks.ladders.police.ranks;
+    expect(decideGrowth(C, mark('경정', 3, 'phoenix'), mark('총경', 3, 'phoenix'), police)).toEqual(
+      { kind: 'grow' },
+    );
+    expect(decideGrowth(C, mark('총경', 3, 'phoenix'), mark('경정', 3, 'phoenix'), police)).toEqual(
+      { kind: 'record' },
+    );
+  });
+  it('문턱을 올린 가짜 규칙에서 형태가 내려가면 연출 없이 lastForm 만 갱신', () => {
+    const raised: typeof C = {
+      ...C,
+      evolution: {
+        ...C.evolution,
+        byTenure: C.evolution.byTenure.map((s) => ({ ...s, fromYears: s.fromYears * 2 })),
+      },
+    };
+    // 재직 3년: 지금 규칙으로는 chick(2년~), 문턱을 두 배로 올린 규칙으로는 egg(4년 전)
+    const hireDate = '2023-11-25';
+    const before = formIdFor(C, {
+      ladderId: 'teacher',
+      rank: '교원',
+      hireDate,
+      today: '2026-11-25',
+    });
+    const after = formIdFor(raised, {
+      ladderId: 'teacher',
+      rank: '교원',
+      hireDate,
+      today: '2026-11-25',
+    });
+    expect([before, after]).toEqual(['chick', 'egg']);
+    expect(decideGrowth(raised, mark('교원', 9, before), mark('교원', 9, after), null)).toEqual({
+      kind: 'record',
+    });
+  });
+  it('lastForm 이 모르는 id 면 연출 없음, 바뀐 것이 없으면 아무것도 하지 않음', () => {
+    expect(decideGrowth(C, mark('9', 5, 'unknown-form'), mark('9', 5, 'egg'), general)).toEqual({
+      kind: 'record',
+    });
+    expect(decideGrowth(C, mark('9', 5, 'egg'), mark('9', 5, 'egg'), general)).toEqual({
+      kind: 'none',
+    });
+    // 직접 고쳐 호봉이 내려간 경우
+    expect(decideGrowth(C, mark('9', 7, 'egg'), mark('9', 5, 'egg'), general)).toEqual({
+      kind: 'record',
+    });
   });
 });

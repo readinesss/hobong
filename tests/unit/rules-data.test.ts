@@ -56,6 +56,7 @@ const TRACK_TEXT_KEYS = new Set([
   'workHoursNote',
   'leaveNote',
   'quotaNote',
+  'discretionNote',
   'label',
 ]);
 function trackTexts(value: unknown, out: string[] = []): string[] {

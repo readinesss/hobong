@@ -1,9 +1,9 @@
 /**
- * 직급·호봉·기분 → 어떤 부품을 겹쳐 그릴지 정한다(순수 함수).
+ * 형태(직급·계급 또는 재직 연수)·호봉·기분 → 어떤 부품을 겹쳐 그릴지 정한다(순수 함수).
  * 규칙은 data/character.json 에 있다.
  */
-import { gradeOf } from '../calc/salary.ts';
-import type { RankKey } from '../rules/types.ts';
+import { completedYears, type Ymd } from '../calc/date.ts';
+import type { LadderId, RankKey } from '../rules/types.ts';
 
 export type MoodId =
   'work' | 'lunch' | 'off' | 'sleep' | 'vacation' | 'tired' | 'payday' | 'celebrate';
@@ -100,12 +100,62 @@ export interface Look {
   wearing: { id: string; name: string; tint: string | null }[];
 }
 
-/** 계급의 형태. 지금은 일반직 계급 키('1'~'9')만 받는다(character.json forms 의 grades 는 직급 수) */
+/** 일반직 계급 키('1'~'9')의 형태(character.json forms 의 grades 는 직급 수) */
 export function formFor(rules: CharacterRules, rank: RankKey | null): FormRule {
-  const level = gradeOf(rank);
+  const level = Number(rank);
   const form = rules.forms.find((f) => f.grades.includes(level));
-  if (!form) throw new Error(`${level}급에 해당하는 형태가 character.json에 없습니다`);
+  if (!form) throw new Error(`${String(rank)}급에 해당하는 형태가 character.json에 없습니다`);
   return form;
+}
+
+/** 형태 id 의 형태. 모르는 id(손상된 저장본·옛 데이터)면 첫 형태(알)로 그린다 */
+export function formById(rules: CharacterRules, id: string): FormRule {
+  const form = rules.forms.find((f) => f.id === id) ?? rules.forms[0];
+  if (!form) throw new Error('character.json 에 형태가 없습니다');
+  return form;
+}
+
+/** 형태 고르기의 입력: 계급 사다리와 계급, 재직 연수를 셀 임용일·오늘 */
+export interface FormInput {
+  ladderId: LadderId | null;
+  rank: RankKey | null;
+  hireDate: Ymd;
+  today: Ymd;
+}
+
+/** 재직 연수로 고르는 단계(교원·사다리 없는 직종). 문턱(fromYears) 이상인 마지막 단계 */
+export function tenureStage(
+  rules: CharacterRules,
+  hireDate: Ymd,
+  today: Ymd,
+): CharacterRules['evolution']['byTenure'][number] | null {
+  const years = today < hireDate ? 0 : completedYears(hireDate, today);
+  let stage: CharacterRules['evolution']['byTenure'][number] | null = null;
+  for (const s of rules.evolution.byTenure) if (s.fromYears <= years) stage = s;
+  return stage;
+}
+
+/**
+ * 지금 형태의 id(#20 설계 §5.7).
+ * 일반직 사다리는 forms[].grades, 그 밖의 사다리는 evolution.byRank, 거기에 없으면(교원·사다리 없는 직종·
+ * 계급을 모름) 재직 연수(evolution.byTenure)로 고른다.
+ */
+export function formIdFor(rules: CharacterRules, input: FormInput): string {
+  const { ladderId, rank } = input;
+  if (ladderId === 'general' && rank !== null) {
+    const form = rules.forms.find((f) => f.grades.includes(Number(rank)));
+    if (form) return form.id;
+  } else if (ladderId && rank !== null) {
+    const id = rules.evolution.byRank[ladderId]?.[rank];
+    if (id) return id;
+  }
+  const stage = tenureStage(rules, input.hireDate, input.today);
+  return stage?.form ?? formById(rules, '').id;
+}
+
+/** 형태의 순서(forms 안의 위치). 모르는 id 면 -1 */
+export function formIndex(rules: CharacterRules, id: string | null): number {
+  return id === null ? -1 : rules.forms.findIndex((f) => f.id === id);
 }
 
 function toRemap(remap: Record<string, number>): Record<number, number> | undefined {
@@ -134,11 +184,11 @@ export function tintAt(item: ItemRule, step: number): TintRule | null {
 
 export function resolveLook(
   rules: CharacterRules,
-  rank: RankKey | null,
+  formId: string,
   step: number,
   mood: MoodId,
 ): Look {
-  const form = formFor(rules, rank);
+  const form = formById(rules, formId);
   const moodRule = rules.moods[mood];
   const hidden = new Set(moodRule.hide);
   const parts: LookPart[] = [{ sprite: rules.shadow }];

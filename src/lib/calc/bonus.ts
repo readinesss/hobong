@@ -1,6 +1,7 @@
 /**
  * 정근수당(1·7월)과 명절휴가비(설날·추석) — 공무원수당규정 제7조·별표 2, 제18조의3.
  * 봉급표 기준 추정치다. 징계·휴직 등에 따른 감액과 지급 제외는 반영하지 않는다.
+ * 그 해 직종 규정에서 수당이나 봉급이 꺼져 있으면(준비 중 등) 그 항목을 만들지 않는다.
  */
 import {
   addDays,
@@ -14,9 +15,10 @@ import {
   type Ymd,
 } from './date.ts';
 import type { Calendar, RulesProvider } from './calendar.ts';
+import { careerOf } from './career-profile.ts';
 import { floorRate } from './money.ts';
 import { salaryOn, type PayProfile } from './salary.ts';
-import type { AllowanceRules } from '../rules/types.ts';
+import { isAvailable, type AllowanceRules } from '../rules/types.ts';
 
 export interface BonusEvent {
   kind: 'diligence' | 'holiday';
@@ -91,9 +93,8 @@ export function diligenceBonus(
   month: number,
   until?: Ymd,
 ): BonusEvent | null {
-  const r = rules(year);
-  const d = r.allowances.diligence;
-  if (!d.payMonths.includes(month)) return null;
+  const d = careerOf(rules, profile, year).allowances.diligence;
+  if (!isAvailable(d) || !d.payMonths.includes(month)) return null;
   const basisDate = formatYmd({ y: year, m: month, d: 1 });
   if (profile.hireDate > basisDate) return null;
   if (until !== undefined && basisDate > until) return null;
@@ -103,6 +104,7 @@ export function diligenceBonus(
   const years = completedYears(profile.hireDate, basisDate);
   const rate = diligenceRate(d.tiers, years);
   const point = salaryOn(rules, profile, basisDate);
+  if (!point) return null;
   const date = cal.payday(year, month, payday);
   return {
     kind: 'diligence',
@@ -130,9 +132,11 @@ export function holidayBonus(
 ): BonusEvent | null {
   if (profile.hireDate > basisDate) return null;
   if (until !== undefined && basisDate > until) return null;
-  const r = rules(yearOf(basisDate));
-  const rate = r.allowances.holidayBonus.rate;
+  const rule = careerOf(rules, profile, yearOf(basisDate)).allowances.holidayBonus;
+  if (!isAvailable(rule)) return null;
+  const rate = rule.rate;
   const point = salaryOn(rules, profile, basisDate);
+  if (!point) return null;
   return {
     kind: 'holiday',
     title: `명절휴가비(${name})`,
@@ -166,14 +170,17 @@ export function upcomingBonuses(
   const events: BonusEvent[] = [];
   const year = yearOf(today);
   for (const y of [year, year + 1]) {
-    for (const month of rules(y).allowances.diligence.payMonths) {
+    const d = careerOf(rules, profile, y).allowances.diligence;
+    if (!isAvailable(d)) continue;
+    for (const month of d.payMonths) {
       const event = diligenceBonus(rules, cal, profile, payday, y, month, until);
       if (event && event.date >= today) events.push(event);
     }
   }
-  const tags = rules(year).allowances.holidayBonus.basisTags;
+  const holiday = careerOf(rules, profile, year).allowances.holidayBonus;
+  const tags = isAvailable(holiday) ? holiday.basisTags : [];
   let from = today;
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < 3 && tags.length > 0; i += 1) {
     const next = cal.nextTaggedHoliday(from, tags);
     if (!next) break;
     const event = holidayBonus(rules, profile, next.date, next.name, until);
