@@ -115,6 +115,16 @@ describe('캐릭터 규칙 (data/character.json)', () => {
       }
     }
   });
+  it('넥타이 색은 몸통 바탕색(팔레트 3·4)과 겹치지 않아 가슴 위에서 보인다', () => {
+    // 몸통 바탕 #ffcd75(4)·줄무늬 #ef7d57(3) 위에 그려지므로, 넥타이 면(2)·무늬(1)가 그 색이면 묻힌다
+    const BODY = [3, 4];
+    const tie = C.items.find((i) => i.id === 'tie');
+    expect(tie?.tints?.length).toBeGreaterThan(0);
+    for (const tint of tie?.tints ?? []) {
+      const face = tint.remap['2'] ?? 2;
+      expect(BODY, `${tint.name}의 면 색`).not.toContain(face);
+    }
+  });
   it('1호봉부터 무언가를 걸치고, 호봉이 오르면 소품이 바뀐다', () => {
     expect(itemsAt(C, 1).map((i) => i.id)).toEqual(['lanyard']);
     expect(

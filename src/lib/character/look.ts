@@ -186,6 +186,11 @@ export interface MoodInput {
   celebrating: boolean;
   /** 오늘 쓴 연가 시간 */
   leaveHoursToday: number;
+  /**
+   * 지금 시각이 연가 구간인지(오전 반차는 오전에만, 오후 반차는 오후에만).
+   * 주면 이것으로 판단하고, 없으면 오늘 연가가 반일 이상인지로 본다.
+   */
+  onLeaveNow?: boolean;
   halfDayHours: number;
   isPayday: boolean;
   /** 현지 시각의 시(0~23) */
@@ -200,7 +205,7 @@ export interface MoodInput {
 /** 무벌칙 원칙: 기분은 모습만 바꾸고 불이익을 주지 않는다 */
 export function decideMood(rules: CharacterRules, input: MoodInput): MoodId {
   if (input.celebrating) return 'celebrate';
-  if (input.leaveHoursToday >= input.halfDayHours) return 'vacation';
+  if (input.onLeaveNow ?? input.leaveHoursToday >= input.halfDayHours) return 'vacation';
   const { from, to } = rules.sleepHours;
   const sleeping =
     from > to ? input.hour >= from || input.hour < to : input.hour >= from && input.hour < to;

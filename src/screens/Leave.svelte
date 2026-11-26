@@ -1,13 +1,20 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { busiestMonthText, formatWon, MASKED_WON } from '../lib/app/format.ts';
+  import {
+    busiestMonthText,
+    formatMonthBarValue,
+    formatMonthDayMaybeYear,
+    formatWon,
+    leaveBalance,
+    MASKED_WON,
+    withRo,
+  } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import {
     addDays,
     formatKorean,
     formatMonthDay,
-    parseYmd,
     startOfMonth,
     weekdayName,
     yearOf,
@@ -151,13 +158,32 @@
     });
   }
 
+  /** 징검다리 고르기: 하루면 그 날을 고르고, 이틀 이상이면 '여러 날 한꺼번에'를 그 기간으로 연다 */
   function pickBridge(dates: Ymd[]) {
-    select(dates[0] as Ymd);
+    const first = dates[0] as Ymd;
+    select(first);
+    if (dates.length > 1) {
+      rangeFrom = first;
+      rangeTo = dates[dates.length - 1] as Ymd;
+      showRange = true;
+      return;
+    }
     entryEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
+  /** 올해가 아닌 날짜에는 연도를 붙인다(11월에 보는 '5월 1일'이 지난 5월로 읽히지 않게) */
+  const md = (date: Ymd, withWeekday = true) =>
+    formatMonthDayMaybeYear(date, view.today, withWeekday);
+
   const bridges = $derived(view.bridges.slice(0, 4));
-  const selParts = $derived(parseYmd(selected));
+  const balance = $derived(
+    leaveBalance(leave.remainingHours, leave.grantedHours, leave.rate, hpd),
+  );
+
+  /** 기록 목록은 최근 것부터 몇 건만 보여 주고 '더 보기'로 펼친다(페이지 안 스크롤 상자 대신) */
+  const RECORDS_STEP = 10;
+  let recordLimit = $state(RECORDS_STEP);
+  const shownRecords = $derived(yearRecords.slice(0, recordLimit));
 </script>
 
 <div class="page">
@@ -166,15 +192,15 @@
       {#snippet aside()}{leave.year}년{/snippet}
       <div class="stack wide">
         <div class="kv">
-          <span>남은 연가</span>
-          <strong class="big" class:warn={leave.remainingHours < 0}>
-            {formatLeaveHours(leave.remainingHours, hpd)}
+          <span>{balance.label}</span>
+          <strong class="big" class:warn={balance.over}>
+            {balance.value}
           </strong>
         </div>
         <Progress
           value={leave.rate}
           label="올해 연가 사용률"
-          valueText="{Math.round(leave.rate * 100)}% 사용"
+          valueText={leave.grantedHours > 0 ? `${balance.rateText} 사용` : '부여된 연가 없음'}
           cells={Math.max(4, Math.min(24, Math.round(leave.grantedHours / hpd)))}
         />
         <dl class="stack">
@@ -198,15 +224,14 @@
           </div>
           <div class="kv">
             <dt>사용률</dt>
-            <dd class="num">{Math.round(leave.rate * 100)}%</dd>
+            <dd class="num">{balance.rateText}</dd>
           </div>
         </dl>
         {#if leave.nextChange}
           <p class="note">
-            {formatKorean(leave.nextChange.date)}부터 재직기간이 늘어 올해 연가가 {formatLeaveHours(
-              leave.nextChange.hours,
-              hpd,
-            )}로 늘어요.
+            {formatKorean(leave.nextChange.date)}부터 재직기간이 늘어 올해 연가가 {withRo(
+              formatLeaveHours(leave.nextChange.hours, hpd),
+            )} 늘어요.
           </p>
         {/if}
         {#if leave.grantedHours === 0 && !leave.overridden}
@@ -224,6 +249,9 @@
           </button>
         </div>
         <p class="cap muted">가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.</p>
+        <p class="note" id="leave-reference">
+          참고용 장부예요. 공식 기록은 소속 기관 인사시스템(e-사람 등)이 기준이에요.
+        </p>
       </div>
     </Win>
 
@@ -241,7 +269,7 @@
       <div class="win-body stack wide">
         <div class="picked">
           <span class="muted">고른 날</span>
-          <strong>{selParts.m}월 {selParts.d}일 ({weekdayName(selected)})</strong>
+          <strong>{md(selected)}</strong>
           {#if selected === view.today}<span class="tag blue">
               오늘
             </span>{:else if selected > view.today}<span class="tag">예정</span>{/if}
@@ -253,12 +281,12 @@
           <p class="note">
             {selectedHoliday
               ? `이날은 공휴일(${selectedHoliday})이라`
-              : `이날은 ${weekdayName(selected)}요일이라`} 연가를 쓰지 않아도 돼요. 아래 달력에서 다른
-            날을 골라 주세요.
+              : `이날은 ${weekdayName(selected)}요일이라`} 연가를 쓰지 않아도 돼요. 달력에서 다른 날을
+            골라 주세요.
           </p>
-        {:else if !calendar.hasHolidayData(selParts.y)}
+        {:else if !calendar.hasHolidayData(yearOf(selected))}
           <p class="note">
-            {selParts.y}년 공휴일이 아직 반영되지 않아, 이날이 공휴일인지는 확인하지 못했어요.
+            {yearOf(selected)}년 공휴일이 아직 반영되지 않아, 이날이 공휴일인지는 확인하지 못했어요.
           </p>
         {/if}
         <div class="units">
@@ -348,11 +376,11 @@
               <div class="kv">
                 <strong>{bridge.totalDays}일 연휴</strong>
                 <span class="cap muted">
-                  {formatMonthDay(bridge.from)} ~ {formatMonthDay(bridge.to)}
+                  {md(bridge.from)} ~ {md(bridge.to)}
                 </span>
               </div>
               <p class="cap muted">
-                {bridge.leaveDates.map((d) => formatMonthDay(d)).join(', ')}에 연가 {bridge
+                {bridge.leaveDates.map((d) => md(d)).join(', ')}에 연가 {bridge
                   .leaveDates.length}일 · {bridge.holidayNames.join(', ')}
               </p>
               {#if bridge.alreadyTaken}
@@ -361,9 +389,10 @@
                 <button
                   type="button"
                   class="btn small"
+                  aria-label="{bridge.leaveDates.map((d) => md(d, false)).join('·')} 고르기"
                   onclick={() => pickBridge(bridge.leaveDates)}
                 >
-                  이 날 고르기
+                  {bridge.leaveDates.length > 1 ? '이 날들 고르기' : '이 날 고르기'}
                 </button>
               {/if}
             </li>
@@ -382,7 +411,7 @@
         </p>
       {:else}
         <ul class="records">
-          {#each yearRecords as record (record.id)}
+          {#each shownRecords as record (record.id)}
             <li>
               <div class="grow stack">
                 <span>
@@ -404,6 +433,15 @@
             </li>
           {/each}
         </ul>
+        {#if yearRecords.length > shownRecords.length}
+          <button
+            type="button"
+            class="btn small more"
+            onclick={() => (recordLimit += RECORDS_STEP)}
+          >
+            더 보기 <span class="cap">({yearRecords.length - shownRecords.length}건 더)</span>
+          </button>
+        {/if}
       {/if}
     </Win>
 
@@ -418,23 +456,20 @@
       >
         {#each leave.byMonth as h, i (i)}
           <div class="m">
-            <span class="cap val">
-              {h > 0 ? (h % hpd === 0 ? h / hpd : (h / hpd).toFixed(1)) : ''}
-            </span>
+            <span class="cap val" aria-hidden="true">{formatMonthBarValue(h, hpd)}</span>
             <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
             <span class="cap muted">{i + 1}</span>
           </div>
         {/each}
       </div>
       <p class="cap muted">
-        {busiestMonthText(leave.byMonth)}
+        {busiestMonthText(leave.byMonth, hpd)}
       </p>
     </Win>
   </div>
   <section class="about">
     <p class="note">
-      공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요. 연가 일수는
-      재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
+      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
       {#if view.leaveProrated}
         올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
       {/if}
@@ -494,9 +529,12 @@
         <p class="note warn" role="alert">마지막 날이 첫날보다 앞이에요.</p>
       {:else if rangeFrom && rangeTo}
         <p class="note">
-          토요일·일요일·공휴일과 이미 기록한 날은 빼고 <strong>{rangeDays.length}일</strong>을 1일
-          연가로 기록해요.
+          토요일·일요일·공휴일과 이미 기록한 날은 빼고 근무일 <strong>{rangeDays.length}일</strong>을
+          하루 연가로 기록해요.
         </p>
+      {/if}
+      {#if memo.trim()}
+        <p class="cap muted" id="range-memo">메모 "{memo.trim()}"도 날마다 함께 적어요.</p>
       {/if}
     </div>
     {#snippet actions()}
@@ -591,9 +629,9 @@
   .records {
     display: grid;
     gap: 3px;
-    max-height: 420px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+  }
+  .more {
+    margin-top: 9px;
   }
   .records li {
     display: flex;

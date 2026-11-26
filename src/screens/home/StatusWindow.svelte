@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { formatDday } from '../../lib/app/format.ts';
+  import { formatDday, josa } from '../../lib/app/format.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean } from '../../lib/calc/date.ts';
   import Progress from '../../lib/ui/Progress.svelte';
@@ -29,7 +29,7 @@
     if (!next || !view.nextRaise) return '';
     return next.step === view.nextRaise.toStep
       ? ` · 새 소품 "${next.name}"`
-      : ` · 다음 소품 "${next.name}"은 ${next.step}호봉`;
+      : ` · 다음 소품 "${next.name}"${josa(next.name, '은', '는').slice(next.name.length)} ${next.step}호봉`;
   });
 </script>
 
@@ -123,12 +123,12 @@
       var(--u) 0 0 0 #1a1c2c;
     text-align: center;
   }
-  /* 말풍선 꼬리 */
+  /* 말풍선 꼬리: 말풍선 아래 테두리 위에 겹쳐 그려 테두리를 끊고, 말풍선과 이어진 꼬리로 보이게 한다 */
   .bubble::after {
     content: '';
     position: absolute;
-    left: calc(50% - 6px);
-    bottom: -9px;
+    left: calc(50% - 3px);
+    bottom: -6px;
     width: 6px;
     height: 6px;
     background: var(--bubble);

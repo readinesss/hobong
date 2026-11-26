@@ -3,6 +3,7 @@
  * 화면은 여기의 동작(메서드)만 호출하고 저장소를 직접 만지지 않는다.
  */
 import { addDays, diffDays, todayYmd, yearOf, type Ymd } from '../calc/date.ts';
+import { Calendar } from '../calc/calendar.ts';
 import { maxStepOf } from '../calc/salary.ts';
 import { stepOn } from '../calc/step.ts';
 import { rulesFor } from '../rules/index.ts';
@@ -77,6 +78,18 @@ function newId(): string {
     .join('')
     .slice(0, 12);
 }
+
+
+/** 복귀 정산을 띄우는 문턱 */
+const WELCOME_BACK = {
+  /** 놓친 근무일(마지막 방문 다음 날 ~ 어제) */
+  missedWorkdays: 3,
+  /** 달력 일수 */
+  calendarDays: 7,
+} as const;
+
+/** 놓친 근무일을 세는 달력(공휴일 반영) */
+const visitCalendar = new Calendar(rulesFor);
 
 class AppStore {
   data = $state<UserData | null>(null);
@@ -262,15 +275,24 @@ class AppStore {
 
   // ── 방문 ─────────────────────────────────────────────────────────────
 
-  /** 오늘 방문을 기록하고, 오랜만이면 복귀 정산을 준비한다 */
+  /**
+   * 오늘 방문을 기록하고, 오랜만이면 복귀 정산을 준비한다.
+   * 주말·연휴만 지나간 것(금→월)은 오랜만이 아니다: 놓친 근무일이 WELCOME_BACK.missedWorkdays 일 이상이거나
+   * 달력으로 WELCOME_BACK.calendarDays 일 이상 지났을 때만 띄운다.
+   */
   recordVisit(today: Ymd): void {
     const data = this.data;
     if (!data) return;
     const days = data.visits.days;
     const last = days[days.length - 1] ?? null;
     if (last === today) return;
-    if (last !== null && last < today && diffDays(last, today) >= 2) {
-      this.welcomeBack = { since: last, days: diffDays(last, today) };
+    if (last !== null && last < today) {
+      const days = diffDays(last, today);
+      // 마지막 방문 다음 날부터 어제까지의 근무일
+      const missed = days >= 2 ? visitCalendar.workdaysBetween(addDays(last, 1), today) : 0;
+      if (missed >= WELCOME_BACK.missedWorkdays || days >= WELCOME_BACK.calendarDays) {
+        this.welcomeBack = { since: last, days };
+      }
     }
     this.commit((d) => {
       d.visits.lastVisit = last;

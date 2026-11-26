@@ -34,6 +34,7 @@
     const sync = () => {
       systemDark = dark.matches;
       systemReduced = reduced.matches;
+      anim.systemReduced = reduced.matches;
     };
     sync();
     dark.addEventListener('change', sync);

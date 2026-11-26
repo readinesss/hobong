@@ -12,7 +12,25 @@
   const status = $derived(view.status);
   const earn = $derived(view.earn);
   const hidden = $derived(view.data.settings.hideAmounts);
-  const onLeave = $derived(view.leave.todayHours >= view.rules.leave.units.hoursPerDay);
+  /** 지금 연가 중인지(오전 반차는 오전에만, 오후 반차는 오후에만) — 상태창의 호봉이와 같은 기준 */
+  const onLeave = $derived(view.onLeaveNow);
+  /** 반차인 날의 꼬리표 */
+  const halfTag = $derived(
+    view.leaveToday === 'am' ? '오전 반차' : view.leaveToday === 'pm' ? '오후 반차' : '',
+  );
+  /** 퇴근까지 남은 초: 오후 반차면 반차가 시작하는 때까지 */
+  const secondsToLeave = $derived.by(() => {
+    const left = status.secondsToEnd;
+    if (left === null) return null;
+    if (view.leaveToday !== 'pm') return left;
+    return Math.max(0, left - (view.schedule.end - view.halfDaySplit) * 60);
+  });
+  /** 출근 시각: '9시 출근', '8시 30분 출근' */
+  const startLabel = $derived.by(() => {
+    const h = Math.floor(view.schedule.start / 60);
+    const m = view.schedule.start % 60;
+    return m === 0 ? `${h}시 출근` : `${h}시 ${m}분 출근`;
+  });
 
   const headline = $derived.by(() => {
     if (onLeave) return '연가 중';
@@ -63,11 +81,19 @@
 
     <div class="stack">
       <div class="kv">
-        <span>{headline}</span>
+        <span>
+          {headline}
+          {#if halfTag}<span class="tag gold">{halfTag}</span>{/if}
+        </span>
         {#if onLeave}
           <span>푹 쉬세요</span>
-        {:else if status.workday && status.secondsToEnd !== null}
-          <span class="num">퇴근까지 <strong>{formatDuration(status.secondsToEnd)}</strong></span>
+        {:else if status.workday && status.phase === 'before'}
+          <span class="num">{startLabel}</span>
+        {:else if status.workday && secondsToLeave !== null}
+          <span class="num">
+            {view.leaveToday === 'pm' ? '반차까지' : '퇴근까지'}
+            <strong>{formatDuration(secondsToLeave)}</strong>
+          </span>
         {:else if status.workday}
           <span>수고하셨어요</span>
         {/if}
@@ -84,13 +110,13 @@
     </div>
 
     <ul class="cards">
-      <li class="well">
+      {#if !view.retired}<li class="well">
         <span class="cap muted row"><Icon name="icon-coin" /> 월급날</span>
         <strong class="num">{formatDday(view.today, view.payday)}</strong>
         <span class="cap muted">
           {formatMonthDay(view.payday)}{view.paydayHolidaysKnown ? '' : ' · 공휴일 반영 전'}
         </span>
-      </li>
+      </li>{/if}
       <li class="well">
         <span class="cap muted row"><Icon name="icon-flag" /> 다음 공휴일</span>
         {#if view.nextHoliday}

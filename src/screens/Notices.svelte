@@ -39,10 +39,26 @@
 {/if}
 
 {#if view.profileIssues.length > 0}
-  <p class="note banner" role="status" id="notice-profile">
-    내 정보 중 확인이 필요한 값이 있어요({view.profileIssues.join(' ')}). 설정 > 내 정보에서 확인해
-    주세요. PC의 날짜·시각이 맞는지도 봐 주세요.
-  </p>
+  <div class="note banner stack" role="status" id="notice-profile">
+    <p>내 정보 중 확인이 필요한 값이 있어요. PC의 날짜·시각이 맞는지도 봐 주세요.</p>
+    <ul class="issues">
+      {#each view.profileIssues as issue (issue)}
+        <li>{issue}</li>
+      {/each}
+    </ul>
+    <div class="btn-row">
+      <button
+        type="button"
+        class="btn small"
+        onclick={() => {
+          nav.editProfileRequested = true;
+          nav.go('settings');
+        }}
+      >
+        내 정보 고치기
+      </button>
+    </div>
+  </div>
 {/if}
 
 {#if view.retired}
@@ -53,7 +69,7 @@
 {/if}
 
 {#if view.holidayDataMissing}
-  <p class="note banner" role="status">
+  <p class="note warn banner" role="status">
     {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 지금 연 호봉
     앱이 옛 버전이에요. 새 hobong.html을 받아 열거나, 온라인이라면 새로 고침해 주세요.
   </p>
@@ -79,6 +95,11 @@
 <style>
   .banner {
     margin-bottom: 12px;
+  }
+  .issues {
+    margin: 0;
+    padding-left: 1.2em;
+    list-style: disc;
   }
   .nudge {
     display: grid;

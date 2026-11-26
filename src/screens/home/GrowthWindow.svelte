@@ -40,7 +40,8 @@
       {/if}
     </li>
 
-    {#if view.minService && view.profile.grade > 1}
+    <!-- 정년퇴직 뒤에는 승진·대우공무원 요건이 뜻이 없으니 보여 주지 않는다 -->
+    {#if !view.retired && view.minService && view.profile.grade > 1}
       <li>
         <div class="head">
           <span class="row"><Icon name="icon-check" /> 승진소요최저연수</span>
@@ -58,7 +59,7 @@
       </li>
     {/if}
 
-    {#if view.senior.applicable && view.senior.date}
+    {#if !view.retired && view.senior.applicable && view.senior.date}
       <li>
         <div class="head">
           <span class="row"><Icon name="icon-medal" /> {view.profile.grade - 1}급 대우공무원</span>
@@ -78,7 +79,7 @@
       </li>
     {/if}
 
-    {#if view.longService.applicable && view.longService.date}
+    {#if !view.retired && view.longService.applicable && view.longService.date}
       <li>
         <div class="head">
           <span class="row">
@@ -110,10 +111,10 @@
       </li>
     {/if}
   </ul>
-  <p class="note">
+  {#if !view.retired}<p class="note">
     요건을 채우는 날이며 실제 승진·선발은 심사와 명부에 따라 달라요. 휴직·징계 기간은 반영하지
     않았으니, 해당하면 설정 &gt; 내 정보에서 날짜를 직접 넣어 주세요.
-  </p>
+  </p>{/if}
 </Win>
 
 <style>

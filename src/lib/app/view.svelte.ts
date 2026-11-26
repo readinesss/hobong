@@ -43,7 +43,13 @@ import {
   yearToDateSalary,
 } from '../calc/salary.ts';
 import { isRaiseDay, prevRaiseDate, stepOn } from '../calc/step.ts';
-import { earnings, todayStatus, toSchedule, type TodayStatus } from '../calc/today.ts';
+import {
+  earnings,
+  secondOfDay,
+  todayStatus,
+  toSchedule,
+  type TodayStatus,
+} from '../calc/today.ts';
 import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
@@ -277,6 +283,34 @@ class View {
     ).ratio,
   );
 
+  // ── 오늘의 연가(반차 구분) ───────────────────────────────────────────
+  /**
+   * 오늘 연가 종류: 'full'(하루 이상), 'am'·'pm'(반일 기록 하나), 'hours'(시간 연가), 없으면 null
+   */
+  leaveToday = $derived.by<'full' | 'am' | 'pm' | 'hours' | null>(() => {
+    const records = this.data.leave.records.filter((r) => r.date === this.today);
+    const hours = records.reduce((sum, r) => sum + r.hours, 0);
+    if (hours <= 0) return null;
+    if (hours >= this.rules.leave.units.hoursPerDay) return 'full';
+    const only = records.length === 1 ? records[0] : undefined;
+    if (only && (only.kind === 'am' || only.kind === 'pm')) return only.kind;
+    return 'hours';
+  });
+  /**
+   * 반차의 경계(자정부터의 분): 퇴근 시각에서 반일 시간을 뺀 때(9~18시면 14시).
+   * 오전 반차는 이때까지, 오후 반차는 이때부터 쉰다.
+   */
+  halfDaySplit = $derived(this.schedule.end - this.rules.leave.units.halfDayHours * 60);
+  /** 지금 시각이 연가 구간인지(분 단위로 바뀐다) */
+  onLeaveNow = $derived.by<boolean>(() => {
+    void clock.minute;
+    const kind = this.leaveToday;
+    if (kind === 'full') return true;
+    if (kind !== 'am' && kind !== 'pm') return false;
+    const minute = secondOfDay(untrack(() => clock.now)) / 60;
+    return kind === 'am' ? minute < this.halfDaySplit : minute >= this.halfDaySplit;
+  });
+
   // ── 캐릭터(분 단위) ──────────────────────────────────────────────────
   mood = $derived.by<MoodId>(() => {
     void clock.minute;
@@ -285,6 +319,7 @@ class View {
     return decideMood(characterRules, {
       celebrating: this.raisedToday || this.anniversaryYears !== null,
       leaveHoursToday: this.leave.todayHours,
+      onLeaveNow: this.onLeaveNow,
       halfDayHours: this.rules.leave.units.halfDayHours,
       isPayday: this.isPayday,
       hour: now.getHours(),
@@ -312,10 +347,10 @@ class View {
     });
   });
 
-  /** 복귀 정산: since 다음 날부터 오늘까지 지나간 근무일과 그동안의 일 */
+  /** 복귀 정산: since 다음 날부터 어제까지 지나간 근무일과 월급날, 그동안 오른 호봉 */
   since(date: Ymd): { workdays: number; raises: number; paydays: number } {
     const from = addDays(date, 1);
-    const to = addDays(this.today, 1);
+    const to = this.today;
     let paydays = 0;
     for (let cur = from; cur < to; cur = addDays(cur, 1)) {
       const { y, m } = parseYmd(cur);

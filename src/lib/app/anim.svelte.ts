@@ -5,6 +5,8 @@
 class Anim {
   tick = $state(0);
   reduced = $state(false);
+  /** 기기 설정(prefers-reduced-motion)에서 움직임 줄이기가 켜져 있는지. 설정 화면이 알려 준다 */
+  systemReduced = $state(false);
   #timer: ReturnType<typeof setInterval> | null = null;
   #users = 0;
   #listening = false;

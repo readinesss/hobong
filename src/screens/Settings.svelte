@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
@@ -79,6 +80,14 @@
     }
   }
 
+  // 안내 띠의 '내 정보 고치기'로 들어오면 고치기 대화상자를 바로 연다
+  $effect(() => {
+    if (nav.editProfileRequested) {
+      nav.editProfileRequested = false;
+      editing = true;
+    }
+  });
+
   // ── 데이터 ───────────────────────────────────────────────────────────
   /** 모두 지우기 대화상자 안에서 내려받은 파일 이름(결과를 대화상자 안에 적는다) */
   let resetFileName = $state('');
@@ -154,388 +163,403 @@
 </script>
 
 <div class="page">
-  <Win title="내 정보" icon="icon-user" id="set-profile" area="profile">
-    <dl class="stack">
-      <div class="kv">
-        <dt>닉네임</dt>
-        <dd>{profile.nickname}</dd>
-      </div>
-      <div class="kv">
-        <dt>생년월일</dt>
-        <dd>{formatKorean(profile.birthDate, false)}</dd>
-      </div>
-      <div class="kv">
-        <dt>임용일</dt>
-        <dd>{formatKorean(profile.hireDate, false)}</dd>
-      </div>
-      <div class="kv">
-        <dt>직급·호봉</dt>
-        <dd>{profile.grade}급 {view.step}호봉</dd>
-      </div>
-      {#if profile.gradeDate !== profile.hireDate}
+  <!-- 좁은 폭에서는 .col 이 사라져(display: contents) 위에서 아래로 한 줄이 되고, 넓은 폭에서는
+       열 묶음이 된다. 어느 폭에서나 DOM 순서 = 보이는 순서 = Tab 순서다. -->
+  <div class="col c1">
+    <Win title="내 정보" icon="icon-user" id="set-profile">
+      <dl class="stack">
         <div class="kv">
-          <dt>현 직급 임용일</dt>
-          <dd>{formatKorean(profile.gradeDate, false)}</dd>
+          <dt>닉네임</dt>
+          <dd>{profile.nickname}</dd>
         </div>
-      {/if}
-      <div class="kv">
-        <dt>다음 승급일</dt>
-        <dd>
-          {view.nextRaise
-            ? formatKorean(view.nextRaise.date, false)
-            : view.noRaiseReason === 'retire'
-              ? '정년 전 승급 없음'
-              : '최고호봉'}
-        </dd>
-      </div>
-      {#if profile.overrides.longServiceDate}
         <div class="kv">
-          <dt>근속승진 요건일(직접)</dt>
-          <dd>{formatKorean(profile.overrides.longServiceDate, false)}</dd>
+          <dt>생년월일</dt>
+          <dd>{formatKorean(profile.birthDate, false)}</dd>
         </div>
-      {/if}
-      {#if profile.overrides.seniorDate}
         <div class="kv">
-          <dt>대우공무원 예정일(직접)</dt>
-          <dd>{formatKorean(profile.overrides.seniorDate, false)}</dd>
+          <dt>임용일</dt>
+          <dd>{formatKorean(profile.hireDate, false)}</dd>
         </div>
-      {/if}
-    </dl>
-    <div class="btn-row">
-      <button type="button" class="btn" onclick={() => (editing = true)}>
-        <Icon name="icon-pencil" /> 고치기
-      </button>
-    </div>
-    <p class="cap muted">
-      승진했거나 승급일이 바뀌었으면 여기서 고쳐 주세요. 연가 기록과 업적은 그대로 남아요.
-    </p>
-  </Win>
-
-  <Win title="근무와 월급날" icon="icon-clock" id="set-work" area="work">
-    <div class="stack wide">
-      <fieldset class="stack">
-        <legend>월급날</legend>
-        <ChipRadio
-          label="월급날"
-          options={paydayOptions.map((o) => ({ value: o.day, label: `${o.day}일` }))}
-          value={settings.payday}
-          onchange={setPayday}
-        />
-        <p class="cap muted">
-          {paydayOptions.find((o) => o.day === settings.payday)?.orgs ?? '직접 정한 날'} · 토요일이나
-          공휴일이면 그 전날 받아요(보수규정 제20조).
-        </p>
-        <div class="field inline">
-          <label for="set-payday">다른 날이면</label>
-          <input
-            id="set-payday"
-            class="input"
-            type="text"
-            inputmode="numeric"
-            maxlength="2"
-            autocomplete="off"
-            value={customPayday ? String(settings.payday) : ''}
-            placeholder="1~31"
-            onchange={(e) => {
-              const day = Number(e.currentTarget.value.replace(/\D/g, ''));
-              if (day >= 1 && day <= 31) setPayday(day);
-              else e.currentTarget.value = customPayday ? String(settings.payday) : '';
-            }}
-          />
-          <span>일</span>
+        <div class="kv">
+          <dt>직급·호봉</dt>
+          <dd>{profile.grade}급 {view.step}호봉</dd>
         </div>
-      </fieldset>
-
-      <fieldset class="stack">
-        <legend>근무시간</legend>
-        <div class="times">
-          <div class="field">
-            <label for="set-start">출근</label>
-            <input
-              id="set-start"
-              class="input"
-              type="time"
-              value={settings.work.start}
-              onchange={(e) => setWork('start', e.currentTarget.value)}
-            />
+        {#if profile.gradeDate !== profile.hireDate}
+          <div class="kv">
+            <dt>현 직급 임용일</dt>
+            <dd>{formatKorean(profile.gradeDate, false)}</dd>
           </div>
-          <div class="field">
-            <label for="set-end">퇴근</label>
-            <input
-              id="set-end"
-              class="input"
-              type="time"
-              value={settings.work.end}
-              onchange={(e) => setWork('end', e.currentTarget.value)}
-            />
-          </div>
-          <div class="field">
-            <label for="set-lunch-start">점심 시작</label>
-            <input
-              id="set-lunch-start"
-              class="input"
-              type="time"
-              value={settings.work.lunchStart}
-              onchange={(e) => setWork('lunchStart', e.currentTarget.value)}
-            />
-          </div>
-          <div class="field">
-            <label for="set-lunch-end">점심 끝</label>
-            <input
-              id="set-lunch-end"
-              class="input"
-              type="time"
-              value={settings.work.lunchEnd}
-              onchange={(e) => setWork('lunchEnd', e.currentTarget.value)}
-            />
-          </div>
-        </div>
-        {#if workError}<p class="note warn" role="alert">{workError}</p>{/if}
-        <div class="btn-row">
-          <button type="button" class="btn small" onclick={resetWork}>기본값(9시~18시)으로</button>
-        </div>
-        <p class="cap muted">
-          유연근무를 한다면 맞게 고쳐 주세요. "오늘 번 돈"과 퇴근 카운트다운에 쓰여요.
-        </p>
-      </fieldset>
-    </div>
-  </Win>
-
-  <Win title="화면" icon="icon-sun" id="set-display" area="display">
-    <div class="stack wide">
-      <div class="stack">
-        <span id="theme-label">밝기</span>
-        <ChipRadio
-          labelledby="theme-label"
-          options={THEMES.map((t) => ({ value: t.id, label: t.label }))}
-          value={settings.theme}
-          onchange={setTheme}
-        />
-      </div>
-      <label class="switch">
-        <input
-          type="checkbox"
-          checked={settings.hideAmounts}
-          onchange={(e) => app.updateSettings({ hideAmounts: e.currentTarget.checked }, false)}
-        />
-        <span class="box" aria-hidden="true"></span>
-        <span>금액 가리기 <span class="cap muted">사무실에서 띄워 둘 때</span></span>
-      </label>
-      <label class="switch">
-        <input
-          type="checkbox"
-          checked={settings.reduceMotion}
-          onchange={(e) => app.updateSettings({ reduceMotion: e.currentTarget.checked }, false)}
-        />
-        <span class="box" aria-hidden="true"></span>
-        <span>움직임 줄이기 <span class="cap muted">캐릭터와 연출을 멈춰요</span></span>
-      </label>
-      <label class="switch">
-        <input
-          type="checkbox"
-          checked={settings.tabTitle === 'countdown'}
-          onchange={(e) =>
-            app.updateSettings(
-              { tabTitle: e.currentTarget.checked ? 'countdown' : 'default' },
-              false,
-            )}
-        />
-        <span class="box" aria-hidden="true"></span>
-        <span>
-          탭 제목에 퇴근까지 남은 시간 <span class="cap muted">금액은 표시하지 않아요</span>
-        </span>
-      </label>
-    </div>
-  </Win>
-
-  <Win title="데이터" icon="icon-save" id="set-data" area="data">
-    <div class="stack wide">
-      <p>
-        입력한 내용은 이 브라우저에만 있어요. 파일로 내려받아 두면 다른 PC·브라우저에서나 저장소가
-        지워진 뒤에도 그대로 이어서 쓸 수 있어요.
-      </p>
-      <dl class="well stack">
+        {/if}
         <div class="kv">
-          <dt>마지막 내려받기</dt>
-          <dd>{meta.lastBackupAt ? formatInstant(meta.lastBackupAt) : '아직 없음'}</dd>
+          <dt>다음 승급일</dt>
+          <dd>
+            {view.nextRaise
+              ? formatKorean(view.nextRaise.date, false)
+              : view.noRaiseReason === 'retire'
+                ? '정년 전 승급 없음'
+                : '최고호봉'}
+          </dd>
         </div>
-        <div class="kv">
-          <dt>그 뒤 바뀐 횟수</dt>
-          <dd class="num">{meta.changesSinceBackup}번</dd>
-        </div>
+        {#if profile.overrides.longServiceDate}
+          <div class="kv">
+            <dt>근속승진 요건일(직접)</dt>
+            <dd>{formatKorean(profile.overrides.longServiceDate, false)}</dd>
+          </div>
+        {/if}
+        {#if profile.overrides.seniorDate}
+          <div class="kv">
+            <dt>대우공무원 예정일(직접)</dt>
+            <dd>{formatKorean(profile.overrides.seniorDate, false)}</dd>
+          </div>
+        {/if}
       </dl>
-      <div class="btn-row stretch">
-        <button type="button" class="btn primary" onclick={download}>
-          <Icon name="icon-download" /> 데이터 내려받기
-        </button>
-        <button type="button" class="btn" onclick={() => (importing = true)}>
-          <Icon name="icon-upload" /> 데이터 불러오기
+      <div class="btn-row">
+        <button type="button" class="btn" onclick={() => (editing = true)}>
+          <Icon name="icon-pencil" /> 고치기
         </button>
       </div>
-      <p class="note warn">
-        백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에 두지
-        말고, 메신저로 보낼 때도 주의해 주세요.
+      <p class="cap muted">
+        승진했거나 승급일이 바뀌었으면 여기서 고쳐 주세요. 연가 기록과 업적은 그대로 남아요.
       </p>
-      {#if !hosted}
-        <p class="note" id="set-file-origin">
-          파일(hobong.html)로 열어 쓰면 같은 PC·같은 브라우저로 여는 다른 HTML 파일과 저장소를 함께
-          써요. 출처를 모르는 HTML 파일은 같은 브라우저로 열지 말고, 예전 hobong.html 사본은 지워
-          주세요.
-        </p>
-      {/if}
-      <button type="button" class="btn small ghost link" onclick={openBackupText}>
-        파일 저장이 안 되나요? 글자로 보기
-      </button>
+    </Win>
 
-      {#if app.corruptKept}
-        <div class="well stack" id="set-corrupt">
-          <p>
-            예전에 읽지 못해 따로 옮겨 둔 데이터가 있어요. 내려받아 두면 나중에 새 버전에서 다시
-            불러올 수 있어요.
+    <Win title="데이터" icon="icon-save" id="set-data">
+      <div class="stack wide">
+        <p>
+          입력한 내용은 이 브라우저에만 있어요. 파일로 내려받아 두면 다른 PC·브라우저에서나 저장소가
+          지워진 뒤에도 그대로 이어서 쓸 수 있어요.
+        </p>
+        <dl class="well stack">
+          <div class="kv">
+            <dt>마지막 내려받기</dt>
+            <dd>{meta.lastBackupAt ? formatInstant(meta.lastBackupAt) : '아직 없음'}</dd>
+          </div>
+          <div class="kv">
+            <dt>그 뒤 바뀐 횟수</dt>
+            <dd class="num">{meta.changesSinceBackup}번</dd>
+          </div>
+        </dl>
+        <div class="btn-row stretch data-btns">
+          <button type="button" class="btn primary" onclick={() => download()}>
+            <Icon name="icon-download" /> 데이터 내려받기
+          </button>
+          <button type="button" class="btn" onclick={() => (importing = true)}>
+            <Icon name="icon-upload" /> 데이터 불러오기
+          </button>
+        </div>
+        <p class="note warn">
+          백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에 두지
+          말고, 메신저로 보낼 때도 주의해 주세요.
+        </p>
+        {#if !hosted}
+          <p class="note" id="set-file-origin">
+            파일(hobong.html)로 열어 쓰면 같은 PC·같은 브라우저로 여는 다른 HTML 파일과 저장소를 함께
+            써요. 출처를 모르는 HTML 파일은 같은 브라우저로 열지 말고, 예전 hobong.html 사본은 지워
+            주세요.
           </p>
-          <div class="btn-row">
-            <button type="button" class="btn small" onclick={downloadCorrupt}>
-              <Icon name="icon-download" /> 읽지 못한 데이터 내려받기
-            </button>
-            {#if corruptDownloaded}
-              <button
-                type="button"
-                class="btn small ghost"
-                onclick={() => app.discardCorruptCopies()}
-              >
-                <Icon name="icon-trash" /> 따로 둔 데이터 지우기
+        {/if}
+        <button type="button" class="btn small ghost link" onclick={openBackupText}>
+          파일 저장이 안 되나요? 글자로 보기
+        </button>
+
+        {#if app.corruptKept}
+          <div class="well stack" id="set-corrupt">
+            <p>
+              예전에 읽지 못해 따로 옮겨 둔 데이터가 있어요. 내려받아 두면 나중에 새 버전에서 다시
+              불러올 수 있어요.
+            </p>
+            <div class="btn-row">
+              <button type="button" class="btn small" onclick={downloadCorrupt}>
+                <Icon name="icon-download" /> 읽지 못한 데이터 내려받기
               </button>
+              {#if corruptDownloaded}
+                <button
+                  type="button"
+                  class="btn small ghost"
+                  onclick={() => app.discardCorruptCopies()}
+                >
+                  <Icon name="icon-trash" /> 따로 둔 데이터 지우기
+                </button>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
+        {#if app.undoSavedAt}
+          <div class="well stack">
+            <p>
+              불러오기 직전 상태가 보관돼 있어요. <span class="cap muted">
+                ({formatInstant(app.undoSavedAt)})
+              </span>
+            </p>
+            <div class="btn-row">
+              <button type="button" class="btn" onclick={() => (confirmUndo = true)}>
+                <Icon name="icon-undo" /> 불러오기 전으로 되돌리기
+              </button>
+            </div>
+          </div>
+        {/if}
+
+        <hr class="rule" />
+        <div class="btn-row">
+          <button
+            type="button"
+            class="btn danger"
+            onclick={() => {
+              resetDownloaded = false;
+              resetConfirmed = false;
+              confirmReset = true;
+            }}
+          >
+            <Icon name="icon-trash" /> 모두 지우고 처음부터
+          </button>
+        </div>
+      </div>
+    </Win>
+  </div>
+  <div class="col c2">
+    <div class="col c2a">
+      <Win title="근무와 월급날" icon="icon-clock" id="set-work">
+        <div class="stack wide">
+          <fieldset class="stack">
+            <legend>월급날</legend>
+            <ChipRadio
+              label="월급날"
+              options={paydayOptions.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+              value={settings.payday}
+              onchange={setPayday}
+            />
+            <p class="cap muted">
+              {paydayOptions.find((o) => o.day === settings.payday)?.orgs ?? '직접 정한 날'} · 토요일이나
+              공휴일이면 그 전날 받아요(보수규정 제20조).
+            </p>
+            <div class="field inline">
+              <label for="set-payday">다른 날이면</label>
+              <input
+                id="set-payday"
+                class="input"
+                type="text"
+                inputmode="numeric"
+                maxlength="2"
+                autocomplete="off"
+                value={customPayday ? String(settings.payday) : ''}
+                placeholder="1~31"
+                onchange={(e) => {
+                  const day = Number(e.currentTarget.value.replace(/\D/g, ''));
+                  if (day >= 1 && day <= 31) setPayday(day);
+                  else e.currentTarget.value = customPayday ? String(settings.payday) : '';
+                }}
+              />
+              <span>일</span>
+            </div>
+          </fieldset>
+
+          <fieldset class="stack">
+            <legend>근무시간</legend>
+            <div class="times">
+              <div class="field">
+                <label for="set-start">출근</label>
+                <input
+                  id="set-start"
+                  class="input"
+                  type="time"
+                  value={settings.work.start}
+                  onchange={(e) => setWork('start', e.currentTarget.value)}
+                />
+              </div>
+              <div class="field">
+                <label for="set-end">퇴근</label>
+                <input
+                  id="set-end"
+                  class="input"
+                  type="time"
+                  value={settings.work.end}
+                  onchange={(e) => setWork('end', e.currentTarget.value)}
+                />
+              </div>
+              <div class="field">
+                <label for="set-lunch-start">점심 시작</label>
+                <input
+                  id="set-lunch-start"
+                  class="input"
+                  type="time"
+                  value={settings.work.lunchStart}
+                  onchange={(e) => setWork('lunchStart', e.currentTarget.value)}
+                />
+              </div>
+              <div class="field">
+                <label for="set-lunch-end">점심 끝</label>
+                <input
+                  id="set-lunch-end"
+                  class="input"
+                  type="time"
+                  value={settings.work.lunchEnd}
+                  onchange={(e) => setWork('lunchEnd', e.currentTarget.value)}
+                />
+              </div>
+            </div>
+            {#if workError}<p class="note warn" role="alert">{workError}</p>{/if}
+            <div class="btn-row">
+              <button type="button" class="btn small" onclick={resetWork}>기본값(9시~18시)으로</button>
+            </div>
+            <p class="cap muted">
+              유연근무를 한다면 맞게 고쳐 주세요. "오늘 번 돈"과 퇴근 카운트다운에 쓰여요.
+            </p>
+          </fieldset>
+        </div>
+      </Win>
+
+      <Win title="화면" icon="icon-sun" id="set-display">
+        <div class="stack wide">
+          <div class="stack">
+            <span id="theme-label">밝기</span>
+            <ChipRadio
+              labelledby="theme-label"
+              options={THEMES.map((t) => ({ value: t.id, label: t.label }))}
+              value={settings.theme}
+              onchange={setTheme}
+            />
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={settings.hideAmounts}
+              onchange={(e) => app.updateSettings({ hideAmounts: e.currentTarget.checked }, false)}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>금액 가리기 <span class="cap muted">사무실에서 띄워 둘 때</span></span>
+          </label>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={settings.reduceMotion || anim.systemReduced}
+              disabled={anim.systemReduced}
+              aria-describedby={anim.systemReduced ? 'set-motion-system' : undefined}
+              onchange={(e) => app.updateSettings({ reduceMotion: e.currentTarget.checked }, false)}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>움직임 줄이기 <span class="cap muted">캐릭터와 연출을 멈춰요</span></span>
+          </label>
+            {#if anim.systemReduced}
+              <p class="cap muted" id="set-motion-system">
+                기기 설정에서 움직임 줄이기가 켜져 있어 늘 멈춰 있어요.
+              </p>
+            {/if}
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={settings.tabTitle === 'countdown'}
+              onchange={(e) =>
+                app.updateSettings(
+                  { tabTitle: e.currentTarget.checked ? 'countdown' : 'default' },
+                  false,
+                )}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>
+              탭 제목에 퇴근까지 남은 시간 <span class="cap muted">금액은 표시하지 않아요</span>
+            </span>
+          </label>
+        </div>
+      </Win>
+    </div>
+    <div class="col c2b">
+      <Win title="호봉에 대하여" icon="icon-info" id="set-about">
+        <div class="stack wide">
+          <ul class="facts">
+            <li>
+              <Icon name="icon-shield" />
+              <span>서버가 없어요. 모든 계산은 이 브라우저 안에서 해요.</span>
+            </li>
+            <li>
+              <Icon name="icon-lock" />
+              <span>
+                외부로 나가는 통신이 없어요. 보안 정책(CSP)으로 스크립트·이미지·글꼴·연결을 모두 막아
+                두어, 인터넷이 막힌 업무망에서도 파일 하나로 그대로 동작해요.
+              </span>
+            </li>
+            <li>
+              <Icon name="icon-user" />
+              <span>실명·소속을 받지 않아요. 입력한 내용은 이 브라우저의 저장소에만 있어요.</span>
+            </li>
+            <li>
+              <Icon name="icon-book" />
+              <span>
+                금액은 봉급표 기준 추정치이며 실수령액과 달라요. 공식 인사·급여 시스템의 기록이
+                기준이에요.
+              </span>
+            </li>
+          </ul>
+          <dl class="stack">
+            <div class="kv">
+              <dt>버전</dt>
+              <dd>{APP_VERSION}</dd>
+            </div>
+            <div class="kv">
+              <dt>적용 대상</dt>
+              <dd>{view.rules.target.label}</dd>
+            </div>
+            <div class="kv">
+              <dt>주소</dt>
+              <dd>{SITE_URL}</dd>
+            </div>
+            <div class="kv">
+              <dt>글꼴</dt>
+              <dd>Galmuri <span class="cap muted">(SIL OFL 1.1, © Lee Minseo)</span></dd>
+            </div>
+            <div class="kv">
+              <dt>색</dt>
+              <dd class="cap">{characterRules.paletteName}</dd>
+            </div>
+          </dl>
+          {#if hosted}
+            <div class="btn-row">
+              <a class="btn" href="hobong.html" download="hobong.html">
+                <Icon name="icon-download" /> 업무망용 파일(hobong.html) 받기
+              </a>
+            </div>
+            <p class="cap muted">
+              이 파일 하나를 내부망 PC로 옮겨 브라우저로 열면 그대로 쓸 수 있어요.
+            </p>
+          {/if}
+          <p class="cap muted">소스와 규정 데이터: {REPO_URL.replace('https://', '')}</p>
+          <div class="stack">
+            <button
+              type="button"
+              class="btn small toggle"
+              aria-expanded={showLicenses}
+              aria-controls="set-licenses"
+              onclick={() => (showLicenses = !showLicenses)}
+            >
+              <span aria-hidden="true">{showLicenses ? '▼' : '▶'}</span>
+              <span>오픈소스 고지</span>
+            </button>
+            {#if showLicenses}
+              <div id="set-licenses" class="stack">
+                <p class="cap muted">
+                  이 파일에는 아래 오픈소스가 함께 들어 있어요. 고마운 분들이에요.
+                </p>
+                {#each LICENSE_NOTICES as notice (notice.name)}
+                  <section class="well stack" aria-label="{notice.name} 라이선스">
+                    <p>
+                      <strong>{notice.name}</strong> <span class="cap muted">{notice.license}</span>
+                    </p>
+                    <p class="cap muted">{notice.use}</p>
+                    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                    <pre class="license" tabindex="0">{notice.text}</pre>
+                  </section>
+                {/each}
+              </div>
             {/if}
           </div>
         </div>
-      {/if}
-
-      {#if app.undoSavedAt}
-        <div class="well stack">
-          <p>
-            불러오기 직전 상태가 보관돼 있어요. <span class="cap muted">
-              ({formatInstant(app.undoSavedAt)})
-            </span>
-          </p>
-          <div class="btn-row">
-            <button type="button" class="btn" onclick={() => (confirmUndo = true)}>
-              <Icon name="icon-undo" /> 불러오기 전으로 되돌리기
-            </button>
-          </div>
-        </div>
-      {/if}
-
-      <hr class="rule" />
-      <div class="btn-row">
-        <button
-          type="button"
-          class="btn danger"
-          onclick={() => {
-            resetDownloaded = false;
-            resetConfirmed = false;
-            confirmReset = true;
-          }}
-        >
-          <Icon name="icon-trash" /> 모두 지우고 처음부터
-        </button>
-      </div>
+      </Win>
     </div>
-  </Win>
+  </div>
 
-  <Win title="근거 법령" icon="icon-book" id="set-sources" area="sources">
+  <Win title="근거 법령" icon="icon-book" id="set-sources">
     {#snippet aside()}확인일 {formatKorean(view.rules.meta.verifiedAt, false)}{/snippet}
     <Sources />
-  </Win>
-
-  <Win title="호봉에 대하여" icon="icon-info" id="set-about" area="about">
-    <div class="stack wide">
-      <ul class="facts">
-        <li>
-          <Icon name="icon-shield" />
-          <span>서버가 없어요. 모든 계산은 이 브라우저 안에서 해요.</span>
-        </li>
-        <li>
-          <Icon name="icon-lock" />
-          <span>
-            외부로 나가는 통신이 없어요. 보안 정책(CSP)으로 스크립트·이미지·글꼴·연결을 모두 막아
-            두어, 인터넷이 막힌 업무망에서도 파일 하나로 그대로 동작해요.
-          </span>
-        </li>
-        <li>
-          <Icon name="icon-user" />
-          <span>실명·소속을 받지 않아요. 입력한 내용은 이 브라우저의 저장소에만 있어요.</span>
-        </li>
-        <li>
-          <Icon name="icon-book" />
-          <span>
-            금액은 봉급표 기준 추정치이며 실수령액과 달라요. 공식 인사·급여 시스템의 기록이
-            기준이에요.
-          </span>
-        </li>
-      </ul>
-      <dl class="stack">
-        <div class="kv">
-          <dt>버전</dt>
-          <dd>{APP_VERSION}</dd>
-        </div>
-        <div class="kv">
-          <dt>적용 대상</dt>
-          <dd>{view.rules.target.label}</dd>
-        </div>
-        <div class="kv">
-          <dt>주소</dt>
-          <dd>{SITE_URL}</dd>
-        </div>
-        <div class="kv">
-          <dt>글꼴</dt>
-          <dd>Galmuri <span class="cap muted">(SIL OFL 1.1, © Lee Minseo)</span></dd>
-        </div>
-        <div class="kv">
-          <dt>색</dt>
-          <dd class="cap">{characterRules.paletteName}</dd>
-        </div>
-      </dl>
-      {#if hosted}
-        <div class="btn-row">
-          <a class="btn" href="hobong.html" download="hobong.html">
-            <Icon name="icon-download" /> 업무망용 파일(hobong.html) 받기
-          </a>
-        </div>
-        <p class="cap muted">
-          이 파일 하나를 내부망 PC로 옮겨 브라우저로 열면 그대로 쓸 수 있어요.
-        </p>
-      {/if}
-      <p class="cap muted">소스와 규정 데이터: {REPO_URL.replace('https://', '')}</p>
-      <div class="stack">
-        <button
-          type="button"
-          class="btn small toggle"
-          aria-expanded={showLicenses}
-          aria-controls="set-licenses"
-          onclick={() => (showLicenses = !showLicenses)}
-        >
-          <span aria-hidden="true">{showLicenses ? '▼' : '▶'}</span>
-          <span>오픈소스 고지</span>
-        </button>
-        {#if showLicenses}
-          <div id="set-licenses" class="stack">
-            <p class="cap muted">
-              이 파일에는 아래 오픈소스가 함께 들어 있어요. 고마운 분들이에요.
-            </p>
-            {#each LICENSE_NOTICES as notice (notice.name)}
-              <section class="well stack" aria-label="{notice.name} 라이선스">
-                <p>
-                  <strong>{notice.name}</strong> <span class="cap muted">{notice.license}</span>
-                </p>
-                <p class="cap muted">{notice.use}</p>
-                <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                <pre class="license" tabindex="0">{notice.text}</pre>
-              </section>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    </div>
   </Win>
 </div>
 
@@ -642,13 +666,6 @@
     display: grid;
     gap: 9px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'profile'
-      'data'
-      'work'
-      'display'
-      'sources'
-      'about';
     align-items: start;
   }
   dl,
@@ -716,24 +733,45 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  .col {
+    display: contents;
+  }
+  /* 데이터 버튼은 글자가 두 줄로 쪼개지지 않게, 좁으면 버튼째 다음 줄로 넘긴다 */
+  .data-btns > :global(.btn) {
+    flex: 1 1 13em;
+    white-space: nowrap;
+  }
+  /* 두 열: [내 정보, 데이터] [근무와 월급날, 화면, 호봉에 대하여], 근거 법령은 아래 전체 폭 */
   @media (min-width: 720px) {
     .page {
       gap: 12px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-areas:
-        'profile data'
-        'work data'
-        'display about'
-        'sources sources';
+    }
+    .c1,
+    .c2 {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .page > :global(#set-sources) {
+      grid-column: 1 / -1;
     }
   }
+  /* 세 열: [내 정보, 데이터] [근무와 월급날, 화면] [호봉에 대하여] */
   @media (min-width: 1100px) {
     .page {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-areas:
-        'profile data work'
-        'display data about'
-        'sources sources sources';
+    }
+    .c2 {
+      display: contents;
+    }
+    .c2a,
+    .c2b {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
     }
   }
 </style>

@@ -78,13 +78,13 @@ const VISIT_BADGES: readonly { count: number; tier: Tier }[] = [
 export const EVENT_BADGES = {
   'evt-card': {
     title: '첫 카드',
-    desc: '호봉이 카드를 만들었다.',
+    desc: '호봉이 카드를 만들었어요.',
     icon: 'icon-camera',
     tier: 'bronze',
   },
   'evt-night': {
     title: '야근 모드',
-    desc: '어두운 화면을 켰다. 오늘도 수고 많으셨어요.',
+    desc: '어두운 화면을 켰어요. 오늘도 수고 많으셨어요.',
     icon: 'icon-moon',
     tier: 'bronze',
   },
@@ -259,7 +259,7 @@ export function achievementViews(
     views.push({
       id,
       title: badge.title,
-      desc: `${badge.step}호봉에 올랐다.`,
+      desc: `${badge.step}호봉에 올랐어요.`,
       icon: 'icon-feather',
       tier: badge.tier,
       group: 'growth',
@@ -270,7 +270,7 @@ export function achievementViews(
   views.push({
     id: 'leave-first',
     title: '첫 연가',
-    desc: '쉬는 것도 일의 일부.',
+    desc: '쉬는 것도 일의 일부예요.',
     icon: 'icon-palm',
     tier: 'bronze',
     group: 'leave',
@@ -288,7 +288,7 @@ export function achievementViews(
     views.push({
       id: `leave-half-${y}`,
       title: `절반의 쉼표 ${y}`,
-      desc: `${y}년 연가의 절반을 썼다.`,
+      desc: `${y}년 연가의 절반을 썼어요.`,
       icon: 'icon-palm',
       tier: 'silver',
       group: 'leave',
@@ -298,7 +298,7 @@ export function achievementViews(
     views.push({
       id: `leave-full-${y}`,
       title: `연가 완주 ${y}`,
-      desc: `${y}년 연가를 모두 썼다. 잘 쉬는 것도 실력.`,
+      desc: `${y}년 연가를 모두 썼어요. 잘 쉬는 것도 실력이에요.`,
       icon: 'icon-trophy',
       tier: 'gold',
       group: 'leave',
@@ -309,7 +309,7 @@ export function achievementViews(
   views.push({
     id: 'long-rest',
     title: '긴 숨 고르기',
-    desc: '연가를 붙여 닷새 이상 이어 쉬었다.',
+    desc: '연가를 붙여 닷새 이상 이어 쉬었어요.',
     icon: 'icon-plane',
     tier: 'silver',
     group: 'leave',
@@ -321,7 +321,7 @@ export function achievementViews(
     views.push({
       id,
       title: `출근 도장 ${badge.count}개`,
-      desc: `호봉이를 ${badge.count}일 들여다봤다.`,
+      desc: `호봉이를 ${badge.count}일 들여다봤어요.`,
       icon: 'icon-stamp',
       tier: badge.tier,
       group: 'habit',
@@ -332,7 +332,7 @@ export function achievementViews(
   views.push({
     id: 'evt-payday',
     title: '월급날 출석',
-    desc: '월급날에 들렀다.',
+    desc: '월급날에 들렀어요.',
     icon: 'icon-coin',
     tier: 'bronze',
     group: 'habit',
@@ -342,7 +342,7 @@ export function achievementViews(
   views.push({
     id: 'evt-backup',
     title: '꼼꼼한 백업',
-    desc: '데이터를 파일로 내려받았다.',
+    desc: '데이터를 파일로 내려받았어요.',
     icon: 'icon-save',
     tier: 'bronze',
     group: 'habit',

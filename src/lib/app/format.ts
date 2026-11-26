@@ -115,3 +115,34 @@ export function josa(word: string, withFinal: string, withoutFinal: string): str
   else if (/[0-9]/.test(last)) hasFinal = '013678'.includes(last);
   return `${word}${hasFinal ? withFinal : withoutFinal}`;
 }
+
+/**
+ * 남은 연가 표시. 부여보다 많이 쓰면 음수 대신 '초과 사용'으로 쓰고,
+ * 부여가 0 이면 사용률은 셀 수 없으니 '–'로 쓴다.
+ */
+export function leaveBalance(
+  remainingHours: number,
+  grantedHours: number,
+  rate: number,
+  hoursPerDay = 8,
+): { label: string; value: string; over: boolean; rateText: string } {
+  const over = remainingHours < 0;
+  const value = formatDaysAmount(Math.abs(remainingHours), hoursPerDay);
+  return {
+    label: over ? '초과 사용' : '남은 연가',
+    value: remainingHours === 0 ? '0일' : value,
+    over,
+    rateText: grantedHours > 0 ? `${Math.round(rate * 100)}%` : '–',
+  };
+}
+
+/** '(으)로'를 붙인다: 받침이 없거나 ㄹ 받침이면 '로'('20일로'), 그 밖의 받침이면 '으로'('4시간으로') */
+export function withRo(word: string): string {
+  const last = word.trim().at(-1) ?? '';
+  const code = last.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    const final = (code - 0xac00) % 28;
+    return `${word}${final === 0 || final === 8 ? '로' : '으로'}`;
+  }
+  return `${word}로`;
+}

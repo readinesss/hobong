@@ -10,6 +10,8 @@
     parseYmd,
     type Ymd,
   } from '../../lib/calc/date.ts';
+  import { kindLabel } from '../../lib/calc/leave.ts';
+  import type { LeaveKind } from '../../lib/store/schema.ts';
   import Icon from '../../lib/ui/Icon.svelte';
 
   interface Props {
@@ -26,11 +28,17 @@
 
   const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+  /** 날짜별 연가 시간과 기록 종류(반일 기록 하나뿐이면 오전·오후를 칸에 적는다) */
   const hoursByDate = $derived.by(() => {
     // 매번 새로 만들어 읽기만 하는 표라서 반응형 Map이 필요 없다.
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const map = new Map<Ymd, number>();
-    for (const r of view.data.leave.records) map.set(r.date, (map.get(r.date) ?? 0) + r.hours);
+    const map = new Map<Ymd, { hours: number; kinds: LeaveKind[] }>();
+    for (const r of view.data.leave.records) {
+      const entry = map.get(r.date) ?? { hours: 0, kinds: [] };
+      entry.hours += r.hours;
+      entry.kinds.push(r.kind);
+      map.set(r.date, entry);
+    }
     return map;
   });
 
@@ -41,6 +49,8 @@
     holiday: string | null;
     off: boolean;
     hours: number;
+    /** 칸에 적는 짧은 표시: '연가', '오전', '오후', '2시간' */
+    mark: string;
     today: boolean;
     selected: boolean;
     planned: boolean;
@@ -57,10 +67,14 @@
       const date = formatYmd({ y, m, d });
       const dow = dayOfWeek(date);
       const holiday = calendar.holidayName(date);
-      const hours = hoursByDate.get(date) ?? 0;
+      const entry = hoursByDate.get(date);
+      const hours = entry?.hours ?? 0;
+      const half = entry?.kinds.length === 1 && (entry.kinds[0] === 'am' || entry.kinds[0] === 'pm');
+      const halfKind = half ? (entry?.kinds[0] as LeaveKind) : null;
       const parts = [formatMonthDay(date)];
       if (holiday) parts.push(holiday);
       if (hours >= perDay) parts.push('연가 1일');
+      else if (halfKind) parts.push(`연가 ${kindLabel(halfKind, hours)}`);
       else if (hours > 0) parts.push(`연가 ${hours}시간`);
       // 빗금(예정)은 색으로만 구분되므로 낭독 문구에도 적는다
       if (hours > 0 && date > view.today) parts.push('예정');
@@ -72,6 +86,16 @@
         holiday,
         off: !calendar.isWorkday(date),
         hours,
+        mark:
+          hours >= perDay
+            ? '연가'
+            : halfKind === 'am'
+              ? '오전'
+              : halfKind === 'pm'
+                ? '오후'
+                : hours > 0
+                  ? `${hours}시간`
+                  : '',
         today: date === view.today,
         selected: date === selected,
         planned: date > view.today,
@@ -93,16 +117,36 @@
       .map((c) => `${c.day}일 ${c.holiday}`),
   );
 
+  /**
+   * Tab 으로 들어올 칸(하나만 tabindex=0): 보는 달에 고른 날이 있으면 그 날,
+   * 없으면 오늘(그 달이면), 그것도 아니면 그 달 1일
+   */
+  const rovingDate = $derived.by<Ymd>(() => {
+    const ym = month.slice(0, 7);
+    if (selected.slice(0, 7) === ym) return selected;
+    if (view.today.slice(0, 7) === ym) return view.today;
+    return `${ym}-01`;
+  });
+
   function move(delta: number) {
     onmonth(addMonthsClamped(month, delta));
   }
 
-  /** 방향키로 날짜 이동(달을 넘어가면 달도 넘긴다) */
+  /**
+   * 방향키로 날짜 이동(달을 넘어가면 달도 넘긴다).
+   * Home/End 는 그 주의 처음(일)·끝(토), PageUp/PageDown 은 한 달 앞·뒤의 같은 날.
+   */
   function onKey(event: KeyboardEvent, date: Ymd) {
+    const dow = dayOfWeek(date);
+    let next: Ymd | null = null;
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
-    if (step === undefined) return;
+    if (step !== undefined) next = addDays(date, step);
+    else if (event.key === 'Home') next = addDays(date, -dow);
+    else if (event.key === 'End') next = addDays(date, 6 - dow);
+    else if (event.key === 'PageUp') next = addMonthsClamped(date, -1);
+    else if (event.key === 'PageDown') next = addMonthsClamped(date, 1);
+    if (next === null) return;
     event.preventDefault();
-    const next = addDays(date, step);
     if (next.slice(0, 7) !== month.slice(0, 7)) onmonth(`${next.slice(0, 7)}-01`);
     onselect(next);
     requestAnimationFrame(() => {
@@ -153,16 +197,14 @@
               aria-label={cell.label}
               aria-selected={cell.selected}
               aria-current={cell.today ? 'date' : undefined}
-              tabindex={cell.selected ? 0 : -1}
+              tabindex={cell.date === rovingDate ? 0 : -1}
               data-date={cell.date}
               onclick={() => onselect(cell.date)}
               onkeydown={(e) => onKey(e, cell.date)}
             >
               <span class="n">{cell.day}</span>
               {#if cell.hours > 0}
-                <span class="mark cap" aria-hidden="true">
-                  {cell.hours >= view.rules.leave.units.hoursPerDay ? '연가' : `${cell.hours}시간`}
-                </span>
+                <span class="mark cap" aria-hidden="true">{cell.mark}</span>
               {:else if cell.holiday}
                 <span class="mark cap hol" aria-hidden="true">휴</span>
               {/if}
@@ -179,7 +221,7 @@
     <li><i class="sw full"></i> 연가 1일</li>
     <li><i class="sw part"></i> 반일·시간</li>
     <li><i class="sw planned"></i> 빗금: 예정</li>
-    <li><i class="sw hol"></i> 공휴일</li>
+    <li><span class="sw-hol" aria-hidden="true">휴</span> 빨간 숫자·휴: 공휴일</li>
     <li><i class="sw today"></i> 오늘</li>
   </ul>
   {#if monthHolidays.length > 0}
@@ -272,12 +314,28 @@
   .day.part {
     background: linear-gradient(135deg, var(--good-fill) 0 50%, var(--panel-2) 50% 100%);
   }
+  /* 반일·시간 칸은 초록과 바탕이 반씩이라, 어두운 테마의 밝은 숫자가 초록 위에서 읽히지 않는다.
+     숫자와 표시 밑에 바탕색 상자를 깔아 어느 테마에서나 바탕 위에 놓이게 한다. */
+  .day.part .n,
   .day.part .mark {
+    padding: 0 3px;
+    background: var(--panel-2);
     color: var(--ink);
   }
-  /* 예정(오늘 이후)은 빗금으로 구분한다 */
+  .day.part.holiday .n {
+    color: var(--warn);
+  }
+  .day.part.sat .n {
+    color: var(--accent);
+  }
+  /* 예정(오늘 이후)은 빗금으로 구분한다(반일도 같다) */
   .day.planned.full {
     background: repeating-linear-gradient(135deg, var(--good-fill) 0 6px, var(--c5) 6px 9px);
+  }
+  .day.planned.part {
+    background:
+      repeating-linear-gradient(135deg, transparent 0 6px, var(--c5) 6px 9px),
+      linear-gradient(135deg, var(--good-fill) 0 50%, var(--panel-2) 50% 100%);
   }
   .day.today {
     box-shadow: inset 0 0 0 var(--u) var(--ink);
@@ -316,8 +374,12 @@
   .sw.planned {
     background: repeating-linear-gradient(135deg, var(--good-fill) 0 4px, var(--c5) 4px 6px);
   }
-  .sw.hol {
-    background: var(--warn-fill);
+  /* 공휴일 견본은 실제 칸처럼 빈 바탕에 빨간 '휴' */
+  .sw-hol {
+    width: 12px;
+    line-height: 12px;
+    text-align: center;
+    color: var(--warn);
   }
   .sw.today {
     box-shadow: inset 0 0 0 var(--u) var(--ink);
