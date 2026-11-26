@@ -32,7 +32,7 @@ import {
   summarizeLeave,
   type DayLeave,
 } from '../calc/leave.ts';
-import { buildMilestones, upcomingMilestones } from '../calc/milestones.ts';
+import { buildMilestones, longLeaveNotices, upcomingMilestones } from '../calc/milestones.ts';
 import { yearGrid as buildYearGrid, yearRecap, type GridInput } from '../calc/recap.ts';
 import {
   longServiceInfo,
@@ -230,6 +230,15 @@ class View {
     fullDayLeaveDates(this.data.leave.records, this.rules.leave.units.hoursPerDay),
   );
   bridges = $derived(findBridges(calendar, this.today, this.fullDayLeave));
+  /** 지금 쓸 수 있거나 1년 안에 생기는 장기재직휴가(특별휴가라 위 연가 계산과는 따로다) */
+  longLeave = $derived(
+    longLeaveNotices(
+      this.rules.leave.longService.tiers,
+      this.profile.hireDate,
+      this.today,
+      this.retire.retireDate,
+    ),
+  );
 
   // ── 일정·업적 ────────────────────────────────────────────────────────
   milestones = $derived(buildMilestones(rulesFor, this.profile, this.today));

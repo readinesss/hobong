@@ -87,6 +87,64 @@ export function longLeaveWindow(tier: LongLeaveTier, hireDate: Ymd): LongLeaveWi
   return from <= until ? { reached, from, until, graced } : null;
 }
 
+/** 연가 장부에 알리는 장기재직휴가 한 구간 */
+export interface LongLeaveNotice {
+  /** 구간 시작 연수(규정 데이터 값 그대로) */
+  fromYears: number;
+  /** 상한 연수. 상한이 없는 구간이면 null */
+  toYears: number | null;
+  days: number;
+  /** open: 지금 쓸 수 있다, soon: 1년 안에 생긴다 */
+  status: 'open' | 'soon';
+  /** 쓸 수 있게 되는(된) 날 */
+  from: Ymd;
+  /** 쓸 수 있는 마지막 날(정년퇴직일을 넘지 않는다) */
+  lastDay: Ymd;
+  /** 마지막 날이 정년퇴직일로 정해졌는지(상한 없는 구간 포함) */
+  byRetirement: boolean;
+  /** 부칙 특례로 기한이 늘었는지 */
+  graced: boolean;
+  /** 재직기간이 구간에 든 뒤에 조항이 생겨, 쓸 수 있게 된 날이 시행일인지 */
+  startsAtEffective: boolean;
+  /** 이 구간의 휴가가 생긴 날(조항 시행일) */
+  effective: Ymd;
+}
+
+/**
+ * today 기준으로 지금 쓸 수 있거나 1년 안에 생기는 장기재직휴가(시작일 순).
+ * 이미 썼는지는 저장하지 않으므로 알 수 없다. 정년퇴직일 뒤에는 빈 목록이다.
+ */
+export function longLeaveNotices(
+  tiers: readonly LongLeaveTier[],
+  hireDate: Ymd,
+  today: Ymd,
+  retireDate: Ymd,
+): LongLeaveNotice[] {
+  if (today > retireDate) return [];
+  const horizon = addMonthsClamped(today, 12);
+  const out: LongLeaveNotice[] = [];
+  for (const tier of tiers) {
+    const w = longLeaveWindow(tier, hireDate);
+    if (!w) continue;
+    const byRetirement = w.until === null || retireDate < w.until;
+    const lastDay = byRetirement ? retireDate : (w.until as Ymd);
+    if (lastDay < today || w.from > retireDate || w.from > horizon) continue;
+    out.push({
+      fromYears: tier.fromYears,
+      toYears: tier.toYears,
+      days: tier.days,
+      status: w.from <= today ? 'open' : 'soon',
+      from: w.from,
+      lastDay,
+      byRetirement,
+      graced: w.graced && !byRetirement,
+      startsAtEffective: w.from !== w.reached,
+      effective: tier.effective as Ymd,
+    });
+  }
+  return out.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+}
+
 function yearsLabel(months: number): string {
   const years = Math.floor(months / 12);
   const rest = months % 12;

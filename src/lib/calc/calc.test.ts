@@ -66,6 +66,7 @@ import {
 import { floorRate } from './money.ts';
 import {
   buildMilestones,
+  longLeaveNotices,
   longLeaveWindow,
   pastMilestones,
   upcomingMilestones,
@@ -1082,6 +1083,105 @@ describe('검토에서 나온 경계 사례', () => {
       expect(graced?.date).toBe('2026-06-23');
       expect(graced?.detail).toContain('2028. 6. 23.');
       expect(graced?.detail).toContain('부칙 특례');
+    });
+  });
+
+  describe('연가 장부의 장기재직휴가 안내: 지금 쓸 수 있거나 1년 안에 생기는 것만', () => {
+    const tiers = R.leave.longService.tiers;
+    const [short, mid, long] = tiers;
+    if (!short || !mid || !long) throw new Error('장기재직휴가 구간이 없습니다');
+    const FAR = '2058-12-31';
+    const ids = (list: ReturnType<typeof longLeaveNotices>) =>
+      list.map((n) => [n.fromYears, n.status, n.from, n.lastDay]);
+
+    it('5년이 1년 안에 오면 곧 생긴다고 알린다', () => {
+      expect(longLeaveNotices(tiers, '2022-09-01', '2026-11-25', FAR)).toEqual([
+        {
+          fromYears: short.fromYears,
+          toYears: short.toYears,
+          days: short.days,
+          status: 'soon',
+          from: '2027-09-01',
+          lastDay: '2032-08-31',
+          byRetirement: false,
+          graced: false,
+          startsAtEffective: false,
+          effective: short.effective,
+        },
+      ]);
+    });
+    it('1년보다 멀면 알리지 않고, 그날이 되면 지금 쓸 수 있다', () => {
+      expect(longLeaveNotices(tiers, '2022-09-01', '2026-08-31', FAR)).toEqual([]);
+      // 딱 1년 뒤는 1년 안이다
+      expect(ids(longLeaveNotices(tiers, '2022-09-01', '2026-09-01', FAR))).toEqual([
+        [5, 'soon', '2027-09-01', '2032-08-31'],
+      ]);
+      expect(ids(longLeaveNotices(tiers, '2022-09-01', '2027-09-01', FAR))).toEqual([
+        [5, 'open', '2027-09-01', '2032-08-31'],
+      ]);
+    });
+    it('부칙 특례 구간과 다음 구간을 함께 쓸 수 있으면 둘 다, 시작일 순으로', () => {
+      const list = longLeaveNotices(tiers, '2016-09-01', '2026-11-25', FAR);
+      expect(ids(list)).toEqual([
+        [5, 'open', '2026-06-23', '2028-06-23'],
+        [10, 'open', '2026-09-01', '2036-08-31'],
+      ]);
+      expect(list.map((n) => [n.graced, n.startsAtEffective, n.days])).toEqual([
+        [true, true, short.days],
+        [false, false, mid.days],
+      ]);
+    });
+    it('구간에 든 뒤 조항이 생겼으면 시행일부터 쓸 수 있다', () => {
+      const [n] = longLeaveNotices(tiers, '2019-01-01', '2026-11-25', FAR);
+      expect(n).toMatchObject({
+        fromYears: 5,
+        status: 'open',
+        from: short.effective,
+        lastDay: '2028-12-31',
+        startsAtEffective: true,
+        graced: false,
+        byRetirement: false,
+      });
+    });
+    it('상한 없는 구간은 정년퇴직일까지', () => {
+      const retire = retirementInfo(R.retirement, '1968-03-01').retireDate;
+      const list = longLeaveNotices(tiers, '1990-03-01', '2026-11-25', retire);
+      expect(list).toHaveLength(1);
+      expect(list[0]).toMatchObject({
+        fromYears: 20,
+        toYears: null,
+        days: long.days,
+        status: 'open',
+        from: long.effective,
+        lastDay: retire,
+        byRetirement: true,
+        startsAtEffective: true,
+      });
+    });
+    it('구간 상한보다 정년이 먼저면 정년퇴직일까지, 정년 뒤에는 없다', () => {
+      const list = longLeaveNotices(tiers, '2016-09-01', '2026-11-25', '2027-03-31');
+      expect(list.map((n) => [n.fromYears, n.lastDay, n.byRetirement, n.graced])).toEqual([
+        [5, '2027-03-31', true, false],
+        [10, '2027-03-31', true, false],
+      ]);
+      expect(longLeaveNotices(tiers, '2016-09-01', '2027-04-01', '2027-03-31')).toEqual([]);
+      // 정년퇴직일 당일은 아직 쓸 수 있다
+      expect(longLeaveNotices(tiers, '2016-09-01', '2027-03-31', '2027-03-31')).toHaveLength(2);
+    });
+    it('정년퇴직일보다 늦게 생기는 구간은 알리지 않는다', () => {
+      // 5년이 되는 2027-09-01 전에 정년
+      expect(longLeaveNotices(tiers, '2022-09-01', '2026-11-25', '2027-06-30')).toEqual([]);
+    });
+    it('아직 먼 사람에게는 아무것도 없다', () => {
+      expect(longLeaveNotices(tiers, '2024-03-04', '2026-11-25', FAR)).toEqual([]);
+    });
+    it('마지막 날이 오늘이면 들어가고, 지나면 빠진다', () => {
+      expect(
+        longLeaveNotices(tiers, '2016-09-01', '2028-06-23', FAR).map((n) => n.fromYears),
+      ).toEqual([5, 10]);
+      expect(
+        longLeaveNotices(tiers, '2016-09-01', '2028-06-24', FAR).map((n) => n.fromYears),
+      ).toEqual([10]);
     });
   });
 
