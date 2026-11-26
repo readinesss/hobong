@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { decryptBackup, encryptBackup } from '../../src/lib/store/crypto.ts';
-import { makeSeed, openApp, storedData, tick } from './helpers.ts';
+import { allowClipboard, makeSeed, openApp, storedData, tick } from './helpers.ts';
 
 const SEED = makeSeed(
   { nickname: '백업이', hireDate: '2020-01-01', grade: 8, gradeDate: '2024-07-01', step: 6 },
@@ -393,6 +393,7 @@ test.describe('백업 파일 암호', () => {
 
   test('토스트로 옛 암호문을 다시 열었을 때 그 뒤 바뀐 내용이 있으면 복사해도 백업됨으로 세지 않는다', async ({
     page,
+    browserName,
   }) => {
     await openApp(page, { seed: SEED, hash: 'settings' });
     await requireWebCrypto(page);
@@ -412,7 +413,7 @@ test.describe('백업 파일 암호', () => {
     await expect(textDialog.locator('#backup-text-stale')).toContainText('바뀐 내용이 있어요');
     // 보여 준 것은 내려받은 그 파일이다
     expect(await textDialog.locator('textarea').inputValue()).toBe(file.text);
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await allowClipboard(page, browserName);
     await textDialog.getByRole('button', { name: '모두 복사' }).click();
     await expect(textDialog.locator('#backup-copy-result')).toContainText(
       '바뀐 내용은 들어 있지 않아요',

@@ -132,6 +132,26 @@ export async function onboard(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: '상태창' })).toBeVisible();
 }
 
+/**
+ * 복사 버튼을 누를 수 있게 한다. 클립보드 권한 부여는 Chromium 만 받으므로(Firefox·WebKit 은
+ * 'Unknown permission' 오류), 다른 엔진에서는 쓰기가 늘 성공하는 클립보드로 바꿔 끼운다.
+ * 앱의 '복사한 뒤' 동작을 보려는 것이지 브라우저 클립보드를 시험하려는 것이 아니다.
+ */
+export async function allowClipboard(page: Page, browserName: string): Promise<void> {
+  if (browserName === 'chromium') {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    return;
+  }
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+    // 안전하지 않은 문맥으로 보는 엔진에서는 앱이 예전 방식(execCommand)으로 복사하므로 그쪽도 성공으로 둔다
+    document.execCommand = () => true;
+  });
+}
+
 /** 콘솔 오류·페이지 오류를 모은다 */
 export function collectErrors(page: Page): string[] {
   const errors: string[] = [];

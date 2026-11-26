@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { collectErrors, makeSeed, openApp, ROOT, tick } from './helpers.ts';
+import { allowClipboard, collectErrors, makeSeed, openApp, ROOT, tick } from './helpers.ts';
 
 /**
  * 제안·문의와 호봉이의 꿈(#28). 메일 주소는 data/site.json 에서 읽는다.
@@ -37,10 +37,9 @@ test.describe('제안·문의와 호봉이의 꿈', () => {
     expect(errors).toEqual([]);
   });
 
-  test('앱 정보 복사를 누르면 알려 준다', async ({ page, context, browserName }) => {
-    test.skip(browserName !== 'chromium', '클립보드 권한 부여는 Chromium 에서만 된다');
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  test('앱 정보 복사를 누르면 알려 준다', async ({ page, browserName }) => {
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    await allowClipboard(page, browserName);
     await page.locator('#set-contact').getByRole('button', { name: '앱 정보 복사' }).click();
     await tick(page);
     await expect(page.getByText('앱 정보를 복사했어요.')).toBeVisible();
