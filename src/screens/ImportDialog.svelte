@@ -24,6 +24,8 @@
   let pasted = $state('');
   let dragging = $state(false);
   let inputEl = $state<HTMLInputElement>();
+  /** 마지막으로 읽은 것이 파일인지 붙여넣은 글자인지(안내 문구를 알맞게 고른다) */
+  let source = $state<'file' | 'paste'>('file');
 
   const hasExisting = $derived(app.data !== null);
   const ok = $derived(result && result.ok ? (result as Ok) : null);
@@ -32,6 +34,7 @@
     busy = true;
     readError = '';
     result = null;
+    source = 'file';
     fileName = f.name;
     try {
       result = app.inspect(await readFileText(f, MAX_BACKUP_BYTES));
@@ -62,6 +65,7 @@
 
   function inspectPasted() {
     fileName = '붙여넣은 글자';
+    source = 'paste';
     readError = '';
     result = app.inspect(pasted);
   }
@@ -171,7 +175,7 @@
         >
           파일 고르기
         </button>
-        <p class="cap muted">이 칸에 파일을 끌어다 놓아도 돼요.</p>
+        <p class="cap muted fine-only">이 칸에 파일을 끌어다 놓아도 돼요.</p>
         <input
           bind:this={inputEl}
           type="file"
@@ -193,6 +197,13 @@
               {/each}
             </ul>
           {/if}
+          {#if result && !result.ok && !result.code}
+            <p>
+              {source === 'file'
+                ? '내려받은 파일을 그대로 골랐는지 확인해 주세요.'
+                : '백업 내용을 처음부터 끝까지 빠짐없이 붙여넣었는지 확인해 주세요.'}
+            </p>
+          {/if}
           <p>지금 데이터는 그대로예요. 아무것도 바뀌지 않았어요.</p>
         </div>
       {/if}
@@ -203,7 +214,8 @@
         aria-expanded={showPaste}
         onclick={() => (showPaste = !showPaste)}
       >
-        <span aria-hidden="true">{showPaste ? '▼' : '▶'}</span> 파일을 고를 수 없나요? 글자로 붙여넣기
+        <span aria-hidden="true">{showPaste ? '▼' : '▶'}</span>
+        <span>파일을 고를 수 없나요? 글자로 붙여넣기</span>
       </button>
       {#if showPaste}
         <div class="stack">
@@ -248,8 +260,11 @@
   .details {
     margin: 6px 0;
   }
+  /* 글자가 두 줄로 넘어가도 표시(▶/▼) 옆에 왼쪽 정렬로 붙는다 */
   .paste-toggle {
     justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
     width: fit-content;
   }
   dl,

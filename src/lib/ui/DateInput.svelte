@@ -13,6 +13,11 @@
     min?: Ymd;
     max?: Ymd;
     required?: boolean;
+    /**
+     * 세 칸이 다 찼는데 없는 날짜(2월 30일, 13월 등)일 때의 안내. 바깥 폼이 오류 개수에 세도록 묶어 쓴다.
+     * 비어 있거나 덜 채운 상태는 '' 이다(그때는 바깥의 "넣어 주세요" 안내가 맡는다).
+     */
+    problem?: string;
   }
 
   let {
@@ -25,6 +30,7 @@
     min,
     max,
     required = false,
+    problem = $bindable(''),
   }: Props = $props();
 
   let year = $state('');
@@ -68,6 +74,27 @@
       return '';
     return formatYmd({ y: yy, m: mm, d: dd });
   }
+
+  /** 세 칸이 다 찼는데 날짜가 되지 않는 까닭 */
+  function explain(y: string, m: string, d: string): string {
+    if (y.length !== 4 || m === '' || d === '') return '';
+    const yy = Number(y);
+    const mm = Number(m);
+    const dd = Number(d);
+    if (!(yy >= 1900 && yy <= 2200)) return '연도를 확인해 주세요.';
+    if (!(mm >= 1 && mm <= 12)) return '월은 1~12로 넣어 주세요.';
+    const last = daysInMonth(yy, mm);
+    if (!(dd >= 1 && dd <= last)) return `없는 날짜예요. ${yy}년 ${mm}월은 ${last}일까지예요.`;
+    return '';
+  }
+
+  $effect(() => {
+    const next = explain(year, month, day);
+    if (next !== problem) problem = next;
+  });
+
+  /** 칸 아래에 보일 안내: 없는 날짜가 바깥의 "넣어 주세요"보다 먼저다 */
+  const message = $derived(problem || error || '');
 
   function emit() {
     const next = compose(year, month, day);
@@ -149,7 +176,7 @@
   }
 
   const describedBy = $derived(
-    [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined,
+    [hint ? `${id}-hint` : '', message ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined,
   );
 </script>
 
@@ -169,7 +196,7 @@
       placeholder="연도"
       maxlength="10"
       aria-label="{label} 연도"
-      aria-invalid={error ? 'true' : undefined}
+      aria-invalid={message ? 'true' : undefined}
       aria-required={required ? 'true' : undefined}
       value={year}
       oninput={onYear}
@@ -185,7 +212,7 @@
       placeholder="월"
       maxlength="2"
       aria-label="{label} 월"
-      aria-invalid={error ? 'true' : undefined}
+      aria-invalid={message ? 'true' : undefined}
       aria-required={required ? 'true' : undefined}
       value={month}
       oninput={onMonth}
@@ -202,7 +229,7 @@
       placeholder="일"
       maxlength="2"
       aria-label="{label} 일"
-      aria-invalid={error ? 'true' : undefined}
+      aria-invalid={message ? 'true' : undefined}
       aria-required={required ? 'true' : undefined}
       value={day}
       oninput={onDay}
@@ -231,7 +258,8 @@
     {/if}
   </div>
   {#if hint}<span class="hint cap" id="{id}-hint">{hint}</span>{/if}
-  {#if error}<span class="error cap" id="{id}-error" role="alert">{error}</span>{/if}
+  <!-- 칸별 오류는 알림(role=alert)으로 읽지 않는다. 폼의 요약 하나만 알린다. -->
+  {#if message}<span class="error cap" id="{id}-error">{message}</span>{/if}
 </div>
 
 <style>
@@ -240,6 +268,8 @@
     display: flex;
     align-items: center;
     gap: 3px;
+    width: 100%;
+    min-width: 0;
   }
   .date .input {
     width: auto;
@@ -248,17 +278,20 @@
     padding-left: 3px;
     padding-right: 3px;
   }
-  .y {
-    flex: 4 1 72px;
+  /* 좁은 칸(320px 폭의 예외 칸 안)에서도 줄 전체가 칸 밖으로 나가지 않게 줄어든다 */
+  .date .y {
+    flex: 4 1 0;
+    min-width: 54px;
     max-width: 96px;
   }
-  .md {
-    flex: 2 1 42px;
+  .date .md {
+    flex: 2 1 0;
+    min-width: 44px;
     max-width: 60px;
   }
   .pick {
     flex: none;
-    margin-left: 6px;
+    margin-left: 3px;
   }
   /* 달력만 띄우는 용도의 보이지 않는 입력란 */
   .native {

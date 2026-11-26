@@ -278,6 +278,18 @@
     outline: var(--u) solid var(--ink);
     outline-offset: 0;
   }
+  @media (forced-colors: active) {
+    .weeks i {
+      border: 1px solid CanvasText;
+    }
+    .weeks i.on {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+    .weeks i.today {
+      outline-color: CanvasText;
+    }
+  }
   .badges {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));

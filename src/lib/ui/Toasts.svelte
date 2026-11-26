@@ -35,7 +35,8 @@
 <style>
   .toasts {
     position: fixed;
-    z-index: 90;
+    /* 대화상자(100~) 위에 보이게 한다. 대화상자가 열려 있을 때 생긴 결과는 대화상자 안에도 적는다. */
+    z-index: 110;
     left: calc(9px + var(--safe-l) + var(--rail-w));
     right: calc(9px + var(--safe-r));
     bottom: calc(var(--tabbar-h) + var(--safe-b) + 12px);
@@ -67,6 +68,13 @@
   }
   .toast .btn {
     margin: 0;
+  }
+  /* 모바일 대화상자는 바닥에 붙으므로, 대화상자가 열려 있으면 알림을 위쪽에 둔다 */
+  @media (max-width: 479px) {
+    :global(:root[data-modal]) .toasts {
+      top: calc(9px + var(--safe-t));
+      bottom: auto;
+    }
   }
   @media (min-width: 720px) {
     .toasts {

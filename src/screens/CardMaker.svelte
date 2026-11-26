@@ -25,6 +25,7 @@
   import { characterRules } from '../lib/character/rules.ts';
   import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/config.ts';
   import type { CardRatio, CardSettings } from '../lib/store/schema.ts';
+  import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
   import Win from '../lib/ui/Win.svelte';
@@ -255,19 +256,12 @@
     <div class="stack wide">
       <div class="stack">
         <span class="muted" id="ratio-label">모양</span>
-        <div class="chips" role="radiogroup" aria-labelledby="ratio-label">
-          {#each RATIOS as ratio (ratio.id)}
-            <button
-              type="button"
-              class="chip"
-              role="radio"
-              aria-checked={card.ratio === ratio.id}
-              onclick={() => setCard({ ratio: ratio.id })}
-            >
-              {ratio.label}
-            </button>
-          {/each}
-        </div>
+        <ChipRadio
+          labelledby="ratio-label"
+          options={RATIOS.map((r) => ({ value: r.id, label: r.label }))}
+          value={card.ratio}
+          onchange={(ratio) => setCard({ ratio })}
+        />
       </div>
 
       <fieldset class="stack">

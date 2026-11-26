@@ -58,8 +58,9 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   } catch {
     return {
       ok: false,
-      reason: '파일을 읽지 못했어요. 내용이 잘렸거나 손상된 것 같아요.',
-      details: ['백업 파일 형식(JSON)이 아니에요. 내려받은 파일을 그대로 골랐는지 확인해 주세요.'],
+      // 파일·붙여넣은 글자·브라우저 저장소 어디서 읽었든 맞는 말로 쓴다(파일이면 화면이 덧붙인다)
+      reason: '데이터를 읽지 못했어요. 내용이 잘렸거나 손상된 것 같아요.',
+      details: ['백업 데이터 형식(JSON)이 아니에요.'],
     };
   }
   const migrated = migrateEnvelope(parsed, ctx.defaultSettings, ctx.nowIso);

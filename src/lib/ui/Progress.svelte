@@ -80,4 +80,17 @@
     opacity: 0.55;
     pointer-events: none;
   }
+  /* 고대비: 배경·그림자가 지워지므로 실제 선과 시스템 색으로 */
+  @media (forced-colors: active) {
+    .bar {
+      border: 2px solid CanvasText;
+    }
+    .bar > i {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+    .bar::after {
+      display: none;
+    }
+  }
 </style>

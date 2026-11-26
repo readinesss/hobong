@@ -188,6 +188,50 @@ test.describe('반응형과 조작', () => {
     await expect(page.getByRole('heading', { name: '올해 연가' })).toBeVisible();
   });
 
+  test('라디오 칩은 화살표로 고르고, 선택 표시가 이름에 섞이지 않는다', async ({ page, isMobile }) => {
+    test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
+    await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    const themes = page.getByRole('radiogroup', { name: '밝기' });
+    // 고른 칩 하나만 Tab 정지점
+    await expect(themes.locator('[tabindex="0"]')).toHaveCount(1);
+    // 이름은 '▶ 25일' 이 아니라 '25일'
+    await expect(page.getByRole('radio', { name: '25일', exact: true })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await themes.getByRole('radio', { name: '주간' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(themes.getByRole('radio', { name: '야근 모드' })).toBeFocused();
+    await expect(themes.getByRole('radio', { name: '야근 모드' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.keyboard.press('Home');
+    await expect(themes.getByRole('radio', { name: '기기 설정대로' })).toBeFocused();
+    await expect(themes.getByRole('radio', { name: '기기 설정대로' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  test('대화상자 안의 내용이 바뀌어도 포커스와 Esc 가 대화상자에 남는다', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
+    await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: /글자로 붙여넣기/ }).click();
+    await dialog.getByLabel('백업 내용을 통째로 붙여넣어 주세요.').fill(makeSeed());
+    await dialog.getByRole('button', { name: '확인하기' }).click();
+    // 누른 버튼이 사라져도 포커스는 BODY 로 떨어지지 않고 '불러오기'로 간다
+    await expect(dialog.getByRole('button', { name: /불러오기$/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('대화상자는 포커스를 가두고 Esc로 닫힌다', async ({ page, isMobile }) => {
     test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
     await openApp(page, { seed: makeSeed(), hash: 'leave' });

@@ -166,4 +166,14 @@
       min-height: 312px;
     }
   }
+  @media (forced-colors: active) {
+    .pips i {
+      border: 1px solid CanvasText;
+      opacity: 1;
+    }
+    .pips i.on {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+  }
 </style>

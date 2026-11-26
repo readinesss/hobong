@@ -623,7 +623,14 @@
   .col {
     display: contents;
   }
-  @media (min-width: 720px) {
+  /* 좁은 폭에서는 달력 창의 좌우 여백을 줄여 날짜 칸 폭(44px 이상)을 확보한다 */
+  :global(#leave-calendar > .win-body) {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  /* 두 열 배치는 달력 열이 날짜 칸 44px 을 담을 수 있는 폭(860px)부터 쓴다.
+     그보다 좁은 태블릿 폭에서는 한 열로 두어 달력이 넉넉하게 들어가게 한다. */
+  @media (min-width: 860px) {
     .page {
       gap: 12px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -648,7 +655,8 @@
       grid-column: 1 / -1;
     }
   }
-  @media (min-width: 1100px) {
+  /* 세 열은 가운데 달력 열이 날짜 칸 44px 을 담을 수 있는 폭(1200px)부터 */
+  @media (min-width: 1200px) {
     .page {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
     }

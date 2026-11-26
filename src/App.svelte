@@ -158,11 +158,19 @@
     });
   });
 
-  // 탭 제목
+  // 탭 제목: 보고 있는 화면 이름을 앞에 붙인다(첫 화면의 제목은 Welcome 이 정한다)
+  const TAB_TITLES: Record<TabId, string> = {
+    home: '호봉 — 공무원 상태창',
+    leave: '연가 장부 · 호봉',
+    badges: '업적 · 호봉',
+    card: '카드 · 호봉',
+    settings: '설정 · 호봉',
+  };
   $effect(() => {
     const data = app.data;
-    if (!data || data.settings.tabTitle !== 'countdown') {
-      document.title = '호봉 — 공무원 상태창';
+    if (!data) return;
+    if (data.settings.tabTitle !== 'countdown') {
+      document.title = TAB_TITLES[nav.tab];
       return;
     }
     const status = view.status;

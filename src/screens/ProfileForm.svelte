@@ -2,7 +2,6 @@
   import { untrack } from 'svelte';
   import {
     addMonthsClamped,
-    formatKorean,
     onOrNextDayOfMonth,
     periodCompleteDate,
     yearOf,
@@ -11,9 +10,11 @@
   import { maxStepOf } from '../lib/calc/salary.ts';
   import { dateReachedStep, nextRaiseDate, stepOn } from '../lib/calc/step.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
+  import { formatLongDate } from '../lib/app/format.ts';
   import { rulesFor } from '../lib/rules/index.ts';
   import { GRADES, LIMITS, type Grade, type Profile } from '../lib/store/schema.ts';
   import { checkProfile, toProfile, type ProfileErrors } from '../lib/store/validate.ts';
+  import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
   import Stepper from '../lib/ui/Stepper.svelte';
 
@@ -95,7 +96,32 @@
       raiseDateRule: atMax ? 'reached' : 'future',
     }),
   );
-  const shown = $derived<ProfileErrors>(tried ? errors : {});
+  /** 날짜 칸이 스스로 찾은 문제(세 칸이 다 찼는데 없는 날짜) */
+  const dateProblems = $state<Record<string, string>>({
+    birthDate: '',
+    hireDate: '',
+    gradeDate: '',
+    nextStepDate: '',
+    longServiceDate: '',
+    seniorDate: '',
+  });
+
+  /**
+   * 화면에 보이는 칸 기준의 오류. 승진 체크를 끄면 현 직급 임용일 칸이 숨으므로(임용일과 같다고 본다)
+   * 그 칸의 오류는 세지 않는다. 없는 날짜는 "넣어 주세요"보다 먼저 그 까닭을 센다.
+   */
+  const visibleErrors = $derived.by<ProfileErrors>(() => {
+    const out: ProfileErrors = { ...errors };
+    if (!promoted) delete out.gradeDate;
+    for (const [key, text] of Object.entries(dateProblems)) {
+      if (!text) continue;
+      if (key === 'gradeDate' && !promoted) continue;
+      out[key as keyof ProfileErrors] = text;
+    }
+    return out;
+  });
+  const errorCount = $derived(Object.keys(visibleErrors).length);
+  const shown = $derived<ProfileErrors>(tried ? visibleErrors : {});
 
   /**
    * 승급기간(1년)을 채운 뒤 처음 오는 1일 중 오늘 다음 날 이후인 날.
@@ -117,7 +143,9 @@
   function submit(event: SubmitEvent) {
     event.preventDefault();
     tried = true;
-    if (Object.keys(errors).length > 0) {
+    if (errorCount > 0 || Object.keys(errors).length > 0) {
+      // 접힌 예외 칸에 오류가 있으면 펼쳐서 보이게 한다
+      if (visibleErrors.longServiceDate || visibleErrors.seniorDate) showAdvanced = true;
       // 첫 오류로 이동
       requestAnimationFrame(() => {
         const first = formEl?.querySelector<HTMLElement>('[aria-invalid="true"]');
@@ -166,16 +194,17 @@
       placeholder="예: 호봉이집사"
       bind:value={nickname}
       aria-invalid={shown.nickname ? 'true' : undefined}
-      aria-describedby="pf-nick-hint"
+      aria-describedby={shown.nickname ? 'pf-nick-hint pf-nick-error' : 'pf-nick-hint'}
     />
     <span class="hint cap" id="pf-nick-hint">
-      별명만 적어 주세요. 실명·소속은 넣지 않아도 돼요. {LIMITS.nicknameMax}자까지.
+      닉네임만 적어 주세요. 실명·소속은 적지 마세요. {LIMITS.nicknameMax}자까지.
     </span>
-    {#if shown.nickname}<span class="error cap" role="alert">{shown.nickname}</span>{/if}
+    {#if shown.nickname}<span class="error cap" id="pf-nick-error">{shown.nickname}</span>{/if}
   </div>
 
   <DateInput
     id="pf-birth"
+    bind:problem={dateProblems.birthDate}
     label="생년월일"
     bind:value={birthDate}
     max={today}
@@ -186,6 +215,7 @@
 
   <DateInput
     id="pf-hire"
+    bind:problem={dateProblems.hireDate}
     label="임용일"
     bind:value={hireDate}
     max={today}
@@ -202,12 +232,13 @@
         class="input"
         bind:value={grade}
         aria-invalid={shown.grade ? 'true' : undefined}
+        aria-describedby={shown.grade ? 'pf-grade-error' : undefined}
       >
         {#each GRADES as g (g)}
           <option value={g}>{g}급</option>
         {/each}
       </select>
-      {#if shown.grade}<span class="error cap" role="alert">{shown.grade}</span>{/if}
+      {#if shown.grade}<span class="error cap" id="pf-grade-error">{shown.grade}</span>{/if}
     </div>
     <Stepper
       id="pf-step"
@@ -229,10 +260,12 @@
     {#if promoted}
       <DateInput
         id="pf-grade-date"
+        bind:problem={dateProblems.gradeDate}
         label="현 직급 임용일(승진일)"
         bind:value={gradeDate}
         min={hireDate || undefined}
         max={today}
+        required
         hint="근속승진·대우공무원 기간의 기준이에요."
         error={shown.gradeDate}
       />
@@ -242,6 +275,7 @@
   <div class="stack">
     <DateInput
       id="pf-next"
+      bind:problem={dateProblems.nextStepDate}
       label={atMax ? '최고호봉이 된 날' : '다음 승급일'}
       bind:value={nextStepDate}
       required
@@ -253,7 +287,7 @@
     {#if !atMax && guessedNext && nextStepDate !== guessedNext}
       <div class="btn-row">
         <button type="button" class="btn small" onclick={() => (nextStepDate = guessedNext)}>
-          잘 모르겠어요 → {formatKorean(guessedNext, false)}로 채우기
+          잘 모르겠어요 → {formatLongDate(guessedNext)}로 채우기
         </button>
       </div>
       <p class="cap muted">
@@ -266,21 +300,15 @@
   {#if askPayday}
     <fieldset class="field">
       <legend>월급날</legend>
-      <div class="chips" role="radiogroup" aria-label="월급날">
-        {#each rules.payday.options as option (option.day)}
-          <button
-            type="button"
-            class="chip"
-            role="radio"
-            aria-checked={payday === option.day}
-            onclick={() => (payday = option.day)}
-          >
-            {option.day}일
-          </button>
-        {/each}
-      </div>
+      <ChipRadio
+        label="월급날"
+        options={rules.payday.options.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+        value={payday}
+        onchange={(day) => (payday = day)}
+      />
       <span class="hint cap">
-        {rules.payday.options.find((o) => o.day === payday)?.orgs ?? ''} · 나중에 설정에서 바꿀 수 있어요.
+        {payday}일: {rules.payday.options.find((o) => o.day === payday)?.orgs ?? ''} · 나중에 설정에서
+        바꿀 수 있어요.
       </span>
     </fieldset>
   {/if}
@@ -293,7 +321,8 @@
       aria-controls="pf-advanced"
       onclick={() => (showAdvanced = !showAdvanced)}
     >
-      <span aria-hidden="true">{showAdvanced ? '▼' : '▶'}</span> 휴직·경력 인정 등 예외가 있어요
+      <span aria-hidden="true">{showAdvanced ? '▼' : '▶'}</span>
+      <span>휴직·경력 인정 등 예외가 있어요</span>
     </button>
     {#if showAdvanced}
       <div id="pf-advanced" class="well stack wide">
@@ -307,6 +336,7 @@
         </p>
         <DateInput
           id="pf-long"
+          bind:problem={dateProblems.longServiceDate}
           label="근속승진 요건 충족일"
           bind:value={longServiceDate}
           hint="9·8·7급만 해당해요."
@@ -314,6 +344,7 @@
         />
         <DateInput
           id="pf-senior"
+          bind:problem={dateProblems.seniorDate}
           label="대우공무원 선발 예정일"
           bind:value={seniorDate}
           error={shown.seniorDate}
@@ -322,9 +353,9 @@
     {/if}
   </div>
 
-  {#if tried && Object.keys(errors).length > 0}
+  {#if tried && errorCount > 0}
     <p class="note warn" role="alert">
-      고칠 곳이 {Object.keys(errors).length}군데 있어요. 각 칸 아래의 안내를 확인해 주세요.
+      고칠 곳이 {errorCount}군데 있어요. 각 칸 아래의 안내를 확인해 주세요.
     </p>
   {/if}
 
@@ -337,9 +368,10 @@
 </form>
 
 <style>
+  /* 호봉 스테퍼(−, 입력, '호봉', +)는 190px 쯤 필요하다. 좁으면 한 열로 떨어진다. */
   .grid2 {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 12px;
     align-items: start;
   }
@@ -353,8 +385,11 @@
     padding: 0;
     margin-bottom: 3px;
   }
+  /* 글자가 두 줄로 넘어가도 표시(▶/▼) 옆에 왼쪽 정렬로 붙는다 */
   .toggle {
     justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
     width: fit-content;
   }
 </style>

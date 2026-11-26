@@ -1,5 +1,5 @@
 /** 화면 표시용 서식 */
-import { diffDays, type Ymd } from '../calc/date.ts';
+import { diffDays, formatMonthDay, parseYmd, type Ymd } from '../calc/date.ts';
 
 const WON = new Intl.NumberFormat('ko-KR');
 
@@ -61,9 +61,57 @@ export function formatInstant(iso: string): string {
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}. ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** 월별 연가 창의 설명 한 줄. 한 번도 쓰지 않았으면 '1월'을 찍지 않는다(동률이면 앞선 달) */
-export function busiestMonthText(byMonth: readonly number[]): string {
+/**
+ * 월별 연가 창의 설명 한 줄. 한 번도 쓰지 않았으면 '1월'을 찍지 않는다.
+ * 가장 많이 쓴 달이 여럿이면 모두 말한다: '1월·5월·8월이 가장 많아요(각 1일).'
+ */
+export function busiestMonthText(byMonth: readonly number[], hoursPerDay = 8): string {
   const max = Math.max(0, ...byMonth);
   if (max === 0) return '단위: 일. 올해는 아직 쓴 연가가 없어요.';
-  return `단위: 일. 가장 많이 쓴 달은 ${byMonth.indexOf(max) + 1}월이에요.`;
+  const months = byMonth.flatMap((h, i) => (h === max ? [`${i + 1}월`] : []));
+  const amount = formatDaysAmount(max, hoursPerDay);
+  if (months.length === 1) return `단위: 일. 가장 많이 쓴 달은 ${months[0]}이에요(${amount}).`;
+  return `단위: 일. ${months.join('·')}이 가장 많아요(각 ${amount}).`;
+}
+
+/** 월별 막대 위의 값: 1일 미만은 '2시간', 그 밖은 내림 소수 한 자리 일수('1.5') */
+export function formatMonthBarValue(hours: number, hoursPerDay = 8): string {
+  if (hours <= 0) return '';
+  if (hours < hoursPerDay) return `${hours}시간`;
+  if (hours % hoursPerDay === 0) return String(hours / hoursPerDay);
+  return String(Math.floor((hours / hoursPerDay) * 10) / 10);
+}
+
+/** 시간 → '1일', '2일 4시간', '2시간' */
+function formatDaysAmount(hours: number, hoursPerDay: number): string {
+  const days = Math.floor(hours / hoursPerDay);
+  const rest = hours % hoursPerDay;
+  if (days === 0) return `${rest}시간`;
+  return rest === 0 ? `${days}일` : `${days}일 ${rest}시간`;
+}
+
+/** 2027-09-01 → '2027년 9월 1일' */
+export function formatLongDate(value: Ymd): string {
+  const { y, m, d } = parseYmd(value);
+  return `${y}년 ${m}월 ${d}일`;
+}
+
+/** 오늘과 같은 해면 '5월 1일 (토)', 다른 해면 '2027년 5월 1일 (토)' */
+export function formatMonthDayMaybeYear(value: Ymd, today: Ymd, withWeekday = true): string {
+  const y = parseYmd(value).y;
+  const md = formatMonthDay(value, withWeekday);
+  return y === parseYmd(today).y ? md : `${y}년 ${md}`;
+}
+
+/**
+ * 받침에 따라 조사를 고른다: josa('넥타이', '은', '는') → '넥타이는', josa('반짝이', '이', '가') → '반짝이가'.
+ * 한글이 아닌 글자로 끝나면 받침 없는 쪽을 쓴다(숫자는 읽는 소리로 본다).
+ */
+export function josa(word: string, withFinal: string, withoutFinal: string): string {
+  const last = word.trim().at(-1) ?? '';
+  const code = last.charCodeAt(0);
+  let hasFinal = false;
+  if (code >= 0xac00 && code <= 0xd7a3) hasFinal = (code - 0xac00) % 28 !== 0;
+  else if (/[0-9]/.test(last)) hasFinal = '013678'.includes(last);
+  return `${word}${hasFinal ? withFinal : withoutFinal}`;
 }

@@ -11,6 +11,7 @@
   import { LICENSE_NOTICES } from '../lib/licenses.ts';
   import { backupFileName } from '../lib/store/backup.ts';
   import type { Profile, ThemeSetting, WorkHours } from '../lib/store/schema.ts';
+  import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
   import Win from '../lib/ui/Win.svelte';
@@ -79,12 +80,22 @@
   }
 
   // ── 데이터 ───────────────────────────────────────────────────────────
-  function download(): boolean {
+  /** 모두 지우기 대화상자 안에서 내려받은 파일 이름(결과를 대화상자 안에 적는다) */
+  let resetFileName = $state('');
+  /** 백업 글자 대화상자의 복사 결과 */
+  let copyResult = $state<{ ok: boolean; text: string } | null>(null);
+
+  /** inDialog: 대화상자 안에서 눌렀으면 결과를 알림 대신 그 대화상자 안에 적는다 */
+  function download(inDialog = false): boolean {
     const { text, at } = app.exportBackup();
     const fileName = backupFileName(view.today);
     if (caps.download && downloadText(text, fileName)) {
       app.markBackedUp(at);
       // 브라우저는 저장이 끝났는지 알려 주지 않는다. 단정하지 않고 확인을 부탁한다.
+      if (inDialog) {
+        resetFileName = fileName;
+        return true;
+      }
       app.toast(
         `내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 급여·인사 정보가 들어 있으니 보관에 주의해 주세요.`,
         'good',
@@ -96,6 +107,7 @@
     }
     backupText = text;
     backupAt = at;
+    copyResult = null;
     showBackupText = true;
     return false;
   }
@@ -103,10 +115,11 @@
     const { text, at } = app.exportBackup();
     backupText = text;
     backupAt = at;
+    copyResult = null;
     showBackupText = true;
   }
   function downloadBeforeReset() {
-    if (download()) resetDownloaded = true;
+    if (download(true)) resetDownloaded = true;
   }
   function downloadCorrupt() {
     const copies = app.corruptCopies();
@@ -118,16 +131,12 @@
   }
   let corruptDownloaded = $state(false);
   async function copyBackup() {
+    // 결과는 대화상자 안에 적는다(알림은 대화상자에 가려질 수 있다)
     if (await copyText(backupText)) {
       app.markBackedUp(backupAt);
-      app.toast(
-        '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
-        'good',
-        'icon-copy',
-        6000,
-      );
+      copyResult = { ok: true, text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.' };
     } else {
-      app.toast('복사가 막혀 있어요. 글자를 직접 골라 복사해 주세요.', 'warn', 'icon-warn', 5000);
+      copyResult = { ok: false, text: '복사가 막혀 있어요. 글자를 직접 골라 복사해 주세요.' };
     }
   }
   function undo() {
@@ -206,19 +215,12 @@
     <div class="stack wide">
       <fieldset class="stack">
         <legend>월급날</legend>
-        <div class="chips" role="radiogroup" aria-label="월급날">
-          {#each paydayOptions as option (option.day)}
-            <button
-              type="button"
-              class="chip"
-              role="radio"
-              aria-checked={settings.payday === option.day}
-              onclick={() => setPayday(option.day)}
-            >
-              {option.day}일
-            </button>
-          {/each}
-        </div>
+        <ChipRadio
+          label="월급날"
+          options={paydayOptions.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+          value={settings.payday}
+          onchange={setPayday}
+        />
         <p class="cap muted">
           {paydayOptions.find((o) => o.day === settings.payday)?.orgs ?? '직접 정한 날'} · 토요일이나
           공휴일이면 그 전날 받아요(보수규정 제20조).
@@ -303,19 +305,12 @@
     <div class="stack wide">
       <div class="stack">
         <span id="theme-label">밝기</span>
-        <div class="chips" role="radiogroup" aria-labelledby="theme-label">
-          {#each THEMES as theme (theme.id)}
-            <button
-              type="button"
-              class="chip"
-              role="radio"
-              aria-checked={settings.theme === theme.id}
-              onclick={() => setTheme(theme.id)}
-            >
-              {theme.label}
-            </button>
-          {/each}
-        </div>
+        <ChipRadio
+          labelledby="theme-label"
+          options={THEMES.map((t) => ({ value: t.id, label: t.label }))}
+          value={settings.theme}
+          onchange={setTheme}
+        />
       </div>
       <label class="switch">
         <input
@@ -519,7 +514,8 @@
           aria-controls="set-licenses"
           onclick={() => (showLicenses = !showLicenses)}
         >
-          <span aria-hidden="true">{showLicenses ? '▼' : '▶'}</span> 오픈소스 고지
+          <span aria-hidden="true">{showLicenses ? '▼' : '▶'}</span>
+          <span>오픈소스 고지</span>
         </button>
         {#if showLicenses}
           <div id="set-licenses" class="stack">
@@ -573,6 +569,11 @@
         onfocus={(e) => e.currentTarget.select()}>{backupText}</textarea
       >
       <p class="note warn">급여·인사 정보가 들어 있으니 보관에 주의해 주세요.</p>
+      <div id="backup-copy-result" role="status">
+        {#if copyResult}
+          <p class="note" class:warn={!copyResult.ok}>{copyResult.text}</p>
+        {/if}
+      </div>
     </div>
     {#snippet actions()}
       <button type="button" class="btn primary" data-autofocus onclick={copyBackup}>
@@ -603,6 +604,15 @@
       </p>
       <p class="note">먼저 데이터를 내려받아 두면 나중에 다시 불러올 수 있어요.</p>
       {#if resetDownloaded}
+        <div class="note" id="reset-download-note" role="status">
+          <p>
+            내려받기를 시작했어요. <span class="nowrap">{resetFileName}</span> 파일이 생겼는지 확인해
+            주세요.
+          </p>
+          <button type="button" class="btn small ghost link" onclick={openBackupText}>
+            파일이 안 생겼어요 · 글자로 보기
+          </button>
+        </div>
         <label class="switch">
           <input type="checkbox" bind:checked={resetConfirmed} />
           <span class="box" aria-hidden="true"></span>
@@ -663,6 +673,8 @@
   }
   .toggle {
     justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
     width: fit-content;
   }
   .license {

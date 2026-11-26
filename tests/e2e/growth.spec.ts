@@ -104,7 +104,8 @@ test.describe('승급과 시간의 흐름', () => {
     // 앞날은 받지 않는다
     await fillDate(page, '최고호봉이 된 날', '2027-03-01');
     await page.getByRole('button', { name: '알 깨우기' }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '최고호봉이 된 날' })).toBeVisible();
+    await expect(page.locator('#pf-next-error')).toContainText('최고호봉이 된 날');
+    await expect(page.getByRole('alert')).toContainText('고칠 곳이 1군데');
     await fillDate(page, '최고호봉이 된 날', '2024-03-01');
     await page.getByRole('button', { name: '알 깨우기' }).click();
     await tick(page, 6000);
@@ -235,7 +236,12 @@ test.describe('승급과 시간의 흐름', () => {
 
   test('탭 제목에 퇴근까지 남은 시간을 띄울 수 있다(기본은 꺼짐)', async ({ page }) => {
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
-    await expect(page).toHaveTitle('호봉 — 공무원 상태창');
+    // 꺼져 있으면 보고 있는 화면 이름이 제목이 된다
+    await expect(page).toHaveTitle('설정 · 호봉');
+    const tabs = page.getByRole('navigation', { name: '화면 이동' });
+    await tabs.getByRole('link', { name: '연가' }).click();
+    await expect(page).toHaveTitle('연가 장부 · 호봉');
+    await tabs.getByRole('link', { name: '설정' }).click();
     await page.getByLabel(/탭 제목에 퇴근까지 남은 시간/).check();
     await tick(page);
     await expect(page).toHaveTitle(/^퇴근까지 7:\d\d · 호봉$/);

@@ -257,7 +257,10 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     );
     expect(reason('null')).toContain('호봉 데이터 파일이 아니에요');
     expect(reason('x'.repeat(MAX_BACKUP_BYTES + 1))).toContain('너무 커요');
-    expect(reason('{')).toContain('백업 파일 형식(JSON)이 아니에요');
+    expect(reason('{')).toContain('백업 데이터 형식(JSON)이 아니에요');
+    // 저장소·붙여넣기에서 읽은 경우에도 맞는 말: '파일'이라고 단정하지 않는다
+    expect(reason('{')).toContain('데이터를 읽지 못했어요');
+    expect(reason('{')).not.toContain('파일');
   });
   it('세부 사유에 내부 키 이름을 쓰지 않는다', () => {
     const env = good();

@@ -67,7 +67,8 @@
       oninput={onInput}
       onblur={onBlur}
       aria-invalid={error ? 'true' : undefined}
-      aria-describedby={hint ? `${id}-hint` : undefined}
+      aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') ||
+        undefined}
     />
     {#if unit}<span class="unit">{unit}</span>{/if}
     <button
@@ -81,7 +82,8 @@
     </button>
   </div>
   {#if hint}<span class="hint cap" id="{id}-hint">{hint}</span>{/if}
-  {#if error}<span class="error cap" role="alert">{error}</span>{/if}
+  <!-- 칸별 오류는 알림(role=alert)으로 읽지 않는다. 폼의 요약 하나만 알린다. -->
+  {#if error}<span class="error cap" id="{id}-error">{error}</span>{/if}
 </div>
 
 <style>
@@ -97,5 +99,6 @@
   }
   .unit {
     margin-right: 6px;
+    white-space: nowrap;
   }
 </style>

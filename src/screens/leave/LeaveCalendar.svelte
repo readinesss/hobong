@@ -204,14 +204,21 @@
   .title {
     font-weight: 400;
   }
+  /* 날짜 칸은 폭 44px 이상이어야 손가락으로 누를 수 있다: 칸 사이를 1px 로 줄이고,
+     너무 넓어지지 않게 달력 폭은 480px 까지만 쓴다 */
+  .cal {
+    max-width: 480px;
+    width: 100%;
+    margin-inline: auto;
+  }
   .grid {
     display: grid;
-    gap: 3px;
+    gap: 1px;
   }
   .week {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 3px;
+    gap: 1px;
   }
   .head span {
     text-align: center;

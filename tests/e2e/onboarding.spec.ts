@@ -27,7 +27,51 @@ test.describe('첫 화면과 입력 폼', () => {
     await expect(page.getByText('생년월일을 넣어 주세요.')).toBeVisible();
     await expect(page.getByText('임용일을 넣어 주세요.')).toBeVisible();
     await expect(page.getByText('다음 승급일을 넣어 주세요.')).toBeVisible();
+    // 요약의 개수는 화면에 보이는 오류 수와 같고(숨은 '현 직급 임용일'은 세지 않는다),
+    // 알림(role=alert)은 요약 하나만 읽힌다
+    await expect(page.locator('form .error')).toHaveCount(4);
+    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.getByRole('alert')).toContainText('고칠 곳이 4군데');
     expect(await storedData(page)).toBeNull();
+  });
+
+  test('없는 날짜는 "넣어 주세요"가 아니라 그 까닭을 알려준다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByLabel('생년월일 연도').fill('1996');
+    await page.getByLabel('생년월일 월').fill('2');
+    await page.getByLabel('생년월일 일').fill('30');
+    await expect(page.locator('#pf-birth-error')).toHaveText('없는 날짜예요. 1996년 2월은 29일까지예요.');
+    await expect(page.getByLabel('생년월일 일')).toHaveAttribute('aria-invalid', 'true');
+    await page.getByLabel('생년월일 월').fill('13');
+    await expect(page.locator('#pf-birth-error')).toHaveText('월은 1~12로 넣어 주세요.');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await expect(page.getByText('생년월일을 넣어 주세요.')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toContainText('고칠 곳이 4군데');
+  });
+
+  test('승진 체크를 켜면 현 직급 임용일 칸이 필수로 나온다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('checkbox', { name: '임용 후 승진한 적이 있어요' }).check();
+    await expect(page.getByLabel('현 직급 임용일(승진일) 연도')).toHaveAttribute(
+      'aria-required',
+      'true',
+    );
+  });
+
+  test('첫 화면과 폼을 오가면 포커스가 따라가고, 입력한 값은 남는다', async ({ page }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: '내 정보 넣기' })).toBeFocused();
+    await expect(page).toHaveTitle('내 정보 넣기 · 호봉');
+    await page.getByLabel('닉네임').fill('호봉집사');
+    await page.getByLabel('생년월일 연도').fill('1996');
+    await page.getByRole('button', { name: '뒤로' }).click();
+    await expect(page.getByRole('button', { name: '새로 시작' })).toBeFocused();
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await expect(page.getByLabel('닉네임')).toHaveValue('호봉집사');
+    await expect(page.getByLabel('생년월일 연도')).toHaveValue('1996');
   });
 
   test('잘못된 날짜를 거른다', async ({ page }) => {

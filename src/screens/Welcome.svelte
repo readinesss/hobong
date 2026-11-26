@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { app } from '../lib/app/state.svelte.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
   import { downloadText } from '../lib/app/files.ts';
@@ -13,6 +14,31 @@
   import ProfileForm from './ProfileForm.svelte';
 
   let step = $state<'intro' | 'form'>('intro');
+  /** 폼을 한 번 열었으면 계속 그려 둔다('뒤로'를 눌러도 입력한 값이 남는다) */
+  let formOpened = $state(false);
+  let startBtn = $state<HTMLButtonElement>();
+  let formHeading = $state<HTMLHeadingElement>();
+
+  // 화면이 바뀐 것을 제목으로도 알린다
+  $effect(() => {
+    document.title = step === 'form' ? '내 정보 넣기 · 호봉' : '호봉 — 공무원 상태창';
+  });
+
+  /** 폼으로: 누른 버튼이 사라지므로 새 화면의 제목으로 포커스를 옮긴다 */
+  async function goForm() {
+    formOpened = true;
+    step = 'form';
+    await tick();
+    window.scrollTo(0, 0);
+    formHeading?.focus({ preventScroll: true });
+  }
+
+  /** 첫 화면으로: '새로 시작' 버튼으로 포커스를 되돌린다 */
+  async function goIntro() {
+    step = 'intro';
+    await tick();
+    startBtn?.focus();
+  }
   let importing = $state(false);
   let dropped = $state<File | null>(null);
   let dragging = $state(false);
@@ -67,7 +93,7 @@
 >
   <div class="inner">
     {#if step === 'intro'}
-      <section class="win hero">
+      <section class="win hero" id="welcome-intro">
         <header class="win-title">
           <Icon name="icon-tiger" />
           <h1>호봉 — 공무원 상태창</h1>
@@ -149,7 +175,7 @@
             {#if app.undoSavedAt}
               <div class="note stack" id="welcome-undo">
                 <p>
-                  불러오기 직전 상태가 보관돼 있어요. <span class="cap muted">
+                  불러오기 직전 상태가 보관돼 있어요. <span class="cap muted nowrap">
                     ({formatInstant(app.undoSavedAt)})
                   </span>
                 </p>
@@ -162,7 +188,12 @@
             {/if}
 
             <div class="choices">
-              <button type="button" class="btn primary choice" onclick={() => (step = 'form')}>
+              <button
+                type="button"
+                class="btn primary choice"
+                bind:this={startBtn}
+                onclick={goForm}
+              >
                 <Icon name="icon-egg" scale={2} />
                 <span>새로 시작</span>
               </button>
@@ -171,7 +202,7 @@
                 <span>데이터 불러오기</span>
               </button>
             </div>
-            <p class="cap muted center">백업 파일을 이 화면에 끌어다 놓아도 돼요.</p>
+            <p class="cap muted center fine-only">백업 파일을 이 화면에 끌어다 놓아도 돼요.</p>
           {/if}
 
           <ul class="facts cap">
@@ -193,22 +224,24 @@
           {/if}
         </div>
       </section>
-    {:else}
-      <section class="win">
-        <header class="win-title">
-          <Icon name="icon-pencil" />
-          <h1>내 정보 넣기</h1>
-          <button type="button" class="btn ghost small back" onclick={() => (step = 'intro')}>
-            <Icon name="icon-chevron-left" /> 뒤로
-          </button>
-        </header>
-        <div class="win-body">
-          <ProfileForm askPayday submitLabel="알 깨우기" onsubmit={create} />
-        </div>
-      </section>
-      <p class="cap muted center foot">
-        적용 대상: {rules.target.label}. 입력한 값은 설정에서 언제든 고칠 수 있어요.
-      </p>
+    {/if}
+    {#if formOpened}
+      <div hidden={step !== 'form'}>
+        <section class="win" id="welcome-form" aria-labelledby="welcome-form-title">
+          <header class="win-title">
+            <button type="button" class="btn ghost small back" onclick={goIntro}>
+              <Icon name="icon-chevron-left" /> 뒤로
+            </button>
+            <h1 id="welcome-form-title" tabindex="-1" bind:this={formHeading}>내 정보 넣기</h1>
+          </header>
+          <div class="win-body">
+            <ProfileForm askPayday submitLabel="알 깨우기" onsubmit={create} />
+          </div>
+        </section>
+        <p class="cap muted center foot">
+          적용 대상: {rules.target.label}. 입력한 값은 설정에서 언제든 고칠 수 있어요.
+        </p>
+      </div>
     {/if}
   </div>
 </main>
@@ -227,7 +260,6 @@
   .mono {
     font-family: monospace;
     font-size: 12px;
-    width: 100%;
   }
   .welcome {
     min-height: 100vh;
@@ -293,7 +325,8 @@
     margin-top: 12px;
   }
   .back {
+    flex: none;
     color: var(--title-ink);
-    margin: 0 -6px 0 0;
+    margin: 0 0 0 -6px;
   }
 </style>
