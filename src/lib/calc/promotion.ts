@@ -106,8 +106,8 @@ export function seniorTreatmentInfo(
 
 /**
  * 승진 후 호봉(보수규정 별표 28 가목): 1호봉은 1호봉, 그 밖에는 한 호봉을 뺀다.
- * 승진 후 계급에 그 호봉이 없으면 그 계급의 최고 호봉으로 한다(같은 표 비고 1).
- * maxStep 에 승진 후 계급의 최고 호봉을 넘기면 그 상한까지 적용한다.
+ * 승진 후 계급에 그 호봉이 없으면 그 계급의 최고호봉으로 한다(같은 표 비고 1).
+ * maxStep 에 승진 후 계급의 최고호봉을 넘기면 그 상한까지 적용한다.
  */
 export function promotedStep(rule: PromotionStepRules, step: number, maxStep?: number): number {
   const raw = Math.max(rule.minStep, step - rule.subtract);

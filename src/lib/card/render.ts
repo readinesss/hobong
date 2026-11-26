@@ -24,11 +24,11 @@ export interface CardModel {
   line: string;
   /** '2026. 11. 25.' */
   dateText: string;
-  /** 다음 승급까지(최고 호봉이면 null) */
+  /** 다음 승급까지(최고호봉이면 null) */
   raise: { ratio: number; dday: string } | null;
   /** 켠 항목만 들어온다: '재직 4년 2개월', '정년 D-10,810', '월 봉급 2,226,100원' */
   facts: string[];
-  /** 켰을 때만: 최근 뱃지 */
+  /** 켰을 때만: 최근 배지 */
   badges: { icon: string; tier: Tier }[];
   badgeCount: number;
   siteName: string;
@@ -288,7 +288,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
       cy += 18;
       bar(ctx, cx + 2, cy, cw - 4, 8, model.raise.ratio, 10, GOLD);
     } else {
-      text(ctx, '최고 호봉', cx, cy, 12, INK);
+      text(ctx, '최고호봉', cx, cy, 12, INK);
     }
     y = py + 30 + stageH + 8;
     text(ctx, fit(ctx, model.nickname, 15, inner), left, y, 15, INK);
@@ -320,12 +320,12 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
       bar(ctx, left + 2, y, inner - 4, 8, model.raise.ratio, 20, GOLD);
       y += 16;
     } else {
-      text(ctx, '최고 호봉에 올랐어요', left, y, 12, MUTED);
+      text(ctx, '최고호봉에 올랐어요', left, y, 12, MUTED);
       y += 20;
     }
   }
 
-  // 켠 항목과 뱃지: 남은 높이만큼만
+  // 켠 항목과 배지: 남은 높이만큼만
   const rowsLeft = () => Math.floor((footerY - 4 - y) / 18);
   const wantBadges = model.badges.length > 0;
   const factLines = packFacts(

@@ -89,7 +89,7 @@ describe('연속 휴식 계산', () => {
 });
 
 describe('업적', () => {
-  it('경력을 인정받아 높은 호봉에서 시작해도 뱃지 날짜가 임용일보다 앞서지 않는다', () => {
+  it('경력을 인정받아 높은 호봉에서 시작해도 배지 날짜가 임용일보다 앞서지 않는다', () => {
     const data = makeData();
     // 2026-03-02 임용인데 7호봉에서 시작했다: 5호봉이 된 날을 거슬러 계산하면 2024년이 된다
     data.profile = {
@@ -103,14 +103,14 @@ describe('업적', () => {
     const earned = evaluateAchievements(inputOf(data));
     expect(earned['step-5']).toEqual({ at: '2026-03-02' });
   });
-  it('장기재직휴가 뱃지의 이름은 규정 데이터의 일수에서 온다', () => {
+  it('장기재직휴가 배지의 이름은 규정 데이터의 일수에서 온다', () => {
     const data = makeData();
     data.profile = { ...data.profile, hireDate: '2016-09-01', gradeDate: '2016-09-01' };
     const views = achievementViews(inputOf(data), evaluateAchievements(inputOf(data)));
     const days = R.leave.longService.tiers[0]?.days;
     expect(views.find((v) => v.id === 'long-leave-5')?.title).toBe(`장기재직휴가 ${days}일`);
   });
-  it('입력하자마자 지나간 일정이 뱃지가 된다', () => {
+  it('입력하자마자 지나간 일정이 배지가 된다', () => {
     const earned = evaluateAchievements(inputOf(makeData()));
     expect(earned.hire).toEqual({ at: '2020-01-01' });
     expect(earned.probation).toEqual({ at: '2020-07-01' });
@@ -120,7 +120,7 @@ describe('업적', () => {
     // 2020-01-01 임용, 7호봉 → 7호봉이 2026-01-01부터이므로 5호봉이 된 날은 2024-01-01(승급일을 거슬러 계산)
     expect(earned['step-5']).toEqual({ at: '2024-01-01' });
     expect(earned['step-10']).toBeUndefined();
-    // 오늘(11월 25일)은 25일 지급 기관의 봉급날
+    // 오늘(11월 25일)은 25일 지급 기관의 월급날
     expect(earned['evt-payday']).toEqual({ at: TODAY });
     expect(earned['leave-first']).toBeUndefined();
   });
@@ -278,7 +278,7 @@ describe('호봉이의 한마디', () => {
     expect(categoriesFor({ ...base, mood: 'vacation' }).categories).toEqual(['vacation']);
     expect(categoriesFor({ ...base, phase: 'off' }).categories).toEqual(['restDay']);
     expect(categoriesFor({ ...base, isPayday: true }).categories).toEqual(['payday']);
-    expect(categoriesFor({ ...base, mood: 'tired' }).categories).toEqual(['tired']);
+    expect(categoriesFor({ ...base, mood: 'tired' }).categories).toEqual(['tired', 'default']);
     expect(categoriesFor({ ...base, phase: 'after', hour: 19 }).categories).toEqual(['afterWork']);
     expect(categoriesFor({ ...base, phase: 'lunch', hour: 12 }).categories).toEqual(['lunch']);
     expect(categoriesFor({ ...base, mood: 'sleep', phase: 'after', hour: 23 }).categories).toEqual([

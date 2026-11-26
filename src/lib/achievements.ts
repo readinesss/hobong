@@ -1,5 +1,5 @@
 /**
- * 업적 뱃지.
+ * 업적 배지.
  * - 날짜·상태로 정해지는 업적(일정, 호봉)은 저장하지 않고 매번 다시 계산한다.
  * - 한 번 얻으면 남는 업적(행동, 연도별 연가, 출근 도장)은 사용자 데이터에 달성일과 함께 남긴다.
  */
@@ -34,7 +34,7 @@ export interface AchievementView {
   hint: string | null;
 }
 
-/** 일정에서 오는 뱃지의 이름·등급(없으면 일정 제목을 그대로 쓴다) */
+/** 일정에서 오는 배지의 이름·등급(없으면 일정 제목을 그대로 쓴다) */
 /** title 이 없으면 일정의 제목을 그대로 쓴다(일수처럼 규정 데이터에서 오는 값은 여기 적지 않는다) */
 const MILESTONE_BADGES: Record<string, { title?: string; tier: Tier }> = {
   hire: { title: '첫 출근', tier: 'bronze' },
@@ -49,10 +49,10 @@ const MILESTONE_BADGES: Record<string, { title?: string; tier: Tier }> = {
   'anniv-30': { title: '서른 해 한길', tier: 'gold' },
   'anniv-35': { title: '서른다섯 해', tier: 'gold' },
   'days-100': { title: '백일', tier: 'bronze' },
-  'days-1000': { title: '천 일의 출근', tier: 'bronze' },
+  'days-1000': { title: '천 일째', tier: 'bronze' },
   'days-3000': { title: '삼천 일', tier: 'silver' },
   'days-5000': { title: '오천 일', tier: 'silver' },
-  'days-10000': { title: '만 일의 출근', tier: 'gold' },
+  'days-10000': { title: '만 일째', tier: 'gold' },
   'leave-21': { title: '쉼표 스물하나', tier: 'silver' },
   'long-leave-5': { tier: 'bronze' },
   'long-leave-10': { tier: 'silver' },
@@ -77,7 +77,7 @@ const VISIT_BADGES: readonly { count: number; tier: Tier }[] = [
 /** 행동으로 얻는 업적(앱이 직접 부여) */
 export const EVENT_BADGES = {
   'evt-card': {
-    title: '첫 명함',
+    title: '첫 카드',
     desc: '호봉이 카드를 만들었다.',
     icon: 'icon-camera',
     tier: 'bronze',
@@ -230,7 +230,7 @@ export function freshAchievements(
   return Object.keys(earned).filter((id) => !(id in stored));
 }
 
-/** 화면에 보여줄 뱃지 목록: 얻은 것(최근순) → 아직인 것(가까운 순) */
+/** 화면에 보여줄 배지 목록: 얻은 것(최근순) → 아직인 것(가까운 순) */
 export function achievementViews(
   input: AchievementInput,
   earned: Record<string, { at: Ymd }>,
@@ -331,13 +331,13 @@ export function achievementViews(
   }
   views.push({
     id: 'evt-payday',
-    title: '봉급날 출석',
-    desc: '봉급날에 들렀다.',
+    title: '월급날 출석',
+    desc: '월급날에 들렀다.',
     icon: 'icon-coin',
     tier: 'bronze',
     group: 'habit',
     at: at('evt-payday'),
-    hint: at('evt-payday') ? null : '봉급날에 들르면',
+    hint: at('evt-payday') ? null : '월급날에 들르면',
   });
   views.push({
     id: 'evt-backup',

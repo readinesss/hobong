@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { formatWon } from '../lib/app/format.ts';
+  import { busiestMonthText, formatWon, MASKED_WON } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import {
@@ -50,6 +50,8 @@
   let entryEl = $state<HTMLElement>();
 
   const selectedIsWorkday = $derived(calendar.isWorkday(selected));
+  const selectedHoliday = $derived(calendar.holidayName(selected));
+  const todayIsWorkday = $derived(calendar.isWorkday(view.today));
   const selectedHours = $derived(
     view.data.leave.records.filter((r) => r.date === selected).reduce((sum, r) => sum + r.hours, 0),
   );
@@ -155,7 +157,6 @@
   }
 
   const bridges = $derived(view.bridges.slice(0, 4));
-  const monthName = (i: number) => `${i + 1}월`;
   const selParts = $derived(parseYmd(selected));
 </script>
 
@@ -250,8 +251,10 @@
         </div>
         {#if !selectedIsWorkday}
           <p class="note">
-            {calendar.holidayName(selected) ?? '토요일·일요일'}은(는) 쉬는 날이라 연가를 쓰지 않아도
-            돼요. 아래 달력에서 다른 날을 골라 주세요.
+            {selectedHoliday
+              ? `이날은 쉬는 날(${selectedHoliday})이라`
+              : `이날은 ${weekdayName(selected)}요일이라`} 연가를 쓰지 않아도 돼요. 아래 달력에서 다른
+            날을 골라 주세요.
           </p>
         {:else if !calendar.hasHolidayData(selParts.y)}
           <p class="note">
@@ -302,7 +305,11 @@
             autocomplete="off"
             placeholder="예: 가족 여행"
             bind:value={memo}
+            aria-describedby="leave-memo-hint"
           />
+          <span class="hint cap" id="leave-memo-hint">
+            이름이나 민감한 내용은 적지 마세요. 백업 파일에 그대로 담겨요.
+          </span>
         </div>
         {#if message}<p class="note warn" role="alert">{message}</p>{/if}
         <div class="btn-row">
@@ -311,7 +318,7 @@
             class="btn small"
             onclick={() => select(firstWorkdayFrom(view.today))}
           >
-            오늘로
+            {todayIsWorkday ? '오늘로' : '가까운 근무일로'}
           </button>
           <button type="button" class="btn small" onclick={openRange}>
             <Icon name="icon-calendar" /> 여러 날 한꺼번에
@@ -420,9 +427,7 @@
         {/each}
       </div>
       <p class="cap muted">
-        단위: 일. 가장 많이 쓴 달은 {monthName(
-          leave.byMonth.indexOf(Math.max(...leave.byMonth)),
-        )}{Math.max(...leave.byMonth) === 0 ? ' — 아직 없어요' : ''}.
+        {busiestMonthText(leave.byMonth)}
       </p>
     </Win>
   </div>
@@ -436,7 +441,7 @@
     </p>
     <p class="note">
       연가보상비 1일 단가: {view.data.settings.hideAmounts
-        ? '●●,●●●원'
+        ? MASKED_WON
         : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(
         rules.compensation.rate * 100,
       )}% ÷
@@ -468,7 +473,7 @@
     </div>
     {#snippet actions()}
       {#if leave.overridden}
-        <button type="button" class="btn" onclick={resetGrant}>자동 계산으로</button>
+        <button type="button" class="btn" onclick={resetGrant}>자동 계산으로 되돌리기</button>
       {/if}
       <button type="button" class="btn primary" data-autofocus onclick={saveGrant}>저장</button>
     {/snippet}

@@ -7,6 +7,7 @@
   import { nav, TABS, type TabId } from './lib/app/nav.svelte.ts';
   import { app } from './lib/app/state.svelte.ts';
   import { view } from './lib/app/view.svelte.ts';
+  import { formatKorean } from './lib/calc/date.ts';
   import { formatDuration } from './lib/calc/today.ts';
   import Icon from './lib/ui/Icon.svelte';
   import Toasts from './lib/ui/Toasts.svelte';
@@ -143,7 +144,7 @@
       app.recordAchievements(earned);
       if (fresh.length > 3) {
         app.toast(
-          `뱃지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`,
+          `배지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`,
           'good',
           'icon-medal',
           5000,
@@ -151,7 +152,7 @@
       } else {
         for (const id of fresh) {
           const badge = view.badges.find((b) => b.id === id);
-          if (badge) app.toast(`새 뱃지: ${badge.title}`, 'good', badge.icon, 4500);
+          if (badge) app.toast(`새 배지: ${badge.title}`, 'good', badge.icon, 4500);
         }
       }
     });
@@ -237,10 +238,10 @@
       {/if}
       <footer class="foot cap muted">
         <p>
-          {view.rules.target.label} 기준 · 규정 확인일 {view.rules.meta.verifiedAt.replaceAll(
-            '-',
-            '. ',
-          )}. · 공식 인사·급여 시스템의 기록이 기준이며 이 화면은 참고용입니다.
+          {view.rules.target.label} 기준 · 규정 확인일 {formatKorean(
+            view.rules.meta.verifiedAt,
+            false,
+          )} · 공식 인사·급여 시스템의 기록이 기준이며 이 화면은 참고용이에요.
         </p>
       </footer>
     </main>

@@ -68,7 +68,7 @@ function seed(profile, { theme = 'light' } = {}) {
 }
 
 const NINE = {
-  nickname: '김주무관',
+  nickname: '호봉이집사',
   birthDate: '1996-04-12',
   hireDate: '2022-09-01',
   grade: 9,
@@ -78,7 +78,7 @@ const NINE = {
   stepAsOf: '2026-11-25',
 };
 const SEVEN = {
-  nickname: '박주무관',
+  nickname: '점심산책',
   birthDate: '1988-11-25',
   hireDate: '2013-07-01',
   grade: 7,
@@ -125,7 +125,7 @@ try {
     );
     await page.goto(`${APP_URL}#${shot.hash}`);
     await page.clock.runFor(1500);
-    // 처음 받은 뱃지 알림은 닫고 찍는다
+    // 처음 받은 배지 알림은 닫고 찍는다
     const close = page.getByRole('button', { name: '알림 닫기' });
     while ((await close.count()) > 0) {
       await close.first().click();

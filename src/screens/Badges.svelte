@@ -145,7 +145,7 @@
   </Win>
 
   <!-- id를 화면 주소(#badges)와 다르게 둔다: 같으면 새로 고칠 때 브라우저가 이 창으로 내려가 버린다 -->
-  <Win title="뱃지" icon="icon-medal" id="badge-list" area="badges">
+  <Win title="배지" icon="icon-medal" id="badge-list" area="badges">
     {#snippet aside()}{view.earnedCount} / {total}{/snippet}
     <ul class="badges">
       {#each badges as badge (badge.id)}
@@ -167,7 +167,7 @@
         </li>
       {/each}
     </ul>
-    <p class="cap muted">뱃지를 누르면 자세한 내용을 볼 수 있어요.</p>
+    <p class="cap muted">배지를 누르면 자세한 내용을 볼 수 있어요.</p>
   </Win>
 </div>
 
@@ -180,7 +180,7 @@
       <div class="stack">
         <p>{detail.desc}</p>
         {#if detail.at}
-          <p class="good">{formatKorean(detail.at)} 달성 · {TIER_LABEL[detail.tier]} 뱃지</p>
+          <p class="good">{formatKorean(detail.at)} 달성 · {TIER_LABEL[detail.tier]} 배지</p>
         {:else}
           <p class="muted">아직 얻지 못했어요. {detail.hint}</p>
         {/if}

@@ -191,8 +191,8 @@ export interface MoodInput {
   /** 현지 시각의 시(0~23) */
   hour: number;
   phase: 'off' | 'before' | 'working' | 'lunch' | 'after';
-  /** 마지막으로 연가를 쓴 뒤 지난 일수 */
-  daysSinceLeave: number;
+  /** 마지막으로 연가를 쓴 뒤 지난 일수(기록이 없으면 null → 지친 모습을 하지 않는다) */
+  daysSinceLeave: number | null;
   /** 남은 연가가 있는지(없으면 지친 모습을 하지 않는다) */
   hasLeaveLeft: boolean;
 }
@@ -208,6 +208,11 @@ export function decideMood(rules: CharacterRules, input: MoodInput): MoodId {
   if (input.isPayday) return 'payday';
   if (input.phase === 'off' || input.phase === 'after' || input.phase === 'before') return 'off';
   if (input.phase === 'lunch') return 'lunch';
-  if (input.hasLeaveLeft && input.daysSinceLeave >= rules.tiredAfterDays) return 'tired';
+  if (
+    input.hasLeaveLeft &&
+    input.daysSinceLeave !== null &&
+    input.daysSinceLeave >= rules.tiredAfterDays
+  )
+    return 'tired';
   return 'work';
 }

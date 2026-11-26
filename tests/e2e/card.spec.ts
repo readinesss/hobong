@@ -31,14 +31,14 @@ test.describe('캐릭터 카드', () => {
     await page.getByRole('radio', { name: '세로형' }).click();
     const portrait = await savePng(page);
     expect(pngSize(portrait.buffer)).toEqual({ width: 1080, height: 1620 });
-    // 첫 카드를 만들면 뱃지를 받는다
+    // 첫 카드를 만들면 배지를 받는다
     expect((await storedData(page))?.achievements['evt-card']).toEqual({ at: '2026-11-25' });
   });
 
   test('금액·정년은 기본으로 꺼져 있고 켠 것만 들어간다', async ({ page }) => {
     await expect(page.getByLabel(/월 봉급/)).not.toBeChecked();
     await expect(page.getByLabel(/정년 D-day/)).not.toBeChecked();
-    await expect(page.getByLabel('뱃지')).toBeChecked();
+    await expect(page.getByLabel('배지')).toBeChecked();
     const text = page.locator('#card-text pre');
     await expect(text).toContainText('9급 5호봉');
     await expect(text).not.toContainText('원');
@@ -49,6 +49,10 @@ test.describe('캐릭터 카드', () => {
     // 글자 카드에는 금액을 켜도 넣지 않는다
     await page.getByLabel(/월 봉급/).check();
     await expect(text).not.toContainText('2,226,100');
+    // 이미지 카드에는 금액과 함께 '봉급표 기준' 꼬리표가 들어간다(받는 사람은 앱의 안내를 볼 수 없다)
+    const preview = page.locator('#card-preview [role="img"]');
+    await expect(preview).toHaveAttribute('aria-label', /월 봉급 2,226,100원\(봉급표 기준\)/);
+    await expect(page.getByText('봉급표 금액이 그대로 보여요(수당·공제 전)')).toBeVisible();
     expect((await storedData(page))?.settings.card).toMatchObject({
       showSalary: true,
       showRetirement: true,

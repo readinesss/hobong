@@ -62,7 +62,8 @@
             `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}%)`,
           ]
         : []),
-      ...(card.showSalary ? [`월 봉급 ${formatWon(view.salary.amount)}`] : []),
+      // 카드는 앱 밖으로 나가므로 금액이 봉급표 기준(수당·공제 전)임을 카드 안에도 적는다.
+      ...(card.showSalary ? [`월 봉급 ${formatWon(view.salary.amount)}(봉급표 기준)`] : []),
     ],
     badges: card.showBadges
       ? view.badges
@@ -119,10 +120,14 @@
     return canvasToBlob(out);
   }
 
+  /** 미리보기의 낭독 문구: 카드에 켠 항목까지 그대로 읽는다 */
+  const previewLabel = $derived(
+    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...model.facts].join(', ')}`,
+  );
   const fileName = $derived(`hobong-card-${view.today.replaceAll('-', '')}.png`);
 
   function done() {
-    if (app.grantEvent('evt-card')) app.toast('새 뱃지: 첫 명함', 'good', 'icon-camera', 4500);
+    if (app.grantEvent('evt-card')) app.toast('새 배지: 첫 카드', 'good', 'icon-camera', 4500);
   }
 
   function showFallback(blob: Blob) {
@@ -135,7 +140,7 @@
     try {
       const blob = await render();
       if (!blob) {
-        app.toast('이미지를 만들지 못했어요.', 'warn', 'icon-warn');
+        app.toast('이미지를 만들지 못했어요. 다시 눌러 보세요.', 'warn', 'icon-warn');
         return;
       }
       if (caps.download && downloadBlob(blob, fileName)) {
@@ -209,7 +214,7 @@
       class="holder"
       bind:this={holder}
       role="img"
-      aria-label="호봉이 카드 미리보기. {model.nickname}, {model.grade}급 {model.step}호봉, {model.formName}"
+      aria-label={previewLabel}
     >
       <canvas
         bind:this={canvas}
@@ -248,7 +253,7 @@
             onchange={(e) => setCard({ showBadges: e.currentTarget.checked })}
           />
           <span class="box" aria-hidden="true"></span>
-          <span>뱃지</span>
+          <span>배지</span>
         </label>
         <label class="switch">
           <input
@@ -275,7 +280,7 @@
             onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
           />
           <span class="box" aria-hidden="true"></span>
-          <span>월 봉급 <span class="cap muted">금액이 그대로 보여요</span></span>
+          <span>월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span></span>
         </label>
         <p class="cap muted">금액과 정년은 기본으로 꺼져 있어요. 켠 것만 카드에 들어가요.</p>
       </fieldset>

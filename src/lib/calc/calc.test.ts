@@ -144,7 +144,7 @@ describe('호봉 추이 (보수규정 제13조)', () => {
     expect(stepOn(anchor, '2022-03-01', 31)).toBe(1);
     expect(stepOn(anchor, '2010-01-01', 31)).toBe(1);
   });
-  it('최고 호봉을 넘지 않는다', () => {
+  it('최고호봉을 넘지 않는다', () => {
     const top = { step: 30, nextStepDate: '2027-03-01' };
     expect(stepOn(top, '2027-03-01', 31)).toBe(31);
     expect(stepOn(top, '2035-03-01', 31)).toBe(31);
@@ -416,6 +416,16 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     expect(s.nextChange).toBeNull();
     expect(s.rate).toBeCloseTo(26 / 168, 12);
   });
+  it('마지막 사용일부터 지난 일수를 센다(오늘 이후 예정은 빼고)', () => {
+    const s = summarizeLeave(
+      L,
+      '2022-09-01',
+      { records: [rec('2026-08-01', 8), rec('2026-12-01', 8)], grantOverrideHours: {} },
+      '2026-11-25',
+    );
+    expect(s.lastUseDate).toBe('2026-08-01');
+    expect(s.daysSinceLastUse).toBe(116);
+  });
   it('직접 수정한 부여 시간이 우선한다', () => {
     const leave: LeaveData = { records: [], grantOverrideHours: { '2026': 184 } };
     const s = summarizeLeave(L, '2018-08-01', leave, '2026-11-25');
@@ -432,7 +442,9 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     );
     expect(s.grantedHours).toBe(11 * 8);
     expect(s.nextChange).toEqual({ date: '2026-12-01', hours: 15 * 8 });
-    expect(s.daysSinceLastUse).toBe(359);
+    // 기록이 한 건도 없으면 '못 쉬었다'고 보지 않는다(임용일부터 세지 않는다).
+    expect(s.lastUseDate).toBeNull();
+    expect(s.daysSinceLastUse).toBeNull();
   });
 
   it('시간 표기', () => {
@@ -455,6 +467,13 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     expect(ok({ date: '2026-11-24', kind: 'hours', hours: 4 })).toBeNull();
     expect(ok({ date: '2026-11-28', kind: 'day', hours: 0 })).toContain('토요일');
     expect(ok({ date: '2026-12-25', kind: 'day', hours: 0 })).toContain('기독탄신일');
+    // 조사를 '은(는)'으로 뭉뚱그리지 않는다
+    expect(ok({ date: '2026-12-25', kind: 'day', hours: 0 })).toBe(
+      '이날은 공휴일(기독탄신일)이라 연가를 쓰지 않아도 되는 날이에요.',
+    );
+    expect(ok({ date: '2026-11-28', kind: 'day', hours: 0 })).toBe(
+      '이날은 토요일이라 연가를 쓰지 않아도 되는 날이에요.',
+    );
     expect(ok({ date: '2019-12-31', kind: 'day', hours: 0 })).toContain('임용일');
     expect(ok({ date: '2026-11-25', kind: 'hours', hours: 0 })).toContain('1시간부터');
     expect(ok({ date: '2026-11-25', kind: 'hours', hours: 9 })).toContain('1시간부터');
@@ -1047,7 +1066,7 @@ describe('검토에서 나온 경계 사례', () => {
         graced: false,
       });
     });
-    it('일정과 뱃지에도 같은 날짜가 쓰인다', () => {
+    it('일정과 배지에도 같은 날짜가 쓰인다', () => {
       const old = buildMilestones(
         rulesFor,
         profile({ birthDate: '1968-03-01', hireDate: '1990-03-01', gradeDate: '1990-03-01' }),

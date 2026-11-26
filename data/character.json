@@ -11,8 +11,8 @@
   "forms": [
     { "id": "egg", "name": "알봉이", "grades": [9], "body": "body-egg", "blurb": "막 깨어났다. 세상이 다 신기하다." },
     { "id": "chick", "name": "솜봉이", "grades": [8], "body": "body-chick", "blurb": "솜털이 보송하다. 일이 손에 붙기 시작한다." },
-    { "id": "fledgling", "name": "깃봉이", "grades": [7], "body": "body-fledgling", "blurb": "첫 깃이 났다. 제법 날갯짓을 한다." },
-    { "id": "bird", "name": "날봉이", "grades": [6], "body": "body-bird", "blurb": "날개에 힘이 붙었다. 뒤를 봐줄 줄 안다." },
+    { "id": "fledgling", "name": "깃봉이", "grades": [7], "body": "body-fledgling", "blurb": "볏이 돋았다. 날갯짓에 힘이 실린다." },
+    { "id": "bird", "name": "날봉이", "grades": [6], "body": "body-bird", "blurb": "날개에 힘이 붙었다. 뒤따르는 새들을 챙길 줄 안다." },
     { "id": "phoenix", "name": "봉황", "grades": [5, 4, 3, 2, 1], "body": "body-phoenix", "blurb": "오색 깃이 다 자랐다." }
   ],
   "items": [
@@ -51,8 +51,8 @@
     "off": { "label": "쉬는 중", "eyes": "eyes-happy", "items": [], "fx": [], "hide": ["handL", "handR"] },
     "sleep": { "label": "자는 중", "eyes": "eyes-sleep", "items": ["item-nightcap"], "fx": ["fx-zzz"], "hide": ["head", "face", "handL", "handR"] },
     "vacation": { "label": "연가 중", "eyes": "eyes-happy", "items": ["item-sunglasses", "item-strawhat", "item-lei"], "fx": [], "hide": ["neck", "face", "head", "handL", "handR"] },
-    "tired": { "label": "쉬고 싶다", "eyes": "eyes-tired", "items": [], "fx": ["fx-sweat"], "hide": [] },
-    "payday": { "label": "봉급날", "eyes": "eyes-sparkle", "items": [], "fx": ["fx-coin"], "hide": ["face"] },
+    "tired": { "label": "쉴 때가 됐어요", "eyes": "eyes-tired", "items": [], "fx": ["fx-sweat"], "hide": [] },
+    "payday": { "label": "월급날", "eyes": "eyes-sparkle", "items": [], "fx": ["fx-coin"], "hide": ["face"] },
     "celebrate": { "label": "축하합니다", "eyes": "eyes-happy", "items": ["item-partyhat"], "fx": ["fx-confetti"], "hide": ["head"] }
   },
   "tiredAfterDays": 90,

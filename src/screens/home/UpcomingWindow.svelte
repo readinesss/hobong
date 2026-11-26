@@ -8,7 +8,7 @@
 
 <Win title="다가오는 일정" icon="icon-list" id="upcoming" area="upcoming">
   {#if view.upcoming.length === 0}
-    <p class="muted">남은 일정이 없어요. 긴 길을 다 오셨습니다.</p>
+    <p class="muted">남은 일정이 없어요. 긴 길을 다 오셨어요.</p>
   {:else}
     <ol class="list">
       {#each view.upcoming as item (item.id)}

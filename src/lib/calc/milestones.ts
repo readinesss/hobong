@@ -31,7 +31,7 @@ export interface Milestone {
   /** 아이콘 스프라이트 이름 */
   icon: string;
   kind: MilestoneKind;
-  /** 지나가면 업적 뱃지가 되는 일정 */
+  /** 지나가면 업적 배지가 되는 일정 */
   badge: boolean;
 }
 
@@ -254,7 +254,7 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
       id: `anniv-${n}`,
       date,
       title: `임용 ${n}주년`,
-      detail: n === 10 ? '강산이 한 번 변했다.' : `공직 ${n}년. 수고 많으셨습니다.`,
+      detail: n === 10 ? '강산이 한 번 변했다.' : `공직 ${n}년을 채우는 날.`,
       icon: 'icon-cake',
       kind: 'career',
       badge: BADGE_ANNIVERSARIES.has(n),
@@ -267,7 +267,7 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
       id: `days-${mark.days}`,
       date: addDays(hireDate, mark.days - 1),
       title: `임용 ${mark.days.toLocaleString('ko-KR')}일째`,
-      detail: `출근 도장이 ${mark.days.toLocaleString('ko-KR')}번째 날에 닿는다.`,
+      detail: `임용한 지 ${mark.days.toLocaleString('ko-KR')}일째 되는 날.`,
       icon: 'icon-calendar',
       kind: 'career',
       badge: mark.badge,
@@ -292,7 +292,7 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
       id: `retire-d${mark.days}`,
       date: addDays(retire, -mark.days),
       title: `정년까지 ${mark.label}`,
-      detail: '봉황이 되어 날아오를 날이 가까워진다.',
+      detail: '날아오를 날이 가까워진다.',
       icon: 'icon-hourglass',
       kind: 'retire',
       badge: false,
@@ -302,7 +302,7 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
     id: 'retire',
     date: retire,
     title: '정년퇴직',
-    detail: '긴 길의 끝. 호봉이가 봉황이 되어 날아오른다.',
+    detail: '긴 길의 끝. 호봉이가 날개를 펴고 날아오른다.',
     icon: 'icon-flag',
     kind: 'retire',
     badge: false,

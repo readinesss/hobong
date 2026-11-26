@@ -63,7 +63,7 @@ export interface WelcomeBack {
 }
 
 export interface Celebration {
-  kind: 'step' | 'grade' | 'hatch';
+  kind: 'step' | 'hatch';
   fromGrade: Grade;
   fromStep: number;
   toGrade: Grade;

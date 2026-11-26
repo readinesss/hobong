@@ -119,7 +119,7 @@
           <dd>{ok.data.leave.records.length}건</dd>
         </div>
         <div class="kv">
-          <dt>업적</dt>
+          <dt>배지</dt>
           <dd>{Object.keys(ok.data.achievements).length}개</dd>
         </div>
         {#if ok.exportedAt}

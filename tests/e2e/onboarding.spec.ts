@@ -59,7 +59,7 @@ test.describe('첫 화면과 입력 폼', () => {
     await expect(page.locator('#growth')).toContainText('2028. 4. 1.');
     // 연가: 재직 2년 8개월 → 15일
     await expect(page.locator('#leave-mini')).toContainText('15일');
-    // 봉급날(기본 25일)
+    // 월급날(기본 25일)
     await expect(page.locator('#today')).toContainText('D-DAY');
 
     const data = await storedData(page);

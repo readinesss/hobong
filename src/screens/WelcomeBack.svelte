@@ -35,7 +35,7 @@
       </div>
       {#if since.paydays > 0}
         <div class="kv">
-          <dt>지나간 봉급날</dt>
+          <dt>지나간 월급날</dt>
           <dd class="num">{since.paydays}번</dd>
         </div>
       {/if}

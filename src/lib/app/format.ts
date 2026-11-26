@@ -60,3 +60,10 @@ export function formatInstant(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}. ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+/** 월별 연가 창의 설명 한 줄. 한 번도 쓰지 않았으면 '1월'을 찍지 않는다(동률이면 앞선 달) */
+export function busiestMonthText(byMonth: readonly number[]): string {
+  const max = Math.max(0, ...byMonth);
+  if (max === 0) return '단위: 일. 올해는 아직 쓴 연가가 없어요.';
+  return `단위: 일. 가장 많이 쓴 달은 ${byMonth.indexOf(max) + 1}월이에요.`;
+}

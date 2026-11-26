@@ -57,7 +57,8 @@ export function categoriesFor(ctx: LineContext): {
   if (ctx.phase === 'off') return { categories: ['restDay'], slot: 'day', n: null };
   if (ctx.isPayday && ctx.phase !== 'after')
     return { categories: ['payday'], slot: 'day', n: null };
-  if (ctx.mood === 'tired') return { categories: ['tired'], slot: 'day', n: null };
+  // 지친 모습일 때도 기본 문장과 섞어, 같은 몇 문장만 되풀이하지 않는다.
+  if (ctx.mood === 'tired') return { categories: ['tired', 'default'], slot: 'day', n: null };
   if (ctx.phase === 'after') return { categories: ['afterWork'], slot: 'after', n: null };
   if (ctx.phase === 'lunch') return { categories: ['lunch'], slot: 'lunch', n: null };
 

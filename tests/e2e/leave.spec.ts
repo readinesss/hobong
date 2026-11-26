@@ -81,7 +81,7 @@ test.describe('연가 장부', () => {
     expect((await storedData(page))?.leave.grantOverrideHours).toEqual({ '2026': 152 });
 
     await page.getByRole('button', { name: '부여 일수 고치기' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: '자동 계산으로' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '자동 계산으로 되돌리기' }).click();
     await expect(page.locator('#leave-summary')).toContainText('재직기간으로 계산');
     expect((await storedData(page))?.leave.grantOverrideHours).toEqual({});
   });

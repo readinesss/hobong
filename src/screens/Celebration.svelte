@@ -46,13 +46,9 @@
     app.acknowledgeGrowth(event.toGrade, event.toStep);
   }
 
-  const title = $derived(
-    event.kind === 'hatch'
-      ? '호봉이가 깨어났어요'
-      : event.kind === 'grade'
-        ? '진화했어요'
-        : '승급했어요',
-  );
+  const title = $derived(event.kind === 'hatch' ? '호봉이가 깨어났어요' : '승급했어요');
+  /** 오래 열지 않았다가 오면 두 호봉 이상을 한 번에 넘는다 */
+  const grown = $derived(event.toStep - event.fromStep);
 </script>
 
 <Modal
@@ -95,7 +91,11 @@
           <p class="cap muted">{after.form.blurb}</p>
         {:else}
           <p class="mid">{event.toGrade}급 {event.toStep}호봉</p>
-          <p>{event.fromStep}호봉에서 {event.toStep}호봉으로 올랐어요. 깃이 하나 더 자랐습니다.</p>
+          <p>
+            {event.fromStep}호봉에서 {event.toStep}호봉으로 올랐어요. 깃이 {grown === 1
+              ? '하나'
+              : `${grown}개`} 더 자랐어요.
+          </p>
           <p class="cap muted">
             월 봉급 <Money value={view.salary.amount} /> (봉급표 기준)
           </p>
@@ -117,7 +117,7 @@
   </div>
   {#snippet actions()}
     <button type="button" class="btn primary" data-autofocus onclick={close} disabled={!done}>
-      {event.kind === 'hatch' ? '시작하기' : '좋아요'}
+      {event.kind === 'hatch' ? '시작하기' : '확인'}
     </button>
   {/snippet}
 </Modal>

@@ -74,7 +74,7 @@
   function setTheme(theme: ThemeSetting) {
     app.updateSettings({ theme }, false);
     if (theme === 'dark' && app.grantEvent('evt-night')) {
-      app.toast('새 뱃지: 야근 모드', 'good', 'icon-moon', 4500);
+      app.toast('새 배지: 야근 모드', 'good', 'icon-moon', 4500);
     }
   }
 
@@ -176,7 +176,7 @@
             ? formatKorean(view.nextRaise.date, false)
             : view.noRaiseReason === 'retire'
               ? '정년 전 승급 없음'
-              : '최고 호봉'}
+              : '최고호봉'}
         </dd>
       </div>
       {#if profile.overrides.longServiceDate}

@@ -8,6 +8,7 @@ import {
   diffDays,
   formatYmd,
   periodCompleteDate,
+  weekdayName,
   yearOf,
   type Ymd,
 } from './date.ts';
@@ -134,8 +135,8 @@ export interface LeaveSummary {
   byMonth: number[];
   /** 오늘까지의 마지막 사용일 */
   lastUseDate: Ymd | null;
-  /** 마지막 사용일(없으면 임용일)부터 지난 일수 */
-  daysSinceLastUse: number;
+  /** 마지막 사용일부터 지난 일수(기록이 한 건도 없으면 null: 모르는 것을 못 쉰 것으로 보지 않는다) */
+  daysSinceLastUse: number | null;
   /** 오늘 연가를 쓴 시간 */
   todayHours: number;
 }
@@ -199,7 +200,7 @@ export function summarizeLeave(
     rate: grantedHours > 0 ? usedHours / grantedHours : 0,
     byMonth,
     lastUseDate,
-    daysSinceLastUse: Math.max(0, diffDays(lastUseDate ?? hireDate, today)),
+    daysSinceLastUse: lastUseDate === null ? null : Math.max(0, diffDays(lastUseDate, today)),
     todayHours,
   };
 }
@@ -258,8 +259,8 @@ export function checkNewLeave(
   if (!cal.isWorkday(entry.date)) {
     const name = cal.holidayName(entry.date);
     return name
-      ? `${name}은(는) 공휴일이라 연가를 쓰지 않아도 되는 날이에요.`
-      : '토요일·일요일은 연가를 쓰지 않아도 되는 날이에요.';
+      ? `이날은 공휴일(${name})이라 연가를 쓰지 않아도 되는 날이에요.`
+      : `이날은 ${weekdayName(entry.date)}요일이라 연가를 쓰지 않아도 되는 날이에요.`;
   }
   const sameDay = records.filter((r) => r.date === entry.date);
   if (entry.kind !== 'hours' && sameDay.some((r) => r.kind === entry.kind)) {

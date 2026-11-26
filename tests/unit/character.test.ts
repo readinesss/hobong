@@ -172,7 +172,7 @@ describe('모습 정하기', () => {
     expect(look.canBlink).toBe(false);
     expect(look.moodLabel).toBe('연가 중');
   });
-  it('지친 모습·봉급날·축하', () => {
+  it('지친 모습·월급날·축하', () => {
     expect(resolveLook(C, 9 as Grade, 1, 'tired').parts.map((p) => p.sprite)).toEqual([
       'shadow',
       'item-lanyard',
@@ -218,6 +218,8 @@ describe('모습 정하기', () => {
     expect(decideMood(C, { ...base, daysSinceLeave: 90 })).toBe('tired');
     expect(decideMood(C, { ...base, daysSinceLeave: 89 })).toBe('work');
     expect(decideMood(C, { ...base, daysSinceLeave: 200, hasLeaveLeft: false })).toBe('work');
+    // 연가 기록이 한 건도 없으면 앱은 모른다: 지쳤다고 단정하지 않는다.
+    expect(decideMood(C, { ...base, daysSinceLeave: null })).toBe('work');
     expect(decideMood(C, { ...base, leaveHoursToday: 4, daysSinceLeave: 200 })).toBe('vacation');
     expect(decideMood(C, { ...base, leaveHoursToday: 2 })).toBe('work');
     expect(decideMood(C, { ...base, celebrating: true, leaveHoursToday: 8, isPayday: true })).toBe(

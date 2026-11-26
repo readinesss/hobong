@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import {
     addMonthsClamped,
+    formatKorean,
     onOrNextDayOfMonth,
     periodCompleteDate,
     yearOf,
@@ -162,13 +163,13 @@
       autocomplete="off"
       autocapitalize="off"
       spellcheck="false"
-      placeholder="예: 김주무관"
+      placeholder="예: 호봉이집사"
       bind:value={nickname}
       aria-invalid={shown.nickname ? 'true' : undefined}
       aria-describedby="pf-nick-hint"
     />
     <span class="hint cap" id="pf-nick-hint">
-      실명·소속은 받지 않아요. {LIMITS.nicknameMax}자까지.
+      별명만 적어 주세요. 실명·소속은 넣지 않아도 돼요. {LIMITS.nicknameMax}자까지.
     </span>
     {#if shown.nickname}<span class="error cap" role="alert">{shown.nickname}</span>{/if}
   </div>
@@ -246,13 +247,13 @@
       required
       hint={atMax
         ? '더 오를 호봉이 없어요. 최고호봉이 된 날을 넣어 주세요. 정확히 몰라도 괜찮아요(지금까지 번 봉급을 어림할 때만 써요).'
-        : '다음에 호봉이 오르는 날(보통 어느 달의 1일). 인사기록의 차기 승급일을 넣어 주세요. 휴직 등으로 미뤄졌다면 미뤄진 날짜를 그대로 넣으세요. 그날까지 지금 호봉으로 계산해요.'}
+        : '인사기록의 차기 승급일을 넣어 주세요(보통 어느 달 1일). 미뤄졌다면 아래 \'예외가 있어요\'를 보세요.'}
       error={shown.nextStepDate}
     />
     {#if !atMax && guessedNext && nextStepDate !== guessedNext}
       <div class="btn-row">
         <button type="button" class="btn small" onclick={() => (nextStepDate = guessedNext)}>
-          모르겠어요: {guessedNext.replaceAll('-', '. ')}. 로 넣기
+          잘 모르겠어요 → {formatKorean(guessedNext, false)}로 채우기
         </button>
       </div>
       <p class="cap muted">
@@ -292,10 +293,14 @@
       aria-controls="pf-advanced"
       onclick={() => (showAdvanced = !showAdvanced)}
     >
-      {showAdvanced ? '▼' : '▶'} 휴직·경력 인정 등 예외가 있어요
+      <span aria-hidden="true">{showAdvanced ? '▼' : '▶'}</span> 휴직·경력 인정 등 예외가 있어요
     </button>
     {#if showAdvanced}
       <div id="pf-advanced" class="well stack wide">
+        <p class="cap muted">
+          휴직 등으로 승급이 미뤄졌다면 위 '다음 승급일'에 미뤄진 날짜를 그대로 넣어 주세요. 그날까지
+          지금 호봉으로 계산해요.
+        </p>
         <p class="cap muted">
           휴직·징계·경력 합산처럼 계산으로 알 수 없는 사정이 있으면 날짜를 직접 넣어 주세요. 비워
           두면 규정대로 계산해요.
@@ -319,7 +324,7 @@
 
   {#if tried && Object.keys(errors).length > 0}
     <p class="note warn" role="alert">
-      고칠 곳이 {Object.keys(errors).length}군데 있어요. 빨간 글씨를 확인해 주세요.
+      고칠 곳이 {Object.keys(errors).length}군데 있어요. 각 칸 아래의 안내를 확인해 주세요.
     </p>
   {/if}
 

@@ -71,7 +71,7 @@ export function isIsoInstant(value: unknown): value is string {
 
 export interface ProfileContext {
   today: Ymd;
-  /** 직급별 최고 호봉 */
+  /** 직급별 최고호봉 */
   maxStep: (grade: Grade) => number;
   /**
    * 입력 폼에서만 쓰는 추가 검사. 저장된 값에는 쓰지 않는다(시간이 지나면 승급일은 과거가 된다).
@@ -214,7 +214,7 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
   const before = errors.length;
   const payday = raw.payday;
   if (typeof payday !== 'number' || !Number.isInteger(payday) || payday < 1 || payday > 31) {
-    errors.push('설정: 보수 지급일은 1~31 사이의 수여야 합니다.');
+    errors.push('설정: 월급날(보수 지급일)은 1~31 사이의 수여야 해요.');
   }
   const work = raw.work;
   const times: Record<string, string> = {};

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { view } from '../../lib/app/view.svelte.ts';
+  import { formatKorean } from '../../lib/calc/date.ts';
   import { SECTION_KEYS, type SectionKey, type SourceRef } from '../../lib/rules/types.ts';
 
   const SECTION_LABELS: Record<SectionKey, string> = {
@@ -70,7 +71,7 @@
     return out;
   });
   const laws = $derived(view.rules.laws);
-  const dots = (date: string) => date.replaceAll('-', '. ') + '.';
+  const dots = (date: string) => formatKorean(date, false);
 </script>
 
 <div class="stack wide">
@@ -79,7 +80,7 @@
       class="nowrap"
     >
       data/연도.json
-    </span>)만 고칩니다. 국가법령정보센터 원문을 {dots(view.rules.meta.verifiedAt)} 확인했어요.
+    </span>)만 고쳐요. 국가법령정보센터 원문을 {dots(view.rules.meta.verifiedAt)} 확인했어요.
   </p>
   {#if view.salaryPending}
     <p class="note warn">

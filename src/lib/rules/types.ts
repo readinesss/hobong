@@ -59,7 +59,7 @@ export interface StepRaiseRules {
 export interface PromotionStepRules {
   subtract: number;
   minStep: number;
-  /** 승진 후 계급에 그 호봉이 없으면 그 계급의 최고 호봉으로 한다(별표 28 비고 1) */
+  /** 승진 후 계급에 그 호봉이 없으면 그 계급의 최고호봉으로 한다(별표 28 비고 1) */
   capAtMaxStep: boolean;
   source: SourceRef;
 }

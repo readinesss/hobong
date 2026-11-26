@@ -9,7 +9,8 @@ test.describe('승급과 시간의 흐름', () => {
     await expect(dialog).toContainText('승급했어요');
     await expect(dialog).toContainText('9급 6호봉');
     await expect(dialog).toContainText('안경'); // 6호봉에 열리는 소품
-    await dialog.getByRole('button', { name: '좋아요' }).click();
+    await expect(dialog).toContainText('5호봉에서 6호봉으로 올랐어요. 깃이 하나 더 자랐어요.');
+    await dialog.getByRole('button', { name: '확인' }).click();
     await tick(page);
 
     await expect(page.locator('#status')).toContainText('9급 6호봉');
@@ -26,6 +27,14 @@ test.describe('승급과 시간의 흐름', () => {
     await page.reload();
     await tick(page);
     await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('오래 열지 않아 두 호봉을 한 번에 넘으면 자란 깃의 수를 그대로 말한다', async ({ page }) => {
+    // 5호봉, 다음 승급일 2027-01-01 → 2028-01-04(화)에는 7호봉
+    await openApp(page, { seed: makeSeed(), time: '2028-01-04T09:30:00+09:00' });
+    const dialog = page.getByRole('dialog').filter({ hasText: '승급했어요' });
+    await expect(dialog).toContainText('9급 7호봉');
+    await expect(dialog).toContainText('5호봉에서 7호봉으로 올랐어요. 깃이 2개 더 자랐어요.');
   });
 
   test('미뤄진 승급일(1년보다 먼 날)을 넣어도 지금 호봉은 넣은 값 그대로다', async ({ page }) => {
@@ -183,7 +192,7 @@ test.describe('승급과 시간의 흐름', () => {
     await expect(page.locator('#today .earn')).toContainText('0원');
   });
 
-  test('연가를 쓴 날에는 휴가 복장, 봉급날에는 봉급날 표정', async ({ page }) => {
+  test('연가를 쓴 날에는 휴가 복장, 월급날에는 월급날 표정', async ({ page }) => {
     const seed = JSON.parse(makeSeed());
     seed.data.leave.records = [{ id: 'v1', date: '2026-11-26', hours: 8, kind: 'day', memo: '' }];
     await openApp(page, { seed: JSON.stringify(seed), time: '2026-11-26T10:00:00+09:00' });
@@ -199,7 +208,7 @@ test.describe('승급과 시간의 흐름', () => {
     await expect(page).toHaveTitle(/^퇴근까지 7:\d\d · 호봉$/);
   });
 
-  test('야근 모드를 켜면 어두운 화면이 되고 뱃지를 받는다', async ({ page }) => {
+  test('야근 모드를 켜면 어두운 화면이 되고 배지를 받는다', async ({ page }) => {
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.getByRole('radio', { name: '야근 모드' }).click();
