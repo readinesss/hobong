@@ -218,6 +218,7 @@
     confirmReset = false;
     resetDownloaded = false;
     resetConfirmed = false;
+    lastLocked = null;
     app.reset();
     nav.go('home');
   }
