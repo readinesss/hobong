@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "notes": [
+    "법령과 무관한 운영 정보다. 규정 데이터(data/<연도>.json)와 따로 둔다.",
+    "contactEmail: 제안·문의를 받을 메일 주소. 비워 두면 화면에 '메일 주소를 준비하고 있어요'만 보이고 메일 버튼은 숨는다. 바꾼 뒤 npm test 가 주소 형식을 검사한다.",
+    "dreams: 설정 화면의 '호봉이의 꿈'. status 는 done(이룬 꿈)·growing(자라는 중)·dream(꾸는 꿈). 약속이 아니라 꿈이므로 날짜·기한을 적지 않는다. 문구는 해요체."
+  ],
+  "contactEmail": "",
+  "dreams": [
+    {
+      "id": "status-window",
+      "status": "done",
+      "title": "내 호봉 한눈에",
+      "blurb": "호봉·월급·승급·연가·정년을 한 화면에 모았어요."
+    },
+    {
+      "id": "one-file",
+      "status": "done",
+      "title": "파일 하나로 어디서나",
+      "blurb": "인터넷이 막힌 업무망에서도 파일 하나로 열려요."
+    },
+    {
+      "id": "year-recap",
+      "status": "done",
+      "title": "올해 결산과 1년 달력",
+      "blurb": "한 해 동안 찍은 출근 도장을 카드 한 장에 담아요."
+    },
+    {
+      "id": "locked-backup",
+      "status": "done",
+      "title": "암호 거는 백업",
+      "blurb": "내려받는 백업 파일에 암호를 걸 수 있어요."
+    },
+    {
+      "id": "more-jobs",
+      "status": "growing",
+      "title": "경찰·소방·교원도 함께",
+      "blurb": "계급과 봉급표를 법령 원문으로 하나씩 확인하며 넣고 있어요."
+    },
+    {
+      "id": "growing-body",
+      "status": "growing",
+      "title": "한눈에 보이는 성장",
+      "blurb": "급이 오를수록 몸집과 깃이 확 달라지게 다시 그리고 있어요."
+    },
+    {
+      "id": "my-hobong",
+      "status": "growing",
+      "title": "나만의 호봉이",
+      "blurb": "몸 색과 장식을 고르고, 하는 일에 어울리는 소품을 들게 해요."
+    },
+    {
+      "id": "first-talk",
+      "status": "growing",
+      "title": "말을 거는 첫 만남",
+      "blurb": "알과 이야기하듯 정보를 넣으면 호봉이가 깨어나요."
+    },
+    {
+      "id": "sound-and-touch",
+      "status": "growing",
+      "title": "소리와 손맛",
+      "blurb": "효과음·배경음악과 누르는 맛을 더해요. 소리는 켤 때만 나요."
+    },
+    {
+      "id": "turntable",
+      "status": "growing",
+      "title": "빙글빙글 360°",
+      "blurb": "호봉이를 피규어처럼 돌려 볼 수 있게 해요."
+    },
+    {
+      "id": "anywhere",
+      "status": "dream",
+      "title": "어느 기기에서나 이어하기",
+      "blurb": "지금은 백업 파일이 호봉이의 이삿짐이에요. 언젠가 로그인 하나로 어디서나 만나는 꿈을 꿔요."
+    }
+  ]
+}

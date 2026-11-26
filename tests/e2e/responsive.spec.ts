@@ -357,6 +357,8 @@ test.describe('반응형과 조작', () => {
       'set-work',
       'set-display',
       'set-about',
+      'set-contact',
+      'set-dreams',
       'set-sources',
     ];
     await page.locator('#set-profile').getByRole('button', { name: '고치기' }).focus();

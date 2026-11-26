@@ -41,7 +41,7 @@ const profile: Profile = {
 
 describe('표기 통일', () => {
   const sources = sourceFiles().map((path) => ({ path, text: readFileSync(path, 'utf8') }));
-  const data = ['data/lines.json', 'data/character.json'].map((path) => ({
+  const data = ['data/lines.json', 'data/character.json', 'data/site.json'].map((path) => ({
     path,
     text: read(path),
   }));

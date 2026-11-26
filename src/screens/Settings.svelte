@@ -21,6 +21,8 @@
   import Win from '../lib/ui/Win.svelte';
   import ImportDialog from './ImportDialog.svelte';
   import ProfileForm from './ProfileForm.svelte';
+  import ContactWindow from './settings/ContactWindow.svelte';
+  import DreamsWindow from './settings/DreamsWindow.svelte';
   import LockDialog from './settings/LockDialog.svelte';
   import Sources from './settings/Sources.svelte';
 
@@ -658,6 +660,10 @@
       </Win>
     </div>
   </div>
+  <div class="col c3">
+    <ContactWindow />
+    <DreamsWindow />
+  </div>
 
   <Win title="근거 법령" icon="icon-book" id="set-sources">
     {#snippet aside()}확인일 {formatKorean(view.rules.meta.verifiedAt, false)}{/snippet}
@@ -865,7 +871,8 @@
     flex: 1 1 13em;
     white-space: nowrap;
   }
-  /* 두 열: [내 정보, 데이터] [근무와 월급날, 화면, 호봉에 대하여], 근거 법령은 아래 전체 폭 */
+  /* 두 열: [내 정보, 데이터] [근무와 월급날, 화면, 호봉에 대하여],
+     그 아래 [제안·문의] [호봉이의 꿈], 근거 법령은 맨 아래 전체 폭 */
   @media (min-width: 720px) {
     .page {
       gap: 12px;
@@ -881,11 +888,22 @@
     .page > :global(#set-sources) {
       grid-column: 1 / -1;
     }
+    .c3 {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 12px;
+      align-items: start;
+      min-width: 0;
+    }
   }
-  /* 세 열: [내 정보, 데이터] [근무와 월급날, 화면] [호봉에 대하여] */
+  /* 세 열: [내 정보, 데이터] [근무와 월급날, 화면] [호봉에 대하여],
+     그 아래 [제안·문의 1/3] [호봉이의 꿈 2/3] */
   @media (min-width: 1100px) {
     .page {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .c3 {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
     }
     .c2 {
       display: contents;
