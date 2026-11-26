@@ -146,7 +146,7 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
     const about = page.locator('#set-about');
     await expect(about.locator('#set-licenses')).toHaveCount(0);
-    await about.getByRole('button', { name: /오픈소스 고지/ }).click();
+    await about.getByRole('button', { name: '오픈소스 고지', exact: true }).click();
     await expect(about.locator('#set-licenses')).toContainText('SIL OPEN FONT LICENSE');
     await expect(about.locator('#set-licenses')).toContainText('MIT License');
   });

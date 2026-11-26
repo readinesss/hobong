@@ -519,7 +519,7 @@
           aria-controls="set-licenses"
           onclick={() => (showLicenses = !showLicenses)}
         >
-          {showLicenses ? '▼' : '▶'} 오픈소스 고지
+          <span aria-hidden="true">{showLicenses ? '▼' : '▶'}</span> 오픈소스 고지
         </button>
         {#if showLicenses}
           <div id="set-licenses" class="stack">

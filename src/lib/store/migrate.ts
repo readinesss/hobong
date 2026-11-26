@@ -146,7 +146,7 @@ export function migrateEnvelope(
     return {
       ok: false,
       code: 'newer',
-      reason: `이 파일은 더 새 버전의 호봉 앱에서 만든 거예요(파일 버전 ${version}, 지금 앱이 읽는 버전 ${SCHEMA_VERSION}). 새 hobong.html 을 받아 열거나, 온라인이라면 새로 고침한 뒤 다시 불러와 주세요.`,
+      reason: `이 파일은 더 새 버전의 호봉 앱에서 만든 거예요(파일 버전 ${version}, 지금 앱이 읽는 버전 ${SCHEMA_VERSION}). 새 hobong.html을 받아 열거나, 온라인이라면 새로 고침한 뒤 다시 불러와 주세요.`,
     };
   }
   if (!isDict(envelope.data)) return { ok: false, reason: '파일 안에 데이터가 없어요.' };

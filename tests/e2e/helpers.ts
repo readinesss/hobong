@@ -21,19 +21,14 @@ export interface OpenOptions {
 /** 시계를 고정하고 앱을 연다 */
 export async function openApp(page: Page, options: OpenOptions = {}): Promise<void> {
   await page.clock.install({ time: new Date(options.time ?? NOW) });
-  if (options.seed !== undefined) {
-    await page.addInitScript((value) => {
-      // 새로 고침해도 테스트가 바꾼 내용이 남도록, 비어 있을 때만 넣는다.
-      if (
-        window.localStorage.getItem('hobong.data') === null &&
-        !window.sessionStorage.getItem('seeded')
-      ) {
-        window.localStorage.setItem('hobong.data', value);
-        window.sessionStorage.setItem('seeded', '1');
-      }
-    }, options.seed);
-  }
   await page.goto(`${APP_URL}${options.hash ? `#${options.hash}` : ''}`);
+  if (options.seed !== undefined) {
+    // 저장본은 페이지 스크립트로 넣고 다시 연다(사용자의 브라우저가 쓰는 것과 같은 길).
+    // init 스크립트(addInitScript)로 file:// localStorage 에 넣은 값은 Chromium 에서
+    // 새로 고침 뒤 사라질 때가 있다(빈 페이지로 재현: 15번 중 5번). 페이지 스크립트로 쓴 값은 그렇지 않다.
+    await page.evaluate((value) => window.localStorage.setItem('hobong.data', value), options.seed);
+    await page.reload();
+  }
   await tick(page);
 }
 

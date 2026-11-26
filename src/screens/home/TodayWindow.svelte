@@ -69,7 +69,7 @@
         {:else if status.workday && status.secondsToEnd !== null}
           <span class="num">퇴근까지 <strong>{formatDuration(status.secondsToEnd)}</strong></span>
         {:else if status.workday}
-          <span>수고하셨습니다</span>
+          <span>수고하셨어요</span>
         {/if}
       </div>
       {#if status.workday && !onLeave}

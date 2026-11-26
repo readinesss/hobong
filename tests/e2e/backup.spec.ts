@@ -80,6 +80,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     await expect(dialog).toContainText('백업이');
     await expect(dialog).toContainText('8급 6호봉');
     await expect(dialog).toContainText('2건');
+    await expect(dialog.locator('dt', { hasText: '배지' })).toHaveCount(1);
     await dialog.getByRole('button', { name: '불러오기', exact: true }).click();
     // 비어 있던 곳에 불러왔으므로 되돌릴 것이 없다(알림은 몇 초 뒤 사라지므로 바로 본다)
     await expect(page.getByText('다시 만나서 반가워요')).toBeVisible();
@@ -258,7 +259,9 @@ test.describe('데이터 내려받기·불러오기', () => {
 
     await page.getByRole('button', { name: '데이터 불러오기' }).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: /글자로 붙여넣기/ }).click();
+    await dialog
+      .getByRole('button', { name: '파일을 고를 수 없나요? 글자로 붙여넣기', exact: true })
+      .click();
     await dialog.locator('textarea').fill(text);
     await dialog.getByRole('button', { name: '확인하기' }).click();
     await expect(dialog).toContainText('8급 6호봉');

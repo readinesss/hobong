@@ -55,7 +55,7 @@
 {#if view.holidayDataMissing}
   <p class="note banner" role="status">
     {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 지금 연 호봉
-    앱이 옛 버전이에요. 새 hobong.html 을 받아 열거나, 온라인이라면 새로 고침해 주세요.
+    앱이 옛 버전이에요. 새 hobong.html을 받아 열거나, 온라인이라면 새로 고침해 주세요.
   </p>
 {/if}
 

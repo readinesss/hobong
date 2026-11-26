@@ -39,6 +39,9 @@ test.describe('캐릭터 카드', () => {
     await expect(page.getByLabel(/월 봉급/)).not.toBeChecked();
     await expect(page.getByLabel(/정년 D-day/)).not.toBeChecked();
     await expect(page.getByLabel('배지')).toBeChecked();
+    // 기본 설정에서는 '넣지 못했다'는 경고 대신 정사각형의 생김새만 설명한다
+    await expect(page.locator('#card-omitted')).toHaveCount(0);
+    await expect(page.locator('#card-badge-note')).toContainText('배지는 세로형에서 보여요');
     const text = page.locator('#card-text pre');
     await expect(text).toContainText('9급 5호봉');
     await expect(text).not.toContainText('원');
@@ -51,12 +54,28 @@ test.describe('캐릭터 카드', () => {
     await expect(text).not.toContainText('2,226,100');
     // 이미지 카드에는 금액과 함께 '봉급표 기준' 꼬리표가 들어간다(받는 사람은 앱의 안내를 볼 수 없다)
     const preview = page.locator('#card-preview [role="img"]');
-    await expect(preview).toHaveAttribute('aria-label', /월 봉급 2,226,100원\(봉급표 기준\)/);
     await expect(page.getByText('봉급표 금액이 그대로 보여요(수당·공제 전)')).toBeVisible();
+    // 정사각형에는 한 줄만 들어간다: 빠진 항목은 말없이 버리지 않고 알려 준다
+    const omitted = page.locator('#card-omitted');
+    await expect(omitted).toContainText('월 봉급');
+    await expect(omitted).toContainText('세로형에는 더 들어가요');
+    await expect(preview).not.toHaveAttribute('aria-label', /월 봉급/);
+    // 세로형에는 다 들어가고, 꼬리표도 잘리지 않는다
+    await page.getByRole('radio', { name: '세로형' }).click();
+    await expect(preview).toHaveAttribute('aria-label', /월 봉급 2,226,100원\(봉급표 기준\)/);
+    await expect(preview).toHaveAttribute('aria-label', /정년 D-/);
     expect((await storedData(page))?.settings.card).toMatchObject({
       showSalary: true,
       showRetirement: true,
     });
+  });
+
+  test('정사각형에도 월 봉급 한 줄은 꼬리표까지 들어간다', async ({ page }) => {
+    await page.getByLabel(/재직기간/).uncheck();
+    await page.getByLabel(/월 봉급/).check();
+    const preview = page.locator('#card-preview [role="img"]');
+    await expect(preview).toHaveAttribute('aria-label', /월 봉급 2,226,100원\(봉급표 기준\)/);
+    await expect(page.locator('#card-omitted')).toHaveCount(0);
   });
 
   test('글자 카드에 진행 막대와 서비스 주소가 들어간다', async ({ page }) => {

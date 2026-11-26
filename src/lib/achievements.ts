@@ -84,7 +84,7 @@ export const EVENT_BADGES = {
   },
   'evt-night': {
     title: '야근 모드',
-    desc: '어두운 화면을 켰다. 오늘도 수고 많으셨습니다.',
+    desc: '어두운 화면을 켰다. 오늘도 수고 많으셨어요.',
     icon: 'icon-moon',
     tier: 'bronze',
   },

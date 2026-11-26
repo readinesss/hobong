@@ -234,11 +234,19 @@
         aria-hidden="true"
       ></canvas>
     </div>
-    {#if omittedNames.length > 0}
-      <p class="note" role="status" id="card-omitted">
-        자리가 모자라 카드에 들어가지 못했어요: {omittedNames.join(', ')}. {card.ratio === 'square'
-          ? '세로형을 고르거나 '
-          : ''}다른 항목을 꺼 보세요.
+    {#if omitted.facts.length > 0}
+      <!-- 직접 켠 글(재직·정년·금액)이 빠질 때만 알린다 -->
+      <p class="cap muted" role="status" id="card-omitted">
+        자리가 모자라 이 모양에는 넣지 못했어요: {omittedNames.join(', ')}. {card.ratio === 'square'
+          ? '세로형에는 더 들어가요.'
+          : '다른 항목을 끄면 들어갈 수 있어요.'}
+      </p>
+    {:else if omitted.badges}
+      <!-- 배지만 빠질 때는 경고가 아니라 이 모양의 생김새를 설명한다(기본 설정에서도 보이므로) -->
+      <p class="cap muted" id="card-badge-note">
+        {card.ratio === 'square'
+          ? '정사각형에는 켠 항목이 있으면 배지 줄이 들어가지 않아요. 배지는 세로형에서 보여요.'
+          : '켠 항목이 많으면 배지 줄은 빠져요. 항목을 하나 끄면 배지가 들어가요.'}
       </p>
     {/if}
   </Win>

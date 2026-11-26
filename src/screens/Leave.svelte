@@ -252,7 +252,7 @@
         {#if !selectedIsWorkday}
           <p class="note">
             {selectedHoliday
-              ? `이날은 쉬는 날(${selectedHoliday})이라`
+              ? `이날은 공휴일(${selectedHoliday})이라`
               : `이날은 ${weekdayName(selected)}요일이라`} 연가를 쓰지 않아도 돼요. 아래 달력에서 다른
             날을 골라 주세요.
           </p>

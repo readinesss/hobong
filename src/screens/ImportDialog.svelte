@@ -203,7 +203,7 @@
         aria-expanded={showPaste}
         onclick={() => (showPaste = !showPaste)}
       >
-        {showPaste ? '▼' : '▶'} 파일을 고를 수 없나요? 글자로 붙여넣기
+        <span aria-hidden="true">{showPaste ? '▼' : '▶'}</span> 파일을 고를 수 없나요? 글자로 붙여넣기
       </button>
       {#if showPaste}
         <div class="stack">
