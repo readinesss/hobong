@@ -18,6 +18,45 @@ const WIDTHS = [
   { width: 1920, height: 1080 },
 ];
 
+/**
+ * 화면에서 실제로 누를 수 있는 상자가 44px 보다 작은 것을 찾는다(페이지 안에서 실행).
+ * 테두리(box-shadow)와 바깥 여백은 누를 수 없으므로 세지 않는다. 대신 ::before/::after 를
+ * absolute 로 바깥까지 넓힌 영역은 요소의 일부라 누를 수 있으므로 더한다.
+ * 줄 전체를 덮는 투명 체크박스처럼 라벨 안의 입력은 라벨 상자로 잰다.
+ */
+function smallTargets(): string[] {
+  const out: string[] = [];
+  const reach = (el: Element) => {
+    let m = 0;
+    for (const pe of ['::before', '::after']) {
+      const s = getComputedStyle(el, pe);
+      if (s.content === 'none' || s.position !== 'absolute') continue;
+      const v = [s.top, s.right, s.bottom, s.left].map((x) => parseFloat(x) || 0);
+      m = Math.max(m, -Math.min(...v));
+    }
+    return m;
+  };
+  const root = document.querySelector('[role="dialog"]') ?? document;
+  const targets = root.querySelectorAll<HTMLElement>(
+    'button, a[href], select, textarea, summary, input:not([type="hidden"]):not([hidden]), [role="button"], [role="radio"], [role="gridcell"]:not([aria-hidden="true"])',
+  );
+  for (const el of targets) {
+    if (el.closest('[aria-hidden="true"], [hidden]')) continue;
+    const host = (el.tagName === 'INPUT' && el.closest('label')) || el;
+    const r = host.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (el.tagName === 'INPUT' && host === el && getComputedStyle(el).opacity === '0') continue;
+    const x = reach(host);
+    const w = r.width + 2 * x;
+    const h = r.height + 2 * x;
+    if (h < 43.5 || w < 43.5)
+      out.push(
+        `${el.tagName}.${el.className} "${(el.getAttribute('aria-label') || el.innerText || '').slice(0, 12)}" ${Math.round(w)}×${Math.round(h)}`,
+      );
+  }
+  return out;
+}
+
 test.describe('반응형과 조작', () => {
   for (const size of WIDTHS) {
     test(`${size.width}px: 가로로 넘치지 않고 창이 겹치지 않는다`, async ({ page }) => {
@@ -96,45 +135,32 @@ test.describe('반응형과 조작', () => {
     expect(box && box.x === 0 && box.width < 200 && box.height > 800).toBe(true);
   });
 
-  test('누를 수 있는 것은 44px 이상이다', async ({ page }) => {
+  for (const size of [
+    { width: 360, height: 760 },
+    { width: 768, height: 1024 },
+  ]) {
+    test(`${size.width}px: 누를 수 있는 것은 44px 이상이다`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openApp(page, { seed: makeSeed() });
+      for (const tab of TABS) {
+        await page
+          .getByRole('navigation', { name: '화면 이동' })
+          .getByRole('link', { name: tab.label })
+          .click();
+        await tick(page, 600);
+        const small = await page.evaluate(smallTargets);
+        expect(small, `${tab.label} 화면의 작은 터치 대상`).toEqual([]);
+      }
+    });
+  }
+
+  test('첫 화면과 입력 폼도 누를 수 있는 것은 44px 이상이다', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
-    await openApp(page, { seed: makeSeed() });
-    for (const tab of TABS) {
-      await page
-        .getByRole('navigation', { name: '화면 이동' })
-        .getByRole('link', { name: tab.label })
-        .click();
-      await tick(page, 600);
-      const small = await page.evaluate(() => {
-        const out: string[] = [];
-        const targets = document.querySelectorAll<HTMLElement>(
-          'main button, main a.btn, main select, main input:not([type="hidden"]):not([hidden]), nav a',
-        );
-        for (const el of targets) {
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 || r.height === 0) continue;
-          const style = getComputedStyle(el);
-          if (style.opacity === '0' && el.tagName === 'INPUT') continue; // 줄 전체를 덮는 체크박스·보조 입력
-          // 테두리(box-shadow 3px)를 포함한 실제 눌리는 크기
-          const pad =
-            el.classList.contains('btn') ||
-            el.classList.contains('chip') ||
-            el.classList.contains('input')
-              ? 6
-              : 0;
-          const h = r.height + pad;
-          const w = r.width + pad;
-          // 달력의 날짜 칸은 폭이 화면을 7등분한 값이라 44px에 조금 못 미칠 수 있어 40px까지 허용한다
-          const min = el.classList.contains('day') ? 40 : 44;
-          if (h < min - 0.5 || w < min - 0.5)
-            out.push(
-              `${el.tagName}.${el.className} "${(el.innerText || el.getAttribute('aria-label') || '').slice(0, 12)}" ${Math.round(w)}×${Math.round(h)}`,
-            );
-        }
-        return out;
-      });
-      expect(small, `${tab.label} 화면의 작은 터치 대상`).toEqual([]);
-    }
+    await openApp(page);
+    expect(await page.evaluate(smallTargets), '첫 화면').toEqual([]);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: /예외가 있어요/ }).click();
+    expect(await page.evaluate(smallTargets), '입력 폼').toEqual([]);
   });
 
   test('키보드만으로 탭을 옮기고 연가를 기록할 수 있다', async ({ page, isMobile }) => {
