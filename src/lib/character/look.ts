@@ -13,6 +13,8 @@ export interface FormRule {
   name: string;
   grades: number[];
   body: string;
+  /** 이 형태만 쓰는 그림자(떠 있는 봉황 등). 없으면 규칙의 shadow */
+  shadow?: string;
   blurb: string;
 }
 
@@ -191,7 +193,7 @@ export function resolveLook(
   const form = formById(rules, formId);
   const moodRule = rules.moods[mood];
   const hidden = new Set(moodRule.hide);
-  const parts: LookPart[] = [{ sprite: rules.shadow }];
+  const parts: LookPart[] = [{ sprite: form.shadow ?? rules.shadow }];
   const wearing: Look['wearing'] = [];
 
   for (const item of itemsAt(rules, step)) {

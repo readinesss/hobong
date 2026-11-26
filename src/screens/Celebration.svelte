@@ -77,12 +77,12 @@
           <Sprite look={after} scale={4} label="알에서 깨어난 호봉이" />
         {/if}
       {:else if !done}
-        <!-- 옛 모습과 새 모습의 실루엣이 번갈아 깜빡인다 -->
+        <!-- 옛 모습과 새 모습의 실루엣이 번갈아 깜빡인다. 밝은 무대(옛 모습)에서는 먹색, 어두운 번쩍임(새 모습)에서는 흰색 -->
         <Sprite
           look={phase % 2 === 0 ? before : after}
           scale={4}
           animate={false}
-          pose={{ silhouette: 12, plain: true }}
+          pose={{ silhouette: phase % 2 === 0 ? 0 : 12, plain: true }}
         />
       {:else}
         <Sprite look={after} scale={4} label="승급한 호봉이" />

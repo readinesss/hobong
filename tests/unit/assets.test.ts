@@ -48,9 +48,9 @@ function literalsIn(dir: string, pattern: RegExp, out = new Set<string>()): Set<
 }
 
 describe('캐릭터 스프라이트', () => {
-  const ANCHORS = ['eyes', 'head', 'neck', 'handL', 'handR', 'ground'];
+  const ANCHORS = ['eyes', 'head', 'neck', 'handL', 'handR', 'crown', 'ground'];
 
-  it('형태마다 48×48 몸통과 앵커 여섯 개가 있다', () => {
+  it('형태마다 48×48 몸통과 앵커 일곱 개가 있다', () => {
     for (const form of C.forms) {
       const body = need(form.body);
       expect([body.w, body.h], form.body).toEqual([C.canvas.w, C.canvas.h]);
@@ -65,6 +65,7 @@ describe('캐릭터 스프라이트', () => {
 
   it('규칙 파일이 가리키는 소품·효과·눈·그림자·알이 모두 있다', () => {
     const names = new Set<string>([C.shadow, C.eyes.default, C.eyes.blink, C.egg]);
+    for (const form of C.forms) if (form.shadow) names.add(form.shadow);
     for (const item of C.items) names.add(item.sprite);
     for (const effect of C.effects) names.add(effect.sprite);
     for (const mood of Object.values(C.moods)) {
@@ -85,6 +86,21 @@ describe('캐릭터 스프라이트', () => {
       if (sprite.attach !== null) expect(bodyAnchors.has(sprite.attach), name).toBe(true);
     }
     expect(need(C.shadow).attach).toBe('ground');
+    for (const form of C.forms) if (form.shadow) expect(need(form.shadow).attach).toBe('ground');
+  });
+
+  it('몸통 그림은 x1~46 안에 있다(카드 무대 테두리에 붙지 않게)', () => {
+    for (const form of C.forms) {
+      const body = need(form.body);
+      for (const frame of body.frames) {
+        for (let y = 0; y < body.h; y += 1) {
+          expect(frame[y * body.w], `${form.body} (0,${y})`).toBe(TRANSPARENT);
+          expect(frame[y * body.w + body.w - 1], `${form.body} (${body.w - 1},${y})`).toBe(
+            TRANSPARENT,
+          );
+        }
+      }
+    }
   });
 
   it('효과는 두 프레임, 알은 네 프레임이다', () => {

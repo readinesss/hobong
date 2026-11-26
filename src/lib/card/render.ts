@@ -239,6 +239,9 @@ function badgeRow(ctx: Ctx, model: CardModel, x: number, y: number, max: number)
   if (rest > 0) text(ctx, `+${rest}`, x + 4 + shown.length * (size + gap), y + 6, 12, MUTED);
 }
 
+/** 무대 안 말풍선 위 끝(테두리 안쪽). 꼬리 끝은 이보다 24 아래 */
+const BUBBLE_TOP = 4;
+
 export function stage(
   ctx: Ctx,
   model: Pick<CardModel, 'look' | 'nickname' | 'line'>,
@@ -266,12 +269,14 @@ export function stage(
     const tw = Math.ceil(widthOf(ctx, line, 12));
     const bw = tw + 14;
     const bx = x + Math.floor((w - bw) / 2);
-    frame(ctx, bx, y + 8, bw, 20, WHITE);
-    rect(ctx, x + Math.floor(w / 2) - 2, y + 28, 4, 2, WHITE);
-    rect(ctx, x + Math.floor(w / 2) - 4, y + 28, 2, 2, INK);
-    rect(ctx, x + Math.floor(w / 2) + 2, y + 28, 2, 2, INK);
-    rect(ctx, x + Math.floor(w / 2) - 2, y + 30, 4, 2, INK);
-    text(ctx, line, bx + 7, y + 12, 12, INK);
+    // 말풍선은 무대 위 테두리에 붙여(꼬리 끝 y+28) 키 큰 형태의 관 꼭대기와 겹치지 않게 한다
+    const by = y + BUBBLE_TOP;
+    frame(ctx, bx, by, bw, 20, WHITE);
+    rect(ctx, x + Math.floor(w / 2) - 2, by + 20, 4, 2, WHITE);
+    rect(ctx, x + Math.floor(w / 2) - 4, by + 20, 2, 2, INK);
+    rect(ctx, x + Math.floor(w / 2) + 2, by + 20, 2, 2, INK);
+    rect(ctx, x + Math.floor(w / 2) - 2, by + 22, 4, 2, INK);
+    text(ctx, line, bx + 7, by + 4, 12, INK);
   }
 }
 
@@ -346,18 +351,20 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     y += 18;
   } else {
     // 위쪽 넓은 무대 + 아래 정보. 켠 항목 세 줄(재직·정년·월 봉급)이 다 들어가도록 무대 높이를 잡는다.
-    const stageH = 156;
+    // 무대는 말풍선 꼬리(무대 위 끝에서 28) 아래로 봉황의 관 꼭대기(그림 y5 = 무대 위 끝에서 31)가 3 떨어지는 높이다.
+    // 무대를 늘린 만큼 아래 줄 간격(무대~이름표, 이름표~호봉, 호봉~깃 막대)을 2씩 줄였다.
+    const stageH = 162;
     stage(ctx, model, left + 2, py + 30, inner - 4, stageH, true);
-    y = py + 30 + stageH + 8;
+    y = py + 30 + stageH + 6;
     const chipW = chip(ctx, model.formName, left, y);
     text(ctx, fit(ctx, model.nickname, 15, inner - chipW - 4), left + chipW + 4, y + 1, 15, INK);
-    y += 26;
+    y += 24;
     text(ctx, `${model.rank}급 ${model.step}호봉`, left, y, 30, INK);
     // 아래 점 막대의 이름표(정사각형의 '깃 14/31'과 같다)
     const maxStep = model.maxStep ?? 0;
     if (model.maxStep !== null)
       text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
-    y += 36;
+    y += 34;
     // 깃 게이지
     const pipW = 5;
     const pipGap = 2;

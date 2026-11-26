@@ -13,7 +13,7 @@
     { "id": "chick", "name": "솜봉이", "grades": [8], "body": "body-chick", "blurb": "솜털이 보송하다. 일이 손에 붙기 시작한다." },
     { "id": "fledgling", "name": "깃봉이", "grades": [7], "body": "body-fledgling", "blurb": "볏이 돋았다. 날갯짓에 힘이 실린다." },
     { "id": "bird", "name": "날봉이", "grades": [6], "body": "body-bird", "blurb": "날개에 힘이 붙었다. 뒤따르는 새들을 챙길 줄 안다." },
-    { "id": "phoenix", "name": "봉황", "grades": [5, 4, 3, 2, 1], "body": "body-phoenix", "blurb": "오색 깃이 다 자랐다." }
+    { "id": "phoenix", "name": "봉황", "grades": [5, 4, 3, 2, 1], "body": "body-phoenix", "shadow": "shadow-float", "blurb": "오색 깃이 다 자랐다. 몸이 살짝 떠오른다." }
   ],
   "evolution": {
     "note": "직급(계급)이 있으면 사다리로, 없으면 재직 연수로 자라요. 평가가 아니라 함께 지낸 시간의 표시예요.",

@@ -16,9 +16,13 @@ export interface PoseOptions {
   silhouette?: number;
   /** 그림자·효과를 빼고 몸통과 소품만 */
   plain?: boolean;
+  /** 그림자를 이 색(팔레트 인덱스)으로 칠한다. 어두운 바닥에서 그림자가 묻히지 않게(야근 모드) */
+  shadowInk?: number;
 }
 
 const { w: W, h: H } = characterRules.canvas;
+/** 그림자 스프라이트의 색(팔레트 f) */
+const SHADOW_COLOR = 15;
 
 /** 48×48 팔레트 인덱스 그림을 만든다 */
 export function poseOf(look: Look, options: PoseOptions = {}) {
@@ -33,11 +37,17 @@ export function poseOf(look: Look, options: PoseOptions = {}) {
   const layers: Layer[] = [{ sprite: body }];
   const eyes = getSprite(options.eyes ?? (blink ? characterRules.eyes.blink : look.eyes));
   if (eyes) layers.push({ sprite: eyes });
+  const shadow = look.form.shadow ?? characterRules.shadow;
   for (const part of look.parts) {
     const sprite = getSprite(part.sprite);
     if (!sprite) continue;
-    if (options.plain && (part.animated || part.sprite === characterRules.shadow)) continue;
-    layers.push({ sprite, remap: part.remap, frame: part.animated ? fxFrame : 0 });
+    const isShadow = part.sprite === shadow;
+    if (options.plain && (part.animated || isShadow)) continue;
+    const remap =
+      isShadow && options.shadowInk !== undefined
+        ? { ...part.remap, [SHADOW_COLOR]: options.shadowInk }
+        : part.remap;
+    layers.push({ sprite, remap, frame: part.animated ? fxFrame : 0 });
   }
   const comp = compose(layers, { w: W, h: H, body, bodyDy: bob });
   if (options.silhouette !== undefined) {

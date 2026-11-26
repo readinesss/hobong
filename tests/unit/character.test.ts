@@ -205,6 +205,10 @@ describe('모습 정하기', () => {
     expect(party.parts.map((p) => p.sprite)).toContain('item-partyhat');
     expect(party.parts.map((p) => p.sprite)).not.toContain('item-crest-gold');
   });
+  it('떠 있는 봉황은 자기 그림자를 쓴다', () => {
+    expect(resolveLook(C, formFor(C, '5').id, 20, 'work').parts[0]?.sprite).toBe('shadow-float');
+    expect(resolveLook(C, formFor(C, '6').id, 20, 'work').parts[0]?.sprite).toBe('shadow');
+  });
   it('높은 호봉의 반짝이', () => {
     expect(resolveLook(C, formFor(C, '6').id, 28, 'work').parts.map((p) => p.sprite)).toContain(
       'fx-sparkle',

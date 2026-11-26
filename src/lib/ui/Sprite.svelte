@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { anim } from '../app/anim.svelte.ts';
+  import { theme } from '../app/theme.svelte.ts';
   import {
     paintPose,
     poseOf,
@@ -55,10 +56,11 @@
     if (el.height !== size) el.height = size;
     const ctx = el.getContext('2d');
     if (!ctx) return;
+    // 야근 모드의 어두운 바닥(#3f5068)에서는 그림자(f)가 1.3:1로 묻혀, 먹색(0, 약 2.1:1)으로 칠한다
     const comp = sprite
       ? poseOfSprite(sprite, frame)
       : look
-        ? poseOf(look, { ...pose, tick })
+        ? poseOf(look, { shadowInk: theme.dark ? 0 : undefined, ...pose, tick })
         : null;
     ctx.clearRect(0, 0, size, size);
     if (comp) paintPose(ctx, comp, 0, 0, devicePixels);
