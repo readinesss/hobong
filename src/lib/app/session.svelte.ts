@@ -18,6 +18,10 @@ class Session {
     this.dismissed = { ...this.dismissed, [key]: true };
   }
 
+  isDismissed(key: string): boolean {
+    return this.dismissed[key] === true;
+  }
+
   /** 데이터를 지울 때 함께 처음으로 돌린다 */
   reset(): void {
     this.cardKind = 'character';

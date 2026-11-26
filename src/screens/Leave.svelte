@@ -36,6 +36,7 @@
   import Stepper from '../lib/ui/Stepper.svelte';
   import Win from '../lib/ui/Win.svelte';
   import LeaveCalendar from './leave/LeaveCalendar.svelte';
+  import LongLeaveWindow from './leave/LongLeaveWindow.svelte';
 
   const leave = $derived(view.leave);
   const hpd = $derived(leave.hoursPerDay);
@@ -252,6 +253,8 @@
         </p>
       </div>
     </Win>
+
+    <LongLeaveWindow />
 
     <section
       class="win"
@@ -473,8 +476,8 @@
   </div>
   <section class="about">
     <p class="note">
-      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는
-      다루지 않아요.
+      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가
+      기록은 다루지 않아요.
       {#if view.leaveProrated}
         올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
       {/if}
@@ -564,6 +567,7 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'summary'
+      'long'
       'entry'
       'calendar'
       'records'

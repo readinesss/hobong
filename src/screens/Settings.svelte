@@ -4,6 +4,7 @@
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
+  import { session } from '../lib/app/session.svelte.ts';
   import { APP_VERSION, app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
@@ -220,6 +221,8 @@
     resetConfirmed = false;
     lastLocked = null;
     app.reset();
+    // 이 탭에서만 기억하던 화면 상태(닫은 안내 띠·카드 종류)도 처음으로
+    session.reset();
     nav.go('home');
   }
 </script>
