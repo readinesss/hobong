@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
@@ -11,6 +12,7 @@
   import { REPO_URL, SITE_URL } from '../lib/config.ts';
   import { LICENSE_NOTICES } from '../lib/licenses.ts';
   import { backupFileName } from '../lib/store/backup.ts';
+  import { canEncrypt, encryptBackup } from '../lib/store/crypto.ts';
   import type { Profile, ThemeSetting, WorkHours } from '../lib/store/schema.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import Icon from '../lib/ui/Icon.svelte';
@@ -18,6 +20,7 @@
   import Win from '../lib/ui/Win.svelte';
   import ImportDialog from './ImportDialog.svelte';
   import ProfileForm from './ProfileForm.svelte';
+  import LockDialog from './settings/LockDialog.svelte';
   import Sources from './settings/Sources.svelte';
 
   const caps = detectCapabilities();
@@ -31,6 +34,8 @@
   let confirmUndo = $state(false);
   let showBackupText = $state(false);
   let backupText = $state('');
+  /** backupText 가 암호를 건 내용인지 */
+  let backupLocked = $state(false);
   /** backupText 를 만든 시각(복사에 성공하면 이 시각으로 내려받은 것으로 기록한다) */
   let backupAt = $state('');
   /** 초기화 확인창에서 "먼저 내려받기"를 누른 뒤, 파일이 생긴 것을 확인했는지 */
@@ -94,8 +99,59 @@
   /** 백업 글자 대화상자의 복사 결과 */
   let copyResult = $state<{ ok: boolean; text: string } | null>(null);
 
+  // ── 암호 걸기(#13) ── 저장하지 않는 화면 상태다. 암호 자체는 여기에 두지 않는다.
+  const canLock = canEncrypt();
+  let lock = $state(false);
+  /** 암호 입력 대화상자: 파일로 내려받기 / 글자로 보기 */
+  let lockMode = $state<'file' | 'text' | null>(null);
+  /** 마지막으로 암호를 건 내용(암호문). '파일이 안 생겼어요'에서 암호를 다시 묻지 않고 보여 준다 */
+  let lastLocked: { text: string; at: string } | null = null;
+
+  function showText(text: string, at: string, locked: boolean) {
+    backupText = text;
+    backupAt = at;
+    backupLocked = locked;
+    copyResult = null;
+    showBackupText = true;
+  }
+
+  async function lockAndExport(password: string) {
+    const mode = lockMode;
+    const { text, at } = app.exportBackup();
+    const sealed = await encryptBackup(text, password);
+    if (!sealed.ok) return sealed.code;
+    lastLocked = { text: sealed.text, at };
+    lockMode = null;
+    // 암호 대화상자가 닫히고 포커스가 돌아간 뒤에 다음 창을 연다
+    await tick();
+    if (mode === 'file') {
+      const fileName = backupFileName(view.today, true);
+      if (caps.download && downloadText(sealed.text, fileName)) {
+        app.markBackedUp(at);
+        app.toast(
+          `암호를 걸어 내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 암호를 잊으면 되살릴 수 없어요.`,
+          'good',
+          'icon-lock',
+          8000,
+          {
+            label: '파일이 안 생겼어요',
+            run: () => lastLocked && showText(lastLocked.text, lastLocked.at, true),
+          },
+        );
+        return 'done' as const;
+      }
+    }
+    showText(sealed.text, at, true);
+    return 'done' as const;
+  }
+
   /** inDialog: 대화상자 안에서 눌렀으면 결과를 알림 대신 그 대화상자 안에 적는다 */
   function download(inDialog = false): boolean {
+    // 모두 지우기 안의 '먼저 내려받기'는 대화상자를 겹치지 않게 암호 없이 내려받는다(화면에 적어 둔다)
+    if (lock && canLock && !inDialog) {
+      lockMode = 'file';
+      return false;
+    }
     const { text, at } = app.exportBackup();
     const fileName = backupFileName(view.today);
     if (caps.download && downloadText(text, fileName)) {
@@ -114,18 +170,20 @@
       );
       return true;
     }
-    backupText = text;
-    backupAt = at;
-    copyResult = null;
-    showBackupText = true;
+    showText(text, at, false);
     return false;
   }
+  /** 글자로 보기. 암호 걸기를 켰으면 암호부터 묻는다 */
   function openBackupText() {
+    if (lock && canLock) {
+      lockMode = 'text';
+      return;
+    }
+    openPlainText();
+  }
+  function openPlainText() {
     const { text, at } = app.exportBackup();
-    backupText = text;
-    backupAt = at;
-    copyResult = null;
-    showBackupText = true;
+    showText(text, at, false);
   }
   function downloadBeforeReset() {
     if (download(true)) resetDownloaded = true;
@@ -242,6 +300,17 @@
             <dd class="num">{meta.changesSinceBackup}번</dd>
           </div>
         </dl>
+        {#if canLock}
+          <label class="switch" id="set-lock">
+            <input type="checkbox" bind:checked={lock} />
+            <span class="box" aria-hidden="true"></span>
+            <span>암호 걸기 <span class="cap muted">파일을 열 때 암호를 물어요</span></span>
+          </label>
+        {:else}
+          <p class="cap muted" id="set-lock-unavailable">
+            이 브라우저에서는 암호 기능(WebCrypto)을 쓸 수 없어 암호 없이만 내려받을 수 있어요.
+          </p>
+        {/if}
         <div class="btn-row stretch data-btns">
           <button type="button" class="btn primary" onclick={() => download()}>
             <Icon name="icon-download" /> 데이터 내려받기
@@ -583,9 +652,18 @@
   <ImportDialog onclose={() => (importing = false)} />
 {/if}
 
+{#if lockMode}
+  <LockDialog mode={lockMode} onconfirm={lockAndExport} onclose={() => (lockMode = null)} />
+{/if}
+
 {#if showBackupText}
   <Modal title="백업 내용(글자)" icon="icon-text" wide onclose={() => (showBackupText = false)}>
     <div class="stack wide">
+      {#if backupLocked}
+        <p class="note" id="backup-text-locked">
+          암호가 걸린 내용이에요. 불러오기에 그대로 붙여넣고 암호를 넣으면 열려요.
+        </p>
+      {/if}
       <p>
         아래 글자를 통째로 복사해 메모장 등에 붙여넣고 <span class="nowrap">.json</span> 파일로 저장해
         두세요. 불러올 때는 "글자로 붙여넣기"에 넣으면 돼요.
@@ -597,7 +675,9 @@
         spellcheck="false"
         onfocus={(e) => e.currentTarget.select()}>{backupText}</textarea
       >
-      <p class="note warn">급여·인사 정보가 들어 있으니 보관에 주의해 주세요.</p>
+      {#if !backupLocked}
+        <p class="note warn">급여·인사 정보가 들어 있으니 보관에 주의해 주세요.</p>
+      {/if}
       <div id="backup-copy-result" role="status">
         {#if copyResult}
           <p class="note" class:warn={!copyResult.ok}>{copyResult.text}</p>
@@ -632,13 +712,18 @@
         되돌릴 수 없어요.
       </p>
       <p class="note">먼저 데이터를 내려받아 두면 나중에 다시 불러올 수 있어요.</p>
+      {#if lock && canLock}
+        <p class="cap muted" id="reset-plain-note">
+          여기서는 암호 없이 내려받아요. 암호를 걸려면 닫고 데이터 내려받기를 눌러 주세요.
+        </p>
+      {/if}
       {#if resetDownloaded}
         <div class="note" id="reset-download-note" role="status">
           <p>
             내려받기를 시작했어요. <span class="nowrap">{resetFileName}</span> 파일이 생겼는지 확인해
             주세요.
           </p>
-          <button type="button" class="btn small ghost link" onclick={openBackupText}>
+          <button type="button" class="btn small ghost link" onclick={openPlainText}>
             파일이 안 생겼어요 · 글자로 보기
           </button>
         </div>

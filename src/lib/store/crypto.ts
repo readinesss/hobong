@@ -91,7 +91,7 @@ export function canEncrypt(...given: [c?: Crypto | undefined]): boolean {
 function parseObject(text: string): Record<string, unknown> | null {
   if (typeof text !== 'string' || text.length > MAX_ENCRYPTED_BYTES) return null;
   try {
-    const parsed: unknown = JSON.parse(text.replace(/^﻿/, ''));
+    const parsed: unknown = JSON.parse(text.replace(/^\ufeff/, ''));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;
@@ -198,7 +198,9 @@ export async function encryptBackup(
   plain: string,
   password: string,
   opts: { crypto?: Crypto; iterations?: number } = {},
-): Promise<{ ok: true; text: string } | { ok: false; code: 'unsupported' | 'too-short' | 'format' }> {
+): Promise<
+  { ok: true; text: string } | { ok: false; code: 'unsupported' | 'too-short' | 'format' }
+> {
   const c = opts.crypto ?? globalThis.crypto;
   if (!canEncrypt(c)) return { ok: false, code: 'unsupported' };
   if (typeof password !== 'string' || passwordLength(password) < MIN_PASSWORD_LENGTH) {
