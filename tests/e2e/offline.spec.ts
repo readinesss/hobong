@@ -153,24 +153,33 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
 
   test('글꼴이 번들에 들어 있어 픽셀 폰트로 그려진다', async ({ page }) => {
     await openApp(page, { seed: makeSeed() });
-    const fonts = await page.evaluate(async () => {
-      // 글꼴은 쓰일 때 불러오므로, 확인하기 전에 직접 불러 둔다(번들에 없으면 불러올 글꼴이 없다)
-      await Promise.all([
-        document.fonts.load("15px 'Galmuri14'", '호봉'),
-        document.fonts.load("12px 'Galmuri11'", '호봉'),
-      ]);
-      await document.fonts.ready;
-      return {
-        body: document.fonts.check("15px 'Galmuri14'", '호봉'),
-        cap: document.fonts.check("12px 'Galmuri11'", '호봉'),
-        family: getComputedStyle(document.body).fontFamily,
-        size: getComputedStyle(document.body).fontSize,
-      };
-    });
-    expect(fonts.body).toBe(true);
-    expect(fonts.cap).toBe(true);
-    expect(fonts.family).toContain('Galmuri14');
-    expect(fonts.size).toBe('15px');
+    // 글꼴 API(document.fonts)의 상태는 브라우저마다 다르게 보고된다(WebKit 은 새로 고친 뒤 check 가
+    // false 이고 load 가 실패하지만 글자는 픽셀 폰트로 그린다). 그래서 실제로 그려진 글자 폭으로 본다:
+    // 글꼴이 없으면 'Galmuri14', serif 는 serif 와 폭이 같아진다.
+    const sample = '호봉 공무원 9급 iiiWWW 0123456789 · D-365';
+    const differs = () =>
+      page.evaluate((text) => {
+        const width = (family: string, size: number) => {
+          const span = document.createElement('span');
+          span.textContent = text;
+          span.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font-size:${size}px;font-family:${family}`;
+          document.body.append(span);
+          const w = span.getBoundingClientRect().width;
+          span.remove();
+          return w;
+        };
+        return (
+          width("'Galmuri14', serif", 15) !== width('serif', 15) &&
+          width("'Galmuri11', serif", 12) !== width('serif', 12)
+        );
+      }, sample);
+    await expect.poll(differs).toBe(true);
+    const style = await page.evaluate(() => ({
+      family: getComputedStyle(document.body).fontFamily,
+      size: getComputedStyle(document.body).fontSize,
+    }));
+    expect(style.family).toContain('Galmuri14');
+    expect(style.size).toBe('15px');
   });
 
   test('입력값은 localStorage에만 남는다', async ({ page }) => {

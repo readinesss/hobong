@@ -167,9 +167,16 @@ test.describe('데이터 내려받기·불러오기', () => {
     await other.goto(page.url());
     const newer = JSON.stringify({ ...JSON.parse(SEED), schemaVersion: 99 });
     await other.evaluate((value) => localStorage.setItem('hobong.data', value), newer);
-    await expect(page.locator('#notice-stale')).toContainText('새 버전');
-    // 이 탭에서 무언가 바꿔도 저장소의 새 데이터를 덮어쓰지 않는다
+    // 다른 탭이 쓴 값이 이 탭에도 보일 때까지 기다린다(탭마다 다른 프로세스라 아주 잠깐 늦을 수 있다)
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(newer);
+    // storage 이벤트가 오지 않아도(WebKit 은 새로 고친 탭에 다른 탭의 이벤트를 보내지 않는다)
+    // 이 탭에서 저장하려는 순간 더 새 데이터를 알아채고 덮어쓰지 않는다.
     await page.getByRole('button', { name: '금액 가리기' }).click();
+    await tick(page);
+    await expect(page.locator('#notice-stale')).toContainText('새 버전');
+    expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(newer);
+    // 그 뒤로도 저장하지 않는다
+    await page.getByRole('button', { name: /금액/ }).first().click();
     await tick(page);
     expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(newer);
     await other.close();
