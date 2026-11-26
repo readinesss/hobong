@@ -191,10 +191,16 @@ test.describe('데이터 내려받기·불러오기', () => {
     changed.data.profile.nickname = '바뀐이름';
     const changedText = JSON.stringify(changed);
     await other.evaluate((value) => localStorage.setItem('hobong.data', value), changedText);
-    // 다른 탭이 쓴 값이 이 탭에도 보일 때까지 기다린다(탭마다 다른 프로세스라 아주 잠깐 늦을 수 있다)
+    // 다른 탭이 쓴 값이 이 탭에도 보일 때까지 기다린다(탭마다 다른 프로세스라 아주 잠깐 늦을 수 있다).
+    // 이 탭이 storage 이벤트로 먼저 따라가 다시 저장하면(업적·본 모습·저장 시각이 채워진다) 글자 그대로는
+    // 같지 않으므로, 바뀐 닉네임이 저장소에 있는지로 본다.
     await expect
-      .poll(() => page.evaluate(() => localStorage.getItem('hobong.data')))
-      .toBe(changedText);
+      .poll(() =>
+        page.evaluate(
+          () => JSON.parse(localStorage.getItem('hobong.data') ?? '{}').data?.profile?.nickname,
+        ),
+      )
+      .toBe('바뀐이름');
     // storage 이벤트가 오지 않는 브라우저에서도, 탭으로 돌아오면(포커스) 저장소를 다시 본다
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(page.locator('#status')).toContainText('바뀐이름');

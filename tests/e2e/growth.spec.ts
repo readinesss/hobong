@@ -156,14 +156,56 @@ test.describe('승급과 시간의 흐름', () => {
     await openApp(page, { seed: makeSeed(), time: '2026-12-10T09:30:00+09:00' });
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('15일 만이에요');
-    // 11/26~12/10의 근무일: 11일
-    await expect(dialog).toContainText('+11일');
+    // 마지막 방문 다음 날부터 어제까지(11/26~12/9)의 근무일: 10일(오늘은 넣지 않는다)
+    await expect(dialog).toContainText('+10일');
     await dialog.getByRole('button', { name: '확인' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const data = await storedData(page);
     expect(data?.visits.days).toEqual(['2026-11-24', '2026-11-25', '2026-12-10']);
     // 방문 기록은 "백업 이후 변경"으로 세지 않는다
     expect(data?.meta.changesSinceBackup).toBe(0);
+  });
+
+  test('주말만 지나고 월요일에 열면 "다시 만나서 반가워요"를 띄우지 않는다', async ({ page }) => {
+    const seed = makeSeed(
+      {},
+      { visits: { days: ['2026-11-26', '2026-11-27'], lastVisit: '2026-11-26' } },
+    );
+    await openApp(page, { seed, time: '2026-11-30T09:30:00+09:00' });
+    await tick(page, 2000);
+    await expect(page.getByText('다시 만나서 반가워요')).toHaveCount(0);
+    expect((await storedData(page))?.visits.days).toContain('2026-11-30');
+  });
+
+  test('반차인 날은 그 반나절에만 연가 중이고, 오늘 창과 호봉이가 같은 말을 한다', async ({
+    page,
+  }) => {
+    const seed = makeSeed(
+      {},
+      {
+        leave: {
+          records: [{ id: 'pm1', date: '2026-11-25', hours: 4, kind: 'pm', memo: '' }],
+          grantOverrideHours: {},
+        },
+      },
+    );
+    // 오전: 근무 중, 오후 반차까지 남은 시간
+    await openApp(page, { seed, time: '2026-11-25T10:30:00+09:00' });
+    const today = page.locator('#today');
+    await expect(today).toContainText('오후 반차');
+    // 오후 반차인 날의 퇴근은 반차가 시작하는 14시다(10:30 → 3시간 30분)
+    await expect(today).toContainText(/퇴근까지\s*3:(29|30):/);
+    await expect(page.locator('#status')).not.toContainText('연가 중');
+    // 오후: 연가 중
+    await openApp(page, { seed, time: '2026-11-25T15:00:00+09:00' });
+    await expect(today).toContainText('연가 중');
+    await expect(page.locator('#status')).toContainText('연가 중');
+  });
+
+  test('출근 전에는 퇴근 카운트다운 대신 출근 시각을 보여 준다', async ({ page }) => {
+    await openApp(page, { seed: makeSeed(), time: '2026-11-25T08:00:00+09:00' });
+    await expect(page.locator('#today')).toContainText('9시 출근');
+    await expect(page.locator('#today')).not.toContainText('퇴근까지');
   });
 
   test('"오늘 번 돈"이 초 단위로 오르고, 금액 가리기가 한 번에 모두 가린다', async ({ page }) => {

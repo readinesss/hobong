@@ -235,7 +235,14 @@ function stage(
   const sw = 48 * spriteScale;
   if (pose) paintPose(ctx, pose, x + Math.floor((w - sw) / 2), y + h - sw - 2, spriteScale);
   if (withBubble) {
-    const line = fit(ctx, model.line, 12, w - 28);
+    // 긴 닉네임 때문에 대사가 잘리면, 앞의 부름말('…님, ')을 빼고 대사만 쓴다
+    const max = w - 28;
+    const vocative = `${model.nickname}님, `;
+    const bare =
+      model.line.startsWith(vocative) && widthOf(ctx, model.line, 12) > max
+        ? model.line.slice(vocative.length)
+        : model.line;
+    const line = fit(ctx, bare, 12, max);
     const tw = Math.ceil(widthOf(ctx, line, 12));
     const bw = tw + 14;
     const bx = x + Math.floor((w - bw) / 2);
@@ -313,18 +320,22 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     } else {
       text(ctx, '최고호봉', cx, cy, 12, INK);
     }
-    y = py + 30 + stageH + 8;
+    // 닉네임 줄을 무대 바로 밑에 붙여, 켠 항목이 없을 때 배지 한 줄(24) 자리가 남게 한다
+    y = py + 30 + stageH + 6;
     text(ctx, fit(ctx, model.nickname, 15, inner), left, y, 15, INK);
-    y += 20;
+    y += 18;
   } else {
-    // 위쪽 넓은 무대 + 아래 정보
-    stage(ctx, model, left + 2, py + 30, inner - 4, 168, true);
-    y = py + 30 + 168 + 8;
+    // 위쪽 넓은 무대 + 아래 정보. 켠 항목 세 줄(재직·정년·월 봉급)이 다 들어가도록 무대 높이를 잡는다.
+    const stageH = 156;
+    stage(ctx, model, left + 2, py + 30, inner - 4, stageH, true);
+    y = py + 30 + stageH + 8;
     const chipW = chip(ctx, model.formName, left, y);
     text(ctx, fit(ctx, model.nickname, 15, inner - chipW - 4), left + chipW + 4, y + 1, 15, INK);
-    y += 27;
+    y += 26;
     text(ctx, `${model.grade}급 ${model.step}호봉`, left, y, 30, INK);
-    y += 38;
+    // 아래 점 막대의 이름표(정사각형의 '깃 14/31'과 같다)
+    text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
+    y += 36;
     // 깃 게이지
     const pipW = 5;
     const pipGap = 2;
@@ -335,7 +346,8 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
       rect(ctx, rx, ry, pipW, 8, i < model.step ? ORANGE : SHADOW);
       rect(ctx, rx + 1, ry + 1, pipW - 2, 6, i < model.step ? GOLD : PANEL2);
     }
-    y += Math.ceil(model.maxStep / perRow) * 10 + 4;
+    // 점 막대와 아래 '다음 승급까지' 사이를 띄워, 그 줄이 금색 막대에 붙어 보이게 한다
+    y += Math.ceil(model.maxStep / perRow) * 10 + 8;
     if (model.raise) {
       text(ctx, '다음 승급까지', left, y, 12, MUTED);
       text(ctx, model.raise.dday, right, y, 12, INK, 'right');

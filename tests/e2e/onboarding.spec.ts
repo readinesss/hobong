@@ -41,7 +41,9 @@ test.describe('첫 화면과 입력 폼', () => {
     await page.getByLabel('생년월일 연도').fill('1996');
     await page.getByLabel('생년월일 월').fill('2');
     await page.getByLabel('생년월일 일').fill('30');
-    await expect(page.locator('#pf-birth-error')).toHaveText('없는 날짜예요. 1996년 2월은 29일까지예요.');
+    await expect(page.locator('#pf-birth-error')).toHaveText(
+      '없는 날짜예요. 1996년 2월은 29일까지예요.',
+    );
     await expect(page.getByLabel('생년월일 일')).toHaveAttribute('aria-invalid', 'true');
     await page.getByLabel('생년월일 월').fill('13');
     await expect(page.locator('#pf-birth-error')).toHaveText('월은 1~12로 넣어 주세요.');

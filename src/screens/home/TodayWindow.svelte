@@ -18,7 +18,7 @@
   const halfTag = $derived(
     view.leaveToday === 'am' ? '오전 반차' : view.leaveToday === 'pm' ? '오후 반차' : '',
   );
-  /** 퇴근까지 남은 초: 오후 반차면 반차가 시작하는 때까지 */
+  /** 퇴근까지 남은 초: 오후 반차면 반차가 시작하는 때(그날의 퇴근)까지 */
   const secondsToLeave = $derived.by(() => {
     const left = status.secondsToEnd;
     if (left === null) return null;
@@ -91,7 +91,7 @@
           <span class="num">{startLabel}</span>
         {:else if status.workday && secondsToLeave !== null}
           <span class="num">
-            {view.leaveToday === 'pm' ? '반차까지' : '퇴근까지'}
+            퇴근까지
             <strong>{formatDuration(secondsToLeave)}</strong>
           </span>
         {:else if status.workday}
@@ -111,12 +111,12 @@
 
     <ul class="cards">
       {#if !view.retired}<li class="well">
-        <span class="cap muted row"><Icon name="icon-coin" /> 월급날</span>
-        <strong class="num">{formatDday(view.today, view.payday)}</strong>
-        <span class="cap muted">
-          {formatMonthDay(view.payday)}{view.paydayHolidaysKnown ? '' : ' · 공휴일 반영 전'}
-        </span>
-      </li>{/if}
+          <span class="cap muted row"><Icon name="icon-coin" /> 월급날</span>
+          <strong class="num">{formatDday(view.today, view.payday)}</strong>
+          <span class="cap muted">
+            {formatMonthDay(view.payday)}{view.paydayHolidaysKnown ? '' : ' · 공휴일 반영 전'}
+          </span>
+        </li>{/if}
       <li class="well">
         <span class="cap muted row"><Icon name="icon-flag" /> 다음 공휴일</span>
         {#if view.nextHoliday}

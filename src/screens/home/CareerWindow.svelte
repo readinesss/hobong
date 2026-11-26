@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { formatDday, formatNumber, formatSpan } from '../../lib/app/format.ts';
+  import { formatNumber, formatSpan } from '../../lib/app/format.ts';
   import { view } from '../../lib/app/view.svelte.ts';
-  import { formatKorean } from '../../lib/calc/date.ts';
+  import { formatKorean, spanBetween } from '../../lib/calc/date.ts';
   import Progress from '../../lib/ui/Progress.svelte';
   import Win from '../../lib/ui/Win.svelte';
 
@@ -45,7 +45,7 @@
         <dd class="num">
           {formatNumber(view.career.daysLeft)}일
           {#if !view.career.retired}<span class="cap muted">
-              · {formatDday(view.today, view.retire.retireDate)}
+              ({formatSpan(spanBetween(view.today, view.retire.retireDate))})
             </span>{/if}
         </dd>
       </div>

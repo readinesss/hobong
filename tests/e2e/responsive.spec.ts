@@ -188,7 +188,10 @@ test.describe('반응형과 조작', () => {
     await expect(page.getByRole('heading', { name: '올해 연가' })).toBeVisible();
   });
 
-  test('라디오 칩은 화살표로 고르고, 선택 표시가 이름에 섞이지 않는다', async ({ page, isMobile }) => {
+  test('라디오 칩은 화살표로 고르고, 선택 표시가 이름에 섞이지 않는다', async ({
+    page,
+    isMobile,
+  }) => {
     test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
     const themes = page.getByRole('radiogroup', { name: '밝기' });
@@ -269,5 +272,95 @@ test.describe('반응형과 조작', () => {
     await page.getByLabel('메모').blur();
     await tick(page, 300);
     await expect(nav).toBeVisible();
+  });
+
+  for (const width of [320, 360, 414]) {
+    test(`${width}px: 내 정보 폼과 고치기 대화상자가 가로로 넘치지 않는다`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 760 });
+      await openApp(page);
+      await page.getByRole('button', { name: '새로 시작' }).click();
+      await page.getByRole('button', { name: /예외가 있어요/ }).click();
+      const doc = await page.evaluate(() => [
+        document.documentElement.scrollWidth,
+        document.documentElement.clientWidth,
+      ]);
+      expect(doc[0], '첫 화면 폼').toBeLessThanOrEqual(doc[1] as number);
+      // 날짜 줄(달력 버튼까지)이 예외 칸 안에 들어간다
+      const inside = await page.evaluate(() => {
+        const well = document.querySelector('#pf-advanced')!.getBoundingClientRect();
+        return [...document.querySelectorAll('#pf-advanced .date')].every(
+          (d) => d.getBoundingClientRect().right <= well.right + 0.5,
+        );
+      });
+      expect(inside, '예외 칸의 날짜 줄').toBe(true);
+
+      await openApp(page, { seed: makeSeed(), hash: 'settings' });
+      await page.getByRole('button', { name: '고치기' }).click();
+      const body = await page.evaluate(() => {
+        const b = document.querySelector('.modal .win-body')!;
+        return [b.scrollWidth, b.clientWidth];
+      });
+      expect(body[0], '고치기 대화상자 본문').toBeLessThanOrEqual(body[1] as number);
+    });
+  }
+
+  test('설정 화면은 보이는 순서대로 Tab 이 움직인다(넓은 화면의 열 배치에서도)', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    const order = [
+      'set-profile',
+      'set-data',
+      'set-work',
+      'set-display',
+      'set-about',
+      'set-sources',
+    ];
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).focus();
+    const seen: string[] = [];
+    for (let i = 0; i < 60; i += 1) {
+      const win = await page.evaluate(() => document.activeElement?.closest('main .win')?.id ?? '');
+      if (win && seen[seen.length - 1] !== win) {
+        // 마지막 창을 지나 탭 줄을 돌아 다시 처음으로 오면 멈춘다
+        if (seen.includes(win)) break;
+        seen.push(win);
+      }
+      await page.keyboard.press('Tab');
+    }
+    // 창을 한 번씩만, 정한 순서대로 지난다(열 사이를 오가지 않는다)
+    expect(seen).toEqual(order.filter((id) => seen.includes(id)));
+    expect(seen.length).toBeGreaterThanOrEqual(5);
+  });
+
+  test('넓은 화면의 업적·홈 배치에 큰 빈칸이 없다', async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await openApp(page, { seed: makeSeed(), hash: 'badges' });
+    const gap = await page.evaluate(() => {
+      const u = document.querySelector('#unlocks')!.getBoundingClientRect();
+      const v = document.querySelector('#visits')!.getBoundingClientRect();
+      return v.top - u.bottom;
+    });
+    expect(gap, '깃이 자라면 ↔ 출근 도장').toBeLessThanOrEqual(24);
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page
+      .getByRole('navigation', { name: '화면 이동' })
+      .getByRole('link', { name: '홈' })
+      .click();
+    await tick(page, 600);
+    const home = await page.evaluate(() => {
+      const r = (q: string) => document.querySelector(q)!.getBoundingClientRect();
+      return {
+        career: r('#career').bottom,
+        wallet: r('#wallet').top,
+        leave: r('#leave-mini').bottom,
+        upcoming: r('#upcoming').top,
+      };
+    });
+    expect(home.wallet - home.career, '정년 ↔ 지갑').toBeLessThanOrEqual(24);
+    expect(home.upcoming - home.leave, '연가 ↔ 다가오는 일정').toBeLessThanOrEqual(24);
   });
 });

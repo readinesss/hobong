@@ -69,7 +69,8 @@
       const holiday = calendar.holidayName(date);
       const entry = hoursByDate.get(date);
       const hours = entry?.hours ?? 0;
-      const half = entry?.kinds.length === 1 && (entry.kinds[0] === 'am' || entry.kinds[0] === 'pm');
+      const half =
+        entry?.kinds.length === 1 && (entry.kinds[0] === 'am' || entry.kinds[0] === 'pm');
       const halfKind = half ? (entry?.kinds[0] as LeaveKind) : null;
       const parts = [formatMonthDay(date)];
       if (holiday) parts.push(holiday);

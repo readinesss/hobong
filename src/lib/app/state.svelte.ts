@@ -79,7 +79,6 @@ function newId(): string {
     .slice(0, 12);
 }
 
-
 /** 복귀 정산을 띄우는 문턱 */
 const WELCOME_BACK = {
   /** 놓친 근무일(마지막 방문 다음 날 ~ 어제) */

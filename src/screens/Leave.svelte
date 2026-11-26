@@ -176,9 +176,7 @@
     formatMonthDayMaybeYear(date, view.today, withWeekday);
 
   const bridges = $derived(view.bridges.slice(0, 4));
-  const balance = $derived(
-    leaveBalance(leave.remainingHours, leave.grantedHours, leave.rate, hpd),
-  );
+  const balance = $derived(leaveBalance(leave.remainingHours, leave.grantedHours, leave.rate, hpd));
 
   /** 기록 목록은 최근 것부터 몇 건만 보여 주고 '더 보기'로 펼친다(페이지 안 스크롤 상자 대신) */
   const RECORDS_STEP = 10;
@@ -376,12 +374,13 @@
               <div class="kv">
                 <strong>{bridge.totalDays}일 연휴</strong>
                 <span class="cap muted">
-                  {md(bridge.from)} ~ {md(bridge.to)}
+                  <span class="nowrap">{md(bridge.from)}</span> ~
+                  <span class="nowrap">{md(bridge.to)}</span>
                 </span>
               </div>
               <p class="cap muted">
-                {bridge.leaveDates.map((d) => md(d)).join(', ')}에 연가 {bridge
-                  .leaveDates.length}일 · {bridge.holidayNames.join(', ')}
+                {bridge.leaveDates.map((d) => md(d)).join(', ')}에 연가 {bridge.leaveDates.length}일
+                · {bridge.holidayNames.join(', ')}
               </p>
               {#if bridge.alreadyTaken}
                 <span class="tag gold">이미 기록함</span>
@@ -456,7 +455,12 @@
       >
         {#each leave.byMonth as h, i (i)}
           <div class="m">
-            <span class="cap val" aria-hidden="true">{formatMonthBarValue(h, hpd)}</span>
+            <!-- '4시간'은 좁은 막대에서 '4시/간'으로 쪼개지지 않게 숫자와 단위를 두 줄로 나눠 적는다 -->
+            <span class="cap val" aria-hidden="true">
+              {#if h > 0 && h < hpd}<span>{h}</span><span class="unit">
+                  시간
+                </span>{:else}{formatMonthBarValue(h, hpd)}{/if}
+            </span>
             <i style="height:{Math.round((h / maxMonthHours) * 60)}px" class:zero={h === 0}></i>
             <span class="cap muted">{i + 1}</span>
           </div>
@@ -469,7 +473,8 @@
   </div>
   <section class="about">
     <p class="note">
-      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는 다루지 않아요.
+      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가는
+      다루지 않아요.
       {#if view.leaveProrated}
         올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
       {/if}
@@ -529,8 +534,9 @@
         <p class="note warn" role="alert">마지막 날이 첫날보다 앞이에요.</p>
       {:else if rangeFrom && rangeTo}
         <p class="note">
-          토요일·일요일·공휴일과 이미 기록한 날은 빼고 근무일 <strong>{rangeDays.length}일</strong>을
-          하루 연가로 기록해요.
+          토요일·일요일·공휴일과 이미 기록한 날은 빼고 근무일 <strong>
+            {rangeDays.length}일
+          </strong>을 하루 연가로 기록해요.
         </p>
       {/if}
       {#if memo.trim()}
@@ -624,7 +630,14 @@
     box-shadow: none;
   }
   .val {
+    display: grid;
+    justify-items: center;
     min-height: 18px;
+    line-height: 15px;
+  }
+  .val .unit {
+    font-size: 11px;
+    white-space: nowrap;
   }
   .records {
     display: grid;

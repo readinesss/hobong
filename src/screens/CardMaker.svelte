@@ -8,7 +8,7 @@
     downloadBlob,
     shareFile,
   } from '../lib/app/files.ts';
-  import { formatDday, formatSpan, formatWon } from '../lib/app/format.ts';
+  import { formatDday, formatSpan, formatWon, MASKED_WON } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
@@ -42,6 +42,10 @@
   let fallbackUrl = $state<string | null>(null);
   let showText = $state(false);
 
+  /** 금액 가리기가 켜져 있으면 미리보기에서는 금액을 가린다(저장할 때만 확인을 받고 넣는다) */
+  const hideAmounts = $derived(view.data.settings.hideAmounts);
+  const salaryFact = (amount: string) => `월 봉급 ${amount}(봉급표 기준)`;
+
   const model = $derived<CardModel>({
     nickname: view.profile.nickname,
     grade: view.profile.grade,
@@ -61,11 +65,11 @@
       ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
       ...(card.showRetirement
         ? [
-            `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}%)`,
+            `정년 ${formatDday(view.today, view.retire.retireDate)} (${(view.career.ratio * 100).toFixed(1)}% 왔어요)`,
           ]
         : []),
       // 카드는 앱 밖으로 나가므로 금액이 봉급표 기준(수당·공제 전)임을 카드 안에도 적는다.
-      ...(card.showSalary ? [`월 봉급 ${formatWon(view.salary.amount)}(봉급표 기준)`] : []),
+      ...(card.showSalary ? [salaryFact(formatWon(view.salary.amount))] : []),
     ],
     badges: card.showBadges
       ? view.badges
@@ -78,7 +82,24 @@
     siteTagline: SITE_TAGLINE,
     siteUrl: SITE_URL,
   });
+  /** 화면에 보이는 미리보기용: 금액 가리기가 켜져 있으면 금액을 가린다 */
+  const previewModel = $derived<CardModel>(
+    hideAmounts && card.showSalary
+      ? {
+          ...model,
+          facts: model.facts.map((f) =>
+            f === salaryFact(formatWon(view.salary.amount)) ? salaryFact(MASKED_WON) : f,
+          ),
+        }
+      : model,
+  );
+  /** 저장·복사 전에 금액이 들어간다고 확인받아야 하는지 */
+  const needsAmountConfirm = $derived(hideAmounts && card.showSalary);
   const text = $derived(textCard(model));
+  /** 화면용: '(D-217)'·'D-10,810' 같은 덩어리는 줄바꿈 없이 붙여 보이게 나눈다(복사되는 글자는 같다) */
+  const textParts = $derived(
+    text.split(/(\(?D[-+](?:DAY|[\d,]+)\)?)/).map((part, i) => ({ part, keep: i % 2 === 1 })),
+  );
   const size = $derived(CARD_SIZES[card.ratio]);
 
   onMount(() => {
@@ -104,8 +125,17 @@
     el.width = size.w * previewScale;
     el.height = size.h * previewScale;
     const ctx = el.getContext('2d');
-    if (ctx) omitted = drawCard(ctx, model, card.ratio, previewScale);
+    if (ctx) omitted = drawCard(ctx, previewModel, card.ratio, previewScale);
+    // 정사각형에서 빠진 것이 세로형에는 다 들어가는지 재 둔다(안내 문구를 사실대로 고른다)
+    if (card.ratio === 'square') {
+      const probe = document.createElement('canvas');
+      probe.width = CARD_SIZES.portrait.w;
+      probe.height = CARD_SIZES.portrait.h;
+      const pctx = probe.getContext('2d');
+      portraitFits = pctx ? drawCard(pctx, previewModel, 'portrait', 1).facts.length === 0 : false;
+    }
   });
+  let portraitFits = $state(true);
 
   /** 자리가 모자라 카드에 들어가지 못한 것(미리보기를 그릴 때 정해진다) */
   let omitted = $state<CardOmitted>({ facts: [], badges: false });
@@ -120,7 +150,7 @@
     ...omitted.facts.map(factName),
     ...(omitted.badges ? ['배지'] : []),
   ]);
-  const drawnFacts = $derived(model.facts.filter((fact) => !omitted.facts.includes(fact)));
+  const drawnFacts = $derived(previewModel.facts.filter((fact) => !omitted.facts.includes(fact)));
 
   function setCard(patch: Partial<CardSettings>) {
     app.updateSettings({ card: { ...card, ...patch } }, false);
@@ -139,7 +169,10 @@
 
   /** 미리보기의 낭독 문구: 카드에 실제로 들어간 항목까지 그대로 읽는다 */
   const previewLabel = $derived(
-    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`,
+    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`.replaceAll(
+      MASKED_WON,
+      '금액 가림',
+    ),
   );
   const fileName = $derived(`hobong-card-${view.today.replaceAll('-', '')}.png`);
 
@@ -150,6 +183,20 @@
   function showFallback(blob: Blob) {
     if (fallbackUrl) URL.revokeObjectURL(fallbackUrl);
     fallbackUrl = URL.createObjectURL(blob);
+  }
+
+  /** 금액 가리기가 켜져 있는데 금액을 넣어 내보내려 할 때, 한 번 확인받고 이어서 할 일 */
+  let pendingExport = $state<(() => Promise<void>) | null>(null);
+  function guarded(action: () => Promise<void>): () => void {
+    return () => {
+      if (needsAmountConfirm) pendingExport = action;
+      else void action();
+    };
+  }
+  function confirmExport() {
+    const action = pendingExport;
+    pendingExport = null;
+    if (action) void action();
   }
 
   async function save() {
@@ -239,7 +286,9 @@
       <!-- 직접 켠 글(재직·정년·금액)이 빠질 때만 알린다 -->
       <p class="cap muted" role="status" id="card-omitted">
         자리가 모자라 이 모양에는 넣지 못했어요: {omittedNames.join(', ')}. {card.ratio === 'square'
-          ? '세로형에는 더 들어가요.'
+          ? portraitFits
+            ? '세로형에는 더 들어가요.'
+            : '다른 항목을 끄면 들어갈 수 있어요.'
           : '다른 항목을 끄면 들어갈 수 있어요.'}
       </p>
     {:else if omitted.badges}
@@ -304,25 +353,30 @@
             월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span>
           </span>
         </label>
+        {#if hideAmounts && card.showSalary}
+          <p class="cap muted" id="card-amount-masked">
+            금액 가리기가 켜져 있어 미리보기에서는 금액을 가려요. 저장·복사할 때 한 번 더 물어봐요.
+          </p>
+        {/if}
         <p class="cap muted">금액과 정년은 기본으로 꺼져 있어요. 켠 것만 카드에 들어가요.</p>
       </fieldset>
 
       <div class="btn-row stretch">
-        <button type="button" class="btn primary" onclick={save} disabled={busy}>
+        <button type="button" class="btn primary" onclick={guarded(save)} disabled={busy}>
           <Icon name="icon-download" /> PNG로 저장
         </button>
         {#if caps.copyImage}
-          <button type="button" class="btn" onclick={copy} disabled={busy}>
+          <button type="button" class="btn" onclick={guarded(copy)} disabled={busy}>
             <Icon name="icon-copy" /> 이미지 복사
           </button>
         {/if}
         {#if caps.shareFiles}
-          <button type="button" class="btn" onclick={share} disabled={busy}>
+          <button type="button" class="btn" onclick={guarded(share)} disabled={busy}>
             <Icon name="icon-share" /> 공유
           </button>
         {/if}
       </div>
-      <button type="button" class="btn small ghost link" onclick={openImage}>
+      <button type="button" class="btn small ghost link" onclick={guarded(openImage)}>
         저장이 안 되나요? 이미지로 열기
       </button>
       {#if !caps.copyImage}
@@ -333,7 +387,9 @@
 
   <Win title="글자 카드" icon="icon-text" id="card-text" area="text">
     <div class="stack wide">
-      <pre class="well textcard">{text}</pre>
+      <pre class="well textcard">{#each textParts as { part, keep }, i (i)}{#if keep}<span
+              class="nobr">{part}</span
+            >{:else}{part}{/if}{/each}</pre>
       <div class="btn-row">
         <button type="button" class="btn" onclick={copyTextCard}>
           <Icon name="icon-copy" /> 글자로 복사
@@ -358,6 +414,24 @@
       <p>아래 이미지를 길게 누르거나 마우스 오른쪽 버튼으로 눌러 저장·복사해 주세요.</p>
       <img class="fallback" src={fallbackUrl} alt="호봉이 카드" />
     </div>
+  </Modal>
+{/if}
+
+{#if pendingExport}
+  <Modal title="금액을 넣을까요?" icon="icon-warn" onclose={() => (pendingExport = null)}>
+    <div class="stack wide">
+      <p>
+        금액 가리기가 켜져 있어요. 내보내는 이미지에는 월 봉급 금액({formatWon(view.salary.amount)},
+        봉급표 기준)이 그대로 들어가요.
+      </p>
+      <p class="cap muted">금액을 빼려면 '월 봉급'을 끄고 저장해 주세요.</p>
+    </div>
+    {#snippet actions()}
+      <button type="button" class="btn" data-autofocus onclick={() => (pendingExport = null)}>
+        취소
+      </button>
+      <button type="button" class="btn primary" onclick={confirmExport}>금액 넣어 내보내기</button>
+    {/snippet}
   </Modal>
 {/if}
 
@@ -407,9 +481,15 @@
     margin: 0;
     font: inherit;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    /* 'D-217' 같은 덩어리가 중간에서 끊기지 않게 낱말 단위로 넘긴다 */
+    overflow-wrap: break-word;
+    word-break: keep-all;
     user-select: all;
     -webkit-user-select: all;
+  }
+  /* word-break: keep-all 은 'D-' 뒤에서 끊기는 것을 막지 못하므로 덩어리째 붙인다 */
+  .nobr {
+    white-space: nowrap;
   }
   .link {
     justify-content: flex-start;
@@ -417,10 +497,11 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+  /* 1080px 이미지를 화면 폭에 맞춰 줄여 보이므로(정수배가 아니다) 부드럽게 줄인다 */
   .fallback {
     width: 100%;
     height: auto;
-    image-rendering: pixelated;
+    image-rendering: auto;
     box-shadow: var(--frame);
   }
   @media (min-width: 720px) {

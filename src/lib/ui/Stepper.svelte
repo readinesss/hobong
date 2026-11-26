@@ -67,8 +67,9 @@
       oninput={onInput}
       onblur={onBlur}
       aria-invalid={error ? 'true' : undefined}
-      aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') ||
-        undefined}
+      aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : '']
+        .filter(Boolean)
+        .join(' ') || undefined}
     />
     {#if unit}<span class="unit">{unit}</span>{/if}
     <button

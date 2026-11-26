@@ -143,7 +143,10 @@
     // 결과는 대화상자 안에 적는다(알림은 대화상자에 가려질 수 있다)
     if (await copyText(backupText)) {
       app.markBackedUp(backupAt);
-      copyResult = { ok: true, text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.' };
+      copyResult = {
+        ok: true,
+        text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
+      };
     } else {
       copyResult = { ok: false, text: '복사가 막혀 있어요. 글자를 직접 골라 복사해 주세요.' };
     }
@@ -248,14 +251,14 @@
           </button>
         </div>
         <p class="note warn">
-          백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에 두지
-          말고, 메신저로 보낼 때도 주의해 주세요.
+          백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에
+          두지 말고, 메신저로 보낼 때도 주의해 주세요.
         </p>
         {#if !hosted}
           <p class="note" id="set-file-origin">
-            파일(hobong.html)로 열어 쓰면 같은 PC·같은 브라우저로 여는 다른 HTML 파일과 저장소를 함께
-            써요. 출처를 모르는 HTML 파일은 같은 브라우저로 열지 말고, 예전 hobong.html 사본은 지워
-            주세요.
+            파일(hobong.html)로 열어 쓰면 같은 PC·같은 브라우저로 여는 다른 HTML 파일과 저장소를
+            함께 써요. 출처를 모르는 HTML 파일은 같은 브라우저로 열지 말고, 예전 hobong.html 사본은
+            지워 주세요.
           </p>
         {/if}
         <button type="button" class="btn small ghost link" onclick={openBackupText}>
@@ -400,7 +403,9 @@
             </div>
             {#if workError}<p class="note warn" role="alert">{workError}</p>{/if}
             <div class="btn-row">
-              <button type="button" class="btn small" onclick={resetWork}>기본값(9시~18시)으로</button>
+              <button type="button" class="btn small" onclick={resetWork}>
+                기본값(9시~18시)으로
+              </button>
             </div>
             <p class="cap muted">
               유연근무를 한다면 맞게 고쳐 주세요. "오늘 번 돈"과 퇴근 카운트다운에 쓰여요.
@@ -440,11 +445,11 @@
             <span class="box" aria-hidden="true"></span>
             <span>움직임 줄이기 <span class="cap muted">캐릭터와 연출을 멈춰요</span></span>
           </label>
-            {#if anim.systemReduced}
-              <p class="cap muted" id="set-motion-system">
-                기기 설정에서 움직임 줄이기가 켜져 있어 늘 멈춰 있어요.
-              </p>
-            {/if}
+          {#if anim.systemReduced}
+            <p class="cap muted" id="set-motion-system">
+              기기 설정에서 움직임 줄이기가 켜져 있어 늘 멈춰 있어요.
+            </p>
+          {/if}
           <label class="switch">
             <input
               type="checkbox"
@@ -474,8 +479,8 @@
             <li>
               <Icon name="icon-lock" />
               <span>
-                외부로 나가는 통신이 없어요. 보안 정책(CSP)으로 스크립트·이미지·글꼴·연결을 모두 막아
-                두어, 인터넷이 막힌 업무망에서도 파일 하나로 그대로 동작해요.
+                외부로 나가는 통신이 없어요. 보안 정책(CSP)으로 스크립트·이미지·글꼴·연결을 모두
+                막아 두어, 인터넷이 막힌 업무망에서도 파일 하나로 그대로 동작해요.
               </span>
             </li>
             <li>

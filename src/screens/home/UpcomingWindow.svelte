@@ -42,7 +42,13 @@
     padding: 3px;
     background: var(--panel-2);
   }
+  /* 긴 제목('정년까지 3,650일(약 10년)')은 줄을 바꿔 D-day 가 창 밖으로 밀리지 않게 한다 */
+  .grow {
+    min-width: 0;
+  }
   .title {
     color: var(--ink) !important;
+    flex: 0 1 auto !important;
+    min-width: 0;
   }
 </style>

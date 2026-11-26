@@ -105,19 +105,64 @@ test.describe('연가 장부', () => {
     expect(dates).toEqual(['2026-12-23', '2026-12-24', '2026-12-28', '2026-12-29']);
   });
 
-  test('참고용 장부임을 밝힌다', async ({ page }) => {
-    await expect(
-      page.getByText('공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요.'),
-    ).toBeVisible();
+  test('참고용 장부임을 맨 위 창에서 밝힌다', async ({ page }) => {
+    await expect(page.locator('#leave-summary #leave-reference')).toHaveText(
+      '참고용 장부예요. 공식 기록은 소속 기관 인사시스템(e-사람 등)이 기준이에요.',
+    );
+  });
+
+  test('달력 칸은 반일의 오전·오후를 적고, 낭독도 기록 목록과 같은 말로 한다', async ({ page }) => {
+    const entry = page.locator('#leave-entry');
+    await entry.getByRole('button', { name: '오전 반일' }).click();
+    const cell = page.locator('#leave-calendar [data-date="2026-11-25"]');
+    await expect(cell).toContainText('오전');
+    await expect(cell).toHaveAttribute('aria-label', /연가 오전 반일/);
+    await expect(page.locator('#leave-calendar')).toContainText('빨간 숫자·휴: 공휴일');
+  });
+
+  test('다른 달로 옮겨도 Tab 으로 날짜 칸에 들어가고, Home·End·PageDown 으로 움직인다', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
+    const calendar = page.locator('#leave-calendar');
+    await calendar.getByRole('button', { name: '다음 달' }).click();
+    await expect(calendar.locator('.day[tabindex="0"]')).toHaveCount(1);
+    await expect(calendar.locator('.day[tabindex="0"]')).toHaveAttribute('data-date', '2026-12-01');
+    await calendar.locator('.day[tabindex="0"]').focus();
+    await page.keyboard.press('End');
+    await expect(page.locator('[data-date="2026-12-05"]')).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(page.locator('[data-date="2026-11-29"]')).toBeFocused();
+    await page.keyboard.press('PageDown');
+    await expect(page.locator('[data-date="2026-12-29"]')).toBeFocused();
+  });
+
+  test('부여보다 많이 쓰면 음수 대신 "초과 사용"으로 적는다', async ({ page }) => {
+    await page.getByRole('button', { name: '부여 일수 고치기' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('일', { exact: true }).fill('0');
+    await dialog.getByRole('button', { name: '저장' }).click();
+    await page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }).click();
+    const summary = page.locator('#leave-summary');
+    await expect(summary).toContainText('초과 사용');
+    await expect(summary).not.toContainText('-1일');
+    // 부여가 0 이면 사용률은 셀 수 없다
+    await expect(summary).toContainText('–');
   });
 });
 
 test.describe('연가 장부(쉬는 날에 열었을 때)', () => {
   test('오늘이 토요일이면 "가까운 근무일로" 버튼이 다음 근무일을 고른다', async ({ page }) => {
-    await openApp(page, { seed: makeSeed(), hash: 'leave', time: '2026-11-28T10:00:00+09:00' });
-    // 사흘 만에 여는 것이므로 복귀 정산이 먼저 뜬다(마지막으로 들른 날은 연도까지)
+    const seed = makeSeed(
+      {},
+      { visits: { days: ['2026-11-17', '2026-11-18'], lastVisit: '2026-11-17' } },
+    );
+    await openApp(page, { seed, hash: 'leave', time: '2026-11-28T10:00:00+09:00' });
+    // 열흘 만에 여는 것이므로 복귀 정산이 먼저 뜬다(마지막으로 들른 날은 연도까지).
+    // 주말·이틀만 비운 것으로는 띄우지 않는다(growth.spec 의 월요일 테스트).
     const back = page.getByRole('dialog');
-    await expect(back).toContainText('2026. 11. 25.');
+    await expect(back).toContainText('2026. 11. 18.');
     await back.getByRole('button', { name: '확인' }).click();
     const entry = page.locator('#leave-entry');
     await page

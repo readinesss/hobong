@@ -167,6 +167,12 @@
     }
   }
   @media (forced-colors: active) {
+    .bubble {
+      border: var(--u) solid CanvasText;
+    }
+    .bubble::after {
+      display: none;
+    }
     .pips i {
       border: 1px solid CanvasText;
       opacity: 1;

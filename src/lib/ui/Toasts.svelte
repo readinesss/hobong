@@ -1,9 +1,17 @@
 <script lang="ts">
   import { app } from '../app/state.svelte.ts';
   import Icon from './Icon.svelte';
+
+  /** 알림 묶음의 높이. 모바일에서 대화상자가 알림 밑으로 내려가도록 문서에 알려 준다. */
+  let height = $state(0);
+  $effect(() => {
+    const root = document.documentElement;
+    if (height > 0) root.style.setProperty('--toast-room', `${Math.ceil(height) + 9}px`);
+    else root.style.removeProperty('--toast-room');
+  });
 </script>
 
-<div class="toasts" aria-live="polite" aria-atomic="false">
+<div class="toasts" aria-live="polite" aria-atomic="false" bind:clientHeight={height}>
   {#each app.toasts as toast (toast.id)}
     <div class="win toast pop-in {toast.kind}" role="status">
       {#if toast.icon}<Icon name={toast.icon} />{/if}
@@ -69,7 +77,8 @@
   .toast .btn {
     margin: 0;
   }
-  /* 모바일 대화상자는 바닥에 붙으므로, 대화상자가 열려 있으면 알림을 위쪽에 둔다 */
+  /* 모바일 대화상자는 바닥에 붙으므로, 대화상자가 열려 있으면 알림을 위쪽에 둔다.
+     대화상자는 --toast-room 만큼 내려와 제목·닫기 단추가 알림에 가리지 않는다(Modal.svelte). */
   @media (max-width: 479px) {
     :global(:root[data-modal]) .toasts {
       top: calc(9px + var(--safe-t));

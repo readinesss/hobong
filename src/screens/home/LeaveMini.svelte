@@ -8,9 +8,7 @@
 
   const leave = $derived(view.leave);
   const hpd = $derived(leave.hoursPerDay);
-  const balance = $derived(
-    leaveBalance(leave.remainingHours, leave.grantedHours, leave.rate, hpd),
-  );
+  const balance = $derived(leaveBalance(leave.remainingHours, leave.grantedHours, leave.rate, hpd));
 </script>
 
 <Win title="연가" icon="icon-palm" id="leave-mini" area="leave">

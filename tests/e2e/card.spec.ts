@@ -39,9 +39,15 @@ test.describe('캐릭터 카드', () => {
     await expect(page.getByLabel(/월 봉급/)).not.toBeChecked();
     await expect(page.getByLabel(/정년 D-day/)).not.toBeChecked();
     await expect(page.getByLabel('배지')).toBeChecked();
-    // 기본 설정에서는 '넣지 못했다'는 경고 대신 정사각형의 생김새만 설명한다
+    // 기본 설정에서는 '넣지 못했다'는 경고 대신 정사각형의 생김새만 사실대로 설명한다
     await expect(page.locator('#card-omitted')).toHaveCount(0);
-    await expect(page.locator('#card-badge-note')).toContainText('배지는 세로형에서 보여요');
+    await expect(page.locator('#card-badge-note')).toContainText(
+      '정사각형에는 켠 항목이 있으면 배지 줄이 들어가지 않아요',
+    );
+    // 켠 항목을 모두 끄면 정사각형에도 배지 줄이 들어간다(안내가 사라진다)
+    await page.getByLabel(/재직기간/).uncheck();
+    await expect(page.locator('#card-badge-note')).toHaveCount(0);
+    await page.getByLabel(/재직기간/).check();
     const text = page.locator('#card-text pre');
     await expect(text).toContainText('9급 5호봉');
     await expect(text).not.toContainText('원');
@@ -76,6 +82,34 @@ test.describe('캐릭터 카드', () => {
     const preview = page.locator('#card-preview [role="img"]');
     await expect(preview).toHaveAttribute('aria-label', /월 봉급 2,226,100원\(봉급표 기준\)/);
     await expect(page.locator('#card-omitted')).toHaveCount(0);
+  });
+
+  test('금액 가리기가 켜져 있으면 미리보기에서 금액을 가리고, 내보낼 때 한 번 묻는다', async ({
+    page,
+  }) => {
+    const tabs = page.getByRole('navigation', { name: '화면 이동' });
+    await tabs.getByRole('link', { name: '설정' }).click();
+    await page.getByLabel(/금액 가리기/).check();
+    await tabs.getByRole('link', { name: '카드' }).click();
+    await page.getByLabel(/재직기간/).uncheck();
+    await page.getByLabel(/월 봉급/).check();
+    const preview = page.locator('#card-preview [role="img"]');
+    await expect(preview).toHaveAttribute('aria-label', /월 봉급 금액 가림/);
+    await expect(preview).not.toHaveAttribute('aria-label', /2,226,100/);
+    await expect(page.locator('#card-amount-masked')).toBeVisible();
+    await page.getByRole('button', { name: 'PNG로 저장' }).click();
+    const dialog = page.getByRole('dialog', { name: '금액을 넣을까요?' });
+    await expect(dialog).toContainText('2,226,100원');
+    await dialog.getByRole('button', { name: '취소' }).click();
+    await expect(dialog).toHaveCount(0);
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      (async () => {
+        await page.getByRole('button', { name: 'PNG로 저장' }).click();
+        await page.getByRole('button', { name: '금액 넣어 내보내기' }).click();
+      })(),
+    ]);
+    expect(file.suggestedFilename()).toMatch(/\.png$/);
   });
 
   test('글자 카드에 진행 막대와 서비스 주소가 들어간다', async ({ page }) => {

@@ -210,6 +210,8 @@
   @media (max-width: 479px) {
     .backdrop {
       align-items: flex-end;
+      /* 위쪽에 알림이 떠 있으면(Toasts.svelte) 그 아래에서 창이 시작하게 한다 */
+      padding-top: calc(12px + var(--safe-t) + var(--toast-room, 0px));
     }
   }
 </style>

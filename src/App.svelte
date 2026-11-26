@@ -3,6 +3,7 @@
   import { onMount, untrack } from 'svelte';
   import { freshAchievements } from './lib/achievements.ts';
   import { anim } from './lib/app/anim.svelte.ts';
+  import { theme } from './lib/app/theme.svelte.ts';
   import { clock } from './lib/app/clock.svelte.ts';
   import { nav, TABS, type TabId } from './lib/app/nav.svelte.ts';
   import { app } from './lib/app/state.svelte.ts';
@@ -98,6 +99,7 @@
   });
   $effect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    theme.dark = dark;
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', dark ? '#1a1c2c' : '#29366f');

@@ -43,13 +43,7 @@ import {
   yearToDateSalary,
 } from '../calc/salary.ts';
 import { isRaiseDay, prevRaiseDate, stepOn } from '../calc/step.ts';
-import {
-  earnings,
-  secondOfDay,
-  todayStatus,
-  toSchedule,
-  type TodayStatus,
-} from '../calc/today.ts';
+import { earnings, secondOfDay, todayStatus, toSchedule, type TodayStatus } from '../calc/today.ts';
 import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';

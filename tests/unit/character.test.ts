@@ -123,6 +123,9 @@ describe('캐릭터 규칙 (data/character.json)', () => {
     for (const tint of tie?.tints ?? []) {
       const face = tint.remap['2'] ?? 2;
       expect(BODY, `${tint.name}의 면 색`).not.toContain(face);
+      // 무늬가 몸통 색이면 넥타이에 구멍이 난 것처럼 보인다
+      const mark = tint.remap['1'] ?? 1;
+      expect(BODY, `${tint.name}의 무늬 색`).not.toContain(mark);
     }
   });
   it('1호봉부터 무언가를 걸치고, 호봉이 오르면 소품이 바뀐다', () => {

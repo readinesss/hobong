@@ -51,9 +51,20 @@ describe('근거 법령 화면에 보이는 설명', () => {
       }
     },
   );
+  it.each(files.map((f) => [f.year, f] as const))(
+    '%i.json: 화면 말투(해요체)에 맞춰 한다체 문장으로 끝나지 않는다',
+    (_year, file) => {
+      for (const note of screenNotes(file)) {
+        // '…않는다.', '…했다.', '…이다.' 처럼 끝나는 문장(명사로 끝나는 메모는 괜찮다)
+        expect(note, note).not.toMatch(
+          /[가-힣](는|ㄴ|한|했|었|았|였|이|있|없|된|운|른|왔|겼|췄|쓴|센|바꾼|않는)다[.)]/,
+        );
+      }
+    },
+  );
   it('반영하지 않는 사정(한계)을 밝힌 문장은 남아 있다', () => {
     const file = files.find((f) => f.year === 2026) as RulesFile;
-    const limits = screenNotes(file).filter((n) => n.includes('반영하지 않는다'));
+    const limits = screenNotes(file).filter((n) => n.includes('반영하지 않아요'));
     expect(limits.length).toBeGreaterThanOrEqual(10);
     // 서비스의 해석(가정)은 그렇다고 풀어 쓴다
     expect(screenNotes(file).filter((n) => n.includes('이 서비스의')).length).toBeGreaterThan(0);

@@ -115,8 +115,9 @@
   --gold: #ffcd75;
   --gold-ink: #ffcd75;
   --focus: #ffcd75;
-  /* 어두운 입력칸(#1f2437)·창(#333c57) 위에서도 3:1 이상 */
-  --invalid: #ff9d7f;
+  /* 포커스 링(금색)과 다른 붉은 분홍 계열로 둔다.
+     어두운 입력칸(#1f2437) 5.2:1·창(#333c57) 3.7:1 */
+  --invalid: #ff5c7a;
   --stage: #566c86;
   --stage-ground: #3f5068;
   --bubble: #f4f4f4;
