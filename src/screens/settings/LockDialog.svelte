@@ -118,12 +118,13 @@
         onkeydown={onEnter}
       />
     </div>
+    <!-- 오류는 입력란 바로 아래에 둔다(안내와 섞여 보이지 않게) -->
+    {#if busy}<p class="cap muted" role="status">암호를 거는 중이에요…</p>{/if}
+    {#if error}<p class="note warn" role="alert">{MESSAGES[error]}</p>{/if}
     <p class="note warn" id="lock-hint">
       암호는 어디에도 저장하지 않아요. 잊으면 아무도(호봉도) 이 파일을 되살릴 수 없어요. 따로 적어
       두세요. {MIN_PASSWORD_LENGTH}자 이상이어야 해요.
     </p>
-    {#if busy}<p class="cap muted" role="status">암호를 거는 중이에요…</p>{/if}
-    {#if error}<p class="note warn" role="alert">{MESSAGES[error]}</p>{/if}
   </div>
   {#snippet actions()}
     <button type="button" class="btn" onclick={close} disabled={busy}>취소</button>

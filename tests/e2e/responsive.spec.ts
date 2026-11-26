@@ -154,6 +154,46 @@ test.describe('반응형과 조작', () => {
     });
   }
 
+  test('360px: 백업 암호 대화상자도 44px 이상이고 가로로 넘치지 않는다', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 760 });
+    await openApp(page, { seed: makeSeed(), hash: 'settings' });
+    test.skip(!(await page.evaluate(() => !!window.crypto?.subtle)), 'WebCrypto 없음');
+    const overflow = () =>
+      page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const dialog = page.getByRole('dialog');
+
+    await page.getByRole('checkbox', { name: /암호 걸기/ }).check();
+    expect(await page.evaluate(smallTargets), '데이터 창(암호 걸기)').toEqual([]);
+    // 암호 걸기 대화상자(오류가 보이는 상태)
+    await page.getByRole('button', { name: /글자로 보기/ }).click();
+    await dialog.getByLabel('암호', { exact: true }).fill('hobong-pass-1');
+    await dialog.getByLabel('암호 확인').fill('hobong-pass-2');
+    await dialog.getByRole('button', { name: '암호 걸고 글자로 보기' }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    expect(await page.evaluate(smallTargets), '암호 걸기 대화상자').toEqual([]);
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    await dialog.getByLabel('암호', { exact: true }).fill('hobong-pass-1');
+    await dialog.getByLabel('암호 확인').fill('hobong-pass-1');
+    await dialog.getByRole('button', { name: '암호 걸고 글자로 보기' }).click();
+    const text = await page
+      .getByRole('dialog', { name: '백업 내용(글자)' })
+      .locator('textarea')
+      .inputValue();
+    expect(await page.evaluate(smallTargets), '암호 글자 대화상자').toEqual([]);
+    await page.getByRole('dialog').getByRole('button', { name: '닫기' }).click();
+
+    // 불러오기에서 암호를 묻는 화면(틀린 암호 오류가 보이는 상태)
+    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await dialog.getByRole('button', { name: /글자로 붙여넣기/ }).click();
+    await dialog.locator('textarea').fill(text);
+    await dialog.getByRole('button', { name: '확인하기' }).click();
+    await dialog.getByLabel('암호', { exact: true }).fill('wrong-password');
+    await dialog.getByRole('button', { name: '열기' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('암호가 틀렸거나');
+    expect(await page.evaluate(smallTargets), '암호 묻기 화면').toEqual([]);
+    expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+
   test('첫 화면과 입력 폼도 누를 수 있는 것은 44px 이상이다', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
     await openApp(page);
