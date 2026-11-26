@@ -60,18 +60,37 @@ const SKY = '#cfe0ea';
 const GROUND = '#a7c2d2';
 const TIER_FILL: Record<Tier, string> = { bronze: '#f1c9a5', silver: '#cfdbe4', gold: GOLD };
 
+/** 다른 카드(올해 결산)가 같은 팔레트를 쓰도록 내보낸다 */
+export const CARD_COLORS = {
+  INK,
+  NAVY,
+  BLUE,
+  WHITE,
+  GOLD,
+  ORANGE,
+  MUTED,
+  DESK,
+  PANEL,
+  PANEL2,
+  SHADOW,
+  SKY,
+  GROUND,
+  TIER_FILL,
+} as const;
+
 const FONT_BODY = "'Galmuri14', sans-serif";
 const FONT_CAP = "'Galmuri11', 'Galmuri14', sans-serif";
 
-type Ctx = CanvasRenderingContext2D;
+export type Ctx = CanvasRenderingContext2D;
+export type FontSize = 12 | 15 | 24 | 30;
 
-function rect(ctx: Ctx, x: number, y: number, w: number, h: number, color: string): void {
+export function rect(ctx: Ctx, x: number, y: number, w: number, h: number, color: string): void {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
 }
 
 /** 모서리가 한 칸 접힌 도트 테두리(안쪽을 채우고 바깥에 u 두께의 막대 네 개) */
-function frame(
+export function frame(
   ctx: Ctx,
   x: number,
   y: number,
@@ -94,7 +113,7 @@ function setFont(ctx: Ctx, size: 12 | 15 | 24 | 30): void {
 }
 
 /** 글자 한 줄. (x, y)는 글자 칸의 왼쪽 위. 그린 폭을 돌려준다 */
-function text(
+export function text(
   ctx: Ctx,
   value: string,
   x: number,
@@ -111,13 +130,13 @@ function text(
   return ctx.measureText(value).width;
 }
 
-function widthOf(ctx: Ctx, value: string, size: 12 | 15 | 24 | 30): number {
+export function widthOf(ctx: Ctx, value: string, size: 12 | 15 | 24 | 30): number {
   setFont(ctx, size);
   return ctx.measureText(value).width;
 }
 
 /** 폭에 맞게 뒤를 줄인다 */
-function fit(ctx: Ctx, value: string, size: 12 | 15 | 24 | 30, max: number): string {
+export function fit(ctx: Ctx, value: string, size: 12 | 15 | 24 | 30, max: number): string {
   if (widthOf(ctx, value, size) <= max) return value;
   const chars = [...value];
   while (chars.length > 1 && widthOf(ctx, `${chars.join('')}…`, size) > max) chars.pop();
@@ -125,7 +144,7 @@ function fit(ctx: Ctx, value: string, size: 12 | 15 | 24 | 30, max: number): str
 }
 
 /** 16×16 아이콘을 픽셀 그대로 그린다(색 0은 ink로) */
-function icon(ctx: Ctx, name: string, x: number, y: number, scale = 1, ink = INK): void {
+export function icon(ctx: Ctx, name: string, x: number, y: number, scale = 1, ink = INK): void {
   const sprite = getSprite(name);
   if (!sprite) return;
   const px = sprite.frames[0] as Uint8Array;
@@ -139,7 +158,7 @@ function icon(ctx: Ctx, name: string, x: number, y: number, scale = 1, ink = INK
 }
 
 /** 칸 단위로 채우는 진행 막대 */
-function bar(
+export function bar(
   ctx: Ctx,
   x: number,
   y: number,
@@ -169,7 +188,7 @@ function bar(
  * 여러 항목을 ' · '로 이어 폭 안에 들어가는 줄들로 나눈다.
  * shown 은 maxLines 안에 들어간 항목 수(나머지는 카드에 들어가지 못한다).
  */
-function packFacts(
+export function packFacts(
   ctx: Ctx,
   facts: string[],
   max: number,
@@ -219,19 +238,19 @@ function badgeRow(ctx: Ctx, model: CardModel, x: number, y: number, max: number)
   if (rest > 0) text(ctx, `+${rest}`, x + 4 + shown.length * (size + gap), y + 6, 12, MUTED);
 }
 
-function stage(
+export function stage(
   ctx: Ctx,
-  model: CardModel,
+  model: Pick<CardModel, 'look' | 'nickname' | 'line'>,
   x: number,
   y: number,
   w: number,
   h: number,
   withBubble: boolean,
+  spriteScale = 3,
 ): void {
   frame(ctx, x, y, w, h, SKY);
   rect(ctx, x, y + h - 18, w, 18, GROUND);
   const pose = poseOf(model.look, { tick: 0 });
-  const spriteScale = 3;
   const sw = 48 * spriteScale;
   if (pose) paintPose(ctx, pose, x + Math.floor((w - sw) / 2), y + h - sw - 2, spriteScale);
   if (withBubble) {
@@ -255,7 +274,7 @@ function stage(
   }
 }
 
-function chip(ctx: Ctx, label: string, x: number, y: number): number {
+export function chip(ctx: Ctx, label: string, x: number, y: number): number {
   const w = Math.ceil(widthOf(ctx, label, 12)) + 10;
   frame(ctx, x + 2, y + 2, w, 16, BLUE);
   text(ctx, label, x + 7, y + 4, 12, WHITE);
