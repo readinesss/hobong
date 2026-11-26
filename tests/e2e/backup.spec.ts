@@ -175,6 +175,23 @@ test.describe('데이터 내려받기·불러오기', () => {
     await other.close();
   });
 
+  test('이 탭으로 돌아오면 다른 탭이 바꾼 내용을 따라간다', async ({ page, context }) => {
+    await openApp(page, { seed: SEED });
+    await tick(page, 3000);
+    const other = await context.newPage();
+    await other.goto(page.url());
+    const changed = JSON.parse(SEED);
+    changed.data.profile.nickname = '바뀐이름';
+    await other.evaluate(
+      (value) => localStorage.setItem('hobong.data', value),
+      JSON.stringify(changed),
+    );
+    // storage 이벤트가 오지 않는 브라우저에서도, 탭으로 돌아오면(포커스) 저장소를 다시 본다
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('#status')).toContainText('바뀐이름');
+    await other.close();
+  });
+
   test('읽지 못한 저장본은 따로 두고, 새로 고쳐도 내려받을 수 있게 안내한다', async ({ page }) => {
     const broken = SEED.slice(0, 300);
     await openApp(page, { seed: broken });

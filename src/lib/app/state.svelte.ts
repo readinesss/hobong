@@ -103,6 +103,8 @@ class AppStore {
 
   #store: KeyValueStore | null = null;
   #toastSeq = 0;
+  /** 이 탭이 마지막으로 읽거나 쓴 저장본 원문. 다른 탭이 바꿨는지 알아보는 데 쓴다 */
+  #lastRaw: string | null = null;
 
   /**
    * 검사 기준. stored 가 true 면 이 브라우저에 저장돼 있던 값을 읽을 때의 기준이다
@@ -131,7 +133,36 @@ class AppStore {
       if (event.key === KEYS.data || event.key === KEYS.undo || event.key === null)
         this.#followOtherTab();
     });
+    // storage 이벤트가 오지 않는 경우(일부 브라우저의 file://, 새로 고친 탭 등)에도
+    // 이 탭으로 돌아오면 저장소가 바뀌었는지 다시 본다.
+    const recheck = () => this.#recheckStore();
+    window.addEventListener('focus', recheck);
+    window.addEventListener('pageshow', recheck);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') recheck();
+    });
     this.ready = true;
+  }
+
+  /** 지금 저장소의 원문을 이 탭이 아는 값으로 기억한다 */
+  #rememberStored(): void {
+    try {
+      this.#lastRaw = this.#store?.getItem(KEYS.data) ?? null;
+    } catch {
+      this.#lastRaw = null;
+    }
+  }
+
+  /** 이 탭이 마지막으로 읽거나 쓴 뒤에 저장소가 바뀌었으면 따라간다 */
+  #recheckStore(): void {
+    if (!this.#store) return;
+    let raw: string | null;
+    try {
+      raw = this.#store.getItem(KEYS.data);
+    } catch {
+      return;
+    }
+    if (raw !== this.#lastRaw) this.#followOtherTab();
   }
 
   #load(): void {
@@ -157,6 +188,7 @@ class AppStore {
     }
     this.corruptKept = hasCorrupt(this.#store);
     this.undoSavedAt = loadUndo(this.#store, ctx)?.savedAt ?? null;
+    this.#rememberStored();
   }
 
   /**
@@ -179,6 +211,7 @@ class AppStore {
     }
     this.corruptKept = hasCorrupt(this.#store);
     this.undoSavedAt = loadUndo(this.#store, ctx)?.savedAt ?? null;
+    this.#rememberStored();
   }
 
   /** 이 탭이 저장소에 써도 되는지 */
@@ -211,6 +244,7 @@ class AppStore {
     }
     const ok = saveData(this.#store, snapshot, APP_VERSION, nowIso);
     this.saveFailed = !ok;
+    if (ok) this.#rememberStored();
     return ok;
   }
 
@@ -492,6 +526,7 @@ class AppStore {
   /** 모든 데이터를 지우고 처음 화면으로 돌아간다 */
   reset(): void {
     if (this.#store) clearAll(this.#store);
+    this.#rememberStored();
     this.data = null;
     this.undoSavedAt = null;
     this.corruptNotice = null;
