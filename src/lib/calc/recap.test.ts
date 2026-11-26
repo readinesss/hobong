@@ -250,7 +250,9 @@ describe('yearRecap', () => {
   });
 
   it('방문은 같은 날을 한 번만 센다', () => {
-    const r = yearRecap(input({ visits: ['2026-11-24', '2026-11-24', '2026-11-25', '2026-11-26'] }));
+    const r = yearRecap(
+      input({ visits: ['2026-11-24', '2026-11-24', '2026-11-25', '2026-11-26'] }),
+    );
     expect(r.visits).toBe(2);
   });
 

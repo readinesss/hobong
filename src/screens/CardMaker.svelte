@@ -9,6 +9,7 @@
     shareFile,
   } from '../lib/app/files.ts';
   import { formatDday, formatSpan, formatWon, MASKED_WON } from '../lib/app/format.ts';
+  import { session, type CardKind } from '../lib/app/session.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
@@ -21,6 +22,16 @@
     type CardModel,
     type CardOmitted,
   } from '../lib/card/render.ts';
+  import {
+    drawRecapCard,
+    RECAP_SALARY_LABEL,
+    recapFacts,
+    recapPeriodText,
+    recapStepText,
+    recapTextCard,
+    type RecapCardModel,
+    type RecapOmitted,
+  } from '../lib/card/recap.ts';
   import { resolveLook } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/config.ts';
@@ -29,6 +40,7 @@
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
   import Win from '../lib/ui/Win.svelte';
+  import RecapOptions from './card/RecapOptions.svelte';
 
   const caps = detectCapabilities();
   const card = $derived(view.data.settings.card);
@@ -93,9 +105,40 @@
         }
       : model,
   );
+  // ── 올해 결산 카드 ────────────────────────────────────────────────
+  const kind = $derived(session.cardKind);
+  const recap = $derived(view.recap);
+  /** 올해 재직한 날이 없으면(지난해 이전 정년퇴직 등) 결산 카드를 만들지 않는다 */
+  const recapReady = $derived(recap.status === 'active');
+  const recapModel = $derived<RecapCardModel>({
+    nickname: view.profile.nickname,
+    year: recap.year,
+    periodText: recapPeriodText(recap),
+    look: resolveLook(characterRules, view.profile.grade, view.step, 'work'),
+    formName: view.look.form.name,
+    grade: view.profile.grade,
+    step: view.step,
+    stepText: recapStepText(recap),
+    facts: recapFacts(recap),
+    badges: recap.badges.map((b) => ({ icon: b.icon, tier: b.tier })),
+    salary: session.recapSalary ? formatWon(recap.earned) : null,
+    grid: session.recapCalendar ? view.yearGrid : null,
+    siteName: SITE_NAME,
+    siteTagline: SITE_TAGLINE,
+    siteUrl: SITE_URL,
+  });
+  const recapPreviewModel = $derived<RecapCardModel>(
+    hideAmounts && recapModel.salary !== null ? { ...recapModel, salary: MASKED_WON } : recapModel,
+  );
+  let recapOmitted = $state<RecapOmitted>({ calendar: false, salary: false });
+
   /** 저장·복사 전에 금액이 들어간다고 확인받아야 하는지 */
-  const needsAmountConfirm = $derived(hideAmounts && card.showSalary);
-  const text = $derived(textCard(model));
+  const needsAmountConfirm = $derived(
+    hideAmounts && (kind === 'recap' ? session.recapSalary : card.showSalary),
+  );
+  /** 내보낼 수 있는지(결산이 없는 해에는 막는다) */
+  const exportable = $derived(kind === 'character' || recapReady);
+  const text = $derived(kind === 'recap' ? recapTextCard(recapModel) : textCard(model));
   /** 화면용: '(D-217)'·'D-10,810' 같은 덩어리는 줄바꿈 없이 붙여 보이게 나눈다(복사되는 글자는 같다) */
   const textParts = $derived(
     text.split(/(\(?D[-+](?:DAY|[\d,]+)\)?)/).map((part, i) => ({ part, keep: i % 2 === 1 })),
@@ -125,6 +168,10 @@
     el.width = size.w * previewScale;
     el.height = size.h * previewScale;
     const ctx = el.getContext('2d');
+    if (kind === 'recap') {
+      if (ctx) recapOmitted = drawRecapCard(ctx, recapPreviewModel, card.ratio, previewScale);
+      return;
+    }
     if (ctx) omitted = drawCard(ctx, previewModel, card.ratio, previewScale);
     // 정사각형에서 빠진 것이 세로형에는 다 들어가는지 재 둔다(안내 문구를 사실대로 고른다)
     if (card.ratio === 'square') {
@@ -163,18 +210,33 @@
     out.height = size.h * EXPORT_SCALE;
     const ctx = out.getContext('2d');
     if (!ctx) return null;
-    drawCard(ctx, model, card.ratio, EXPORT_SCALE);
+    if (kind === 'recap') drawRecapCard(ctx, recapModel, card.ratio, EXPORT_SCALE);
+    else drawCard(ctx, model, card.ratio, EXPORT_SCALE);
     return canvasToBlob(out);
   }
 
   /** 미리보기의 낭독 문구: 카드에 실제로 들어간 항목까지 그대로 읽는다 */
   const previewLabel = $derived(
-    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`.replaceAll(
-      MASKED_WON,
-      '금액 가림',
-    ),
+    (kind === 'recap'
+      ? `올해 결산 카드 미리보기. ${[
+          recapPreviewModel.nickname,
+          `${recapPreviewModel.year}년 ${recapPreviewModel.periodText}`,
+          `${recapPreviewModel.grade}급 ${recapPreviewModel.step}호봉`,
+          ...(recapPreviewModel.stepText ? [`승급 ${recapPreviewModel.stepText}`] : []),
+          ...recapPreviewModel.facts.map((f) => `${f.label} ${f.value}`),
+          ...(recapPreviewModel.salary !== null && !recapOmitted.salary
+            ? [`${RECAP_SALARY_LABEL} ${recapPreviewModel.salary}`]
+            : []),
+          ...(recapPreviewModel.grid !== null && !recapOmitted.calendar ? ['1년 달력'] : []),
+        ].join(', ')}`
+      : `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`
+    ).replaceAll(MASKED_WON, '금액 가림'),
   );
-  const fileName = $derived(`hobong-card-${view.today.replaceAll('-', '')}.png`);
+  const fileName = $derived(
+    kind === 'recap'
+      ? `hobong-recap-${recap.year}-${view.today.replaceAll('-', '')}.png`
+      : `hobong-card-${view.today.replaceAll('-', '')}.png`,
+  );
 
   function done() {
     if (app.grantEvent('evt-card')) app.toast('새 배지: 첫 카드', 'good', 'icon-camera', 4500);
@@ -243,7 +305,11 @@
     try {
       const blob = await render();
       if (!blob) return;
-      const result = await shareFile(blob, fileName, `${SITE_NAME}이 카드`);
+      const result = await shareFile(
+        blob,
+        fileName,
+        kind === 'recap' ? `${SITE_NAME}이 ${recap.year} 결산` : `${SITE_NAME}이 카드`,
+      );
       if (result === 'shared') done();
       else if (result === 'failed') showFallback(blob);
     } finally {
@@ -265,6 +331,10 @@
     }
   }
 
+  const KINDS: { value: CardKind; label: string }[] = [
+    { value: 'character', label: '캐릭터 카드' },
+    { value: 'recap', label: '올해 결산' },
+  ];
   const RATIOS: { id: CardRatio; label: string }[] = [
     { id: 'square', label: '정사각형' },
     { id: 'portrait', label: '세로형' },
@@ -272,17 +342,38 @@
 </script>
 
 <div class="page">
-  <Win title="카드 미리보기" icon="icon-image" id="card-preview" area="preview">
+  <Win
+    title={kind === 'recap' ? '결산 미리보기' : '카드 미리보기'}
+    icon="icon-image"
+    id="card-preview"
+    area="preview"
+  >
     {#snippet aside()}{size.w * EXPORT_SCALE}×{size.h * EXPORT_SCALE}px{/snippet}
-    <div class="holder" bind:this={holder} role="img" aria-label={previewLabel}>
-      <canvas
-        bind:this={canvas}
-        class="preview"
-        style="width:{(size.w * previewScale) / dpr}px;height:{(size.h * previewScale) / dpr}px"
-        aria-hidden="true"
-      ></canvas>
+    <div class="holder" bind:this={holder}>
+      {#if exportable}
+        <div role="img" aria-label={previewLabel}>
+          <canvas
+            bind:this={canvas}
+            class="preview"
+            style="width:{(size.w * previewScale) / dpr}px;height:{(size.h * previewScale) / dpr}px"
+            aria-hidden="true"
+          ></canvas>
+        </div>
+      {:else}
+        <p class="muted" id="recap-none">올해는 재직한 날이 없어 결산이 없어요.</p>
+      {/if}
     </div>
-    {#if omitted.facts.length > 0}
+    {#if kind === 'recap'}
+      {#if exportable && recapOmitted.calendar}
+        <p class="cap muted" role="status" id="card-omitted">
+          이 모양에는 달력이 들어가지 않아요. 세로형을 골라 보세요.
+        </p>
+      {:else if exportable && recapOmitted.salary}
+        <p class="cap muted" role="status" id="card-omitted">
+          자리가 모자라 이 모양에는 올해 번 봉급을 넣지 못했어요. 1년 달력을 끄면 들어갈 수 있어요.
+        </p>
+      {/if}
+    {:else if omitted.facts.length > 0}
       <!-- 직접 켠 글(재직·정년·금액)이 빠질 때만 알린다 -->
       <p class="cap muted" role="status" id="card-omitted">
         자리가 모자라 이 모양에는 넣지 못했어요: {omittedNames.join(', ')}. {card.ratio === 'square'
@@ -304,6 +395,15 @@
   <Win title="카드 만들기" icon="icon-camera" id="card-options" area="options">
     <div class="stack wide">
       <div class="stack">
+        <span class="muted" id="kind-label">카드 종류</span>
+        <ChipRadio
+          labelledby="kind-label"
+          options={KINDS}
+          value={kind}
+          onchange={(value) => (session.cardKind = value)}
+        />
+      </div>
+      <div class="stack">
         <span class="muted" id="ratio-label">모양</span>
         <ChipRadio
           labelledby="ratio-label"
@@ -313,70 +413,85 @@
         />
       </div>
 
-      <fieldset class="stack">
-        <legend class="muted">카드에 담을 것</legend>
-        <label class="switch">
-          <input
-            type="checkbox"
-            checked={card.showBadges}
-            onchange={(e) => setCard({ showBadges: e.currentTarget.checked })}
-          />
-          <span class="box" aria-hidden="true"></span>
-          <span>배지</span>
-        </label>
-        <label class="switch">
-          <input
-            type="checkbox"
-            checked={card.showTenure}
-            onchange={(e) => setCard({ showTenure: e.currentTarget.checked })}
-          />
-          <span class="box" aria-hidden="true"></span>
-          <span>재직기간 <span class="cap muted">임용 시기를 짐작할 수 있어요</span></span>
-        </label>
-        <label class="switch">
-          <input
-            type="checkbox"
-            checked={card.showRetirement}
-            onchange={(e) => setCard({ showRetirement: e.currentTarget.checked })}
-          />
-          <span class="box" aria-hidden="true"></span>
-          <span>정년 D-day <span class="cap muted">나이를 짐작할 수 있어요</span></span>
-        </label>
-        <label class="switch">
-          <input
-            type="checkbox"
-            checked={card.showSalary}
-            onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
-          />
-          <span class="box" aria-hidden="true"></span>
-          <span>
-            월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span>
-          </span>
-        </label>
-        {#if hideAmounts && card.showSalary}
-          <p class="cap muted" id="card-amount-masked">
-            금액 가리기가 켜져 있어 미리보기에서는 금액을 가려요. 저장·복사할 때 한 번 더 물어봐요.
-          </p>
-        {/if}
-        <p class="cap muted">금액과 정년은 기본으로 꺼져 있어요. 켠 것만 카드에 들어가요.</p>
-      </fieldset>
+      {#if kind === 'recap'}
+        <RecapOptions {hideAmounts} holidaysKnown={recap.holidaysKnown} {recap} />
+      {:else}
+        <fieldset class="stack">
+          <legend class="muted">카드에 담을 것</legend>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={card.showBadges}
+              onchange={(e) => setCard({ showBadges: e.currentTarget.checked })}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>배지</span>
+          </label>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={card.showTenure}
+              onchange={(e) => setCard({ showTenure: e.currentTarget.checked })}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>재직기간 <span class="cap muted">임용 시기를 짐작할 수 있어요</span></span>
+          </label>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={card.showRetirement}
+              onchange={(e) => setCard({ showRetirement: e.currentTarget.checked })}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>정년 D-day <span class="cap muted">나이를 짐작할 수 있어요</span></span>
+          </label>
+          <label class="switch">
+            <input
+              type="checkbox"
+              checked={card.showSalary}
+              onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>
+              월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span>
+            </span>
+          </label>
+          {#if hideAmounts && card.showSalary}
+            <p class="cap muted" id="card-amount-masked">
+              금액 가리기가 켜져 있어 미리보기에서는 금액을 가려요. 저장·복사할 때 한 번 더
+              물어봐요.
+            </p>
+          {/if}
+          <p class="cap muted">금액과 정년은 기본으로 꺼져 있어요. 켠 것만 카드에 들어가요.</p>
+        </fieldset>
+      {/if}
 
       <div class="btn-row stretch">
-        <button type="button" class="btn primary" onclick={guarded(save)} disabled={busy}>
+        <button
+          type="button"
+          class="btn primary"
+          onclick={guarded(save)}
+          disabled={busy || !exportable}
+        >
           <Icon name="icon-download" /> PNG로 저장
         </button>
         {#if caps.copyImage}
-          <button type="button" class="btn" onclick={guarded(copy)} disabled={busy}>
+          <button type="button" class="btn" onclick={guarded(copy)} disabled={busy || !exportable}>
             <Icon name="icon-copy" /> 이미지 복사
           </button>
         {/if}
         {#if caps.shareFiles}
-          <button type="button" class="btn" onclick={guarded(share)} disabled={busy}>
+          <button type="button" class="btn" onclick={guarded(share)} disabled={busy || !exportable}>
             <Icon name="icon-share" /> 공유
           </button>
         {/if}
       </div>
-      <button type="button" class="btn small ghost link" onclick={guarded(openImage)}>
+      <button
+        type="button"
+        class="btn small ghost link"
+        onclick={guarded(openImage)}
+        disabled={!exportable}
+      >
         저장이 안 되나요? 이미지로 열기
       </button>
       {#if !caps.copyImage}
@@ -391,7 +506,7 @@
               class="nobr">{part}</span
             >{:else}{part}{/if}{/each}</pre>
       <div class="btn-row">
-        <button type="button" class="btn" onclick={copyTextCard}>
+        <button type="button" class="btn" onclick={copyTextCard} disabled={!exportable}>
           <Icon name="icon-copy" /> 글자로 복사
         </button>
       </div>
@@ -412,7 +527,11 @@
   >
     <div class="stack wide">
       <p>아래 이미지를 길게 누르거나 마우스 오른쪽 버튼으로 눌러 저장·복사해 주세요.</p>
-      <img class="fallback" src={fallbackUrl} alt="호봉이 카드" />
+      <img
+        class="fallback"
+        src={fallbackUrl}
+        alt={kind === 'recap' ? '호봉이 결산 카드' : '호봉이 카드'}
+      />
     </div>
   </Modal>
 {/if}
@@ -420,11 +539,20 @@
 {#if pendingExport}
   <Modal title="금액을 넣을까요?" icon="icon-warn" onclose={() => (pendingExport = null)}>
     <div class="stack wide">
-      <p>
-        금액 가리기가 켜져 있어요. 내보내는 이미지에는 월 봉급 금액({formatWon(view.salary.amount)},
-        봉급표 기준)이 그대로 들어가요.
-      </p>
-      <p class="cap muted">금액을 빼려면 '월 봉급'을 끄고 저장해 주세요.</p>
+      {#if kind === 'recap'}
+        <p>
+          금액 가리기가 켜져 있어요. 내보내는 이미지에는 올해 번 봉급({formatWon(recap.earned)},
+          봉급표 기준 추정치)이 그대로 들어가요.
+        </p>
+        <p class="cap muted">금액을 빼려면 '올해 번 봉급'을 끄고 저장해 주세요.</p>
+      {:else}
+        <p>
+          금액 가리기가 켜져 있어요. 내보내는 이미지에는 월 봉급 금액({formatWon(
+            view.salary.amount,
+          )}, 봉급표 기준)이 그대로 들어가요.
+        </p>
+        <p class="cap muted">금액을 빼려면 '월 봉급'을 끄고 저장해 주세요.</p>
+      {/if}
     </div>
     {#snippet actions()}
       <button type="button" class="btn" data-autofocus onclick={() => (pendingExport = null)}>

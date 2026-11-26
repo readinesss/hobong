@@ -174,7 +174,16 @@ export function drawRecapCard(
   const stageW = 100;
   const stageH = 100;
   const top = py + 32;
-  stage(ctx, { look: model.look, nickname: model.nickname, line: '' }, left + 2, top, stageW, stageH, false, 2);
+  stage(
+    ctx,
+    { look: model.look, nickname: model.nickname, line: '' },
+    left + 2,
+    top,
+    stageW,
+    stageH,
+    false,
+    2,
+  );
   const cx = left + stageW + 12;
   const cw = right - cx;
   let cy = py + 28;
@@ -218,7 +227,14 @@ export function drawRecapCard(
     const lineH = 16;
     if (withCal) {
       model.facts.forEach((fact, i) => {
-        text(ctx, fit(ctx, `${fact.label} ${fact.value}`, 12, factW), left, y + i * lineH, 12, C.INK);
+        text(
+          ctx,
+          fit(ctx, `${fact.label} ${fact.value}`, 12, factW),
+          left,
+          y + i * lineH,
+          12,
+          C.INK,
+        );
       });
       const gx = right - cal.w;
       drawCalendar(ctx, model.grid as readonly YearDay[], gx, y + 2, ratio);

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { theme } from '../lib/app/theme.svelte.ts';
-  import { view } from '../lib/app/view.svelte.ts';
-  import { addDays, dayOfWeek, formatKorean, formatMonthDay, type Ymd } from '../lib/calc/date.ts';
+  import { calendar, view } from '../lib/app/view.svelte.ts';
+  import { formatKorean } from '../lib/calc/date.ts';
   import { resolveLook, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import type { Grade } from '../lib/store/schema.ts';
@@ -10,6 +10,7 @@
   import Modal from '../lib/ui/Modal.svelte';
   import Sprite from '../lib/ui/Sprite.svelte';
   import Win from '../lib/ui/Win.svelte';
+  import YearPixelCalendar from './badges/YearPixelCalendar.svelte';
 
   const seen = $derived(new Set(view.data.character.seenForms));
   const currentForm = $derived(view.look.form.id);
@@ -41,24 +42,10 @@
     unlockList(characterRules).map((u) => ({ ...u, open: u.step <= view.step })),
   );
 
-  const visitDays = $derived(view.data.visits.days);
-  const visitSet = $derived(new Set(visitDays));
-  const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-  /** 최근 4주(일요일 시작)의 방문 도장 */
-  const recentWeeks = $derived.by(() => {
-    const end = addDays(view.today, 6 - dayOfWeek(view.today));
-    const days: { date: Ymd; on: boolean; future: boolean; today: boolean }[] = [];
-    for (let i = 27; i >= 0; i -= 1) {
-      const date = addDays(end, -i);
-      days.push({
-        date,
-        on: visitSet.has(date),
-        future: date > view.today,
-        today: date === view.today,
-      });
-    }
-    return days;
-  });
+  const year = $derived(view.recap.year);
+  /** 올해 찍힌 출근 도장 수 */
+  const yearVisits = $derived(view.yearGrid.filter((d) => d.visited).length);
+  const holidaysKnown = $derived(calendar.hasHolidayData(year));
 
   const badges = $derived(view.badges);
   const total = $derived(badges.length);
@@ -164,33 +151,19 @@
     </Win>
 
     <Win title="출근 도장" icon="icon-stamp" id="visits" area="visits">
-      {#snippet aside()}{visitDays.length}개{/snippet}
+      {#snippet aside()}{year}년 · 도장 {yearVisits}개{/snippet}
       <div class="stack wide">
-        <div class="weeks head" aria-hidden="true">
-          {#each WEEKDAYS as name (name)}<span class="cap muted">{name}</span>{/each}
-        </div>
-        <div
-          class="weeks"
-          role="img"
-          aria-label="최근 4주({formatMonthDay(
-            recentWeeks[0]?.date ?? view.today,
-            false,
-          )}~{formatMonthDay(
-            recentWeeks[recentWeeks.length - 1]?.date ?? view.today,
-            false,
-          )}) 동안 들른 날 {recentWeeks.filter((d) => d.on).length}일"
-        >
-          {#each recentWeeks as day (day.date)}
-            <i
-              class:on={day.on}
-              class:future={day.future}
-              class:today={day.today}
-              title={formatKorean(day.date)}
-            ></i>
-          {/each}
-        </div>
+        <YearPixelCalendar
+          grid={view.yearGrid}
+          {year}
+          hoursPerDay={view.rules.leave.units.hoursPerDay}
+          {holidaysKnown}
+        />
         <p class="cap muted">
-          호봉이를 들여다본 날마다 도장이 하나 찍혀요. 며칠 건너뛰어도 사라지지 않아요.
+          호봉이를 들여다본 날마다 도장이 하나 찍혀요. 며칠 건너뛰어도 사라지지 않아요. 연가는 연가
+          장부의 기록을 그대로 보여 줘요.{holidaysKnown
+            ? ''
+            : ` ${year}년 공휴일이 아직 반영되지 않아 주말만 쉬는 날로 보여요.`}
         </p>
       </div>
     </Win>
@@ -279,51 +252,6 @@
   .unlocks .tag {
     min-width: 54px;
     justify-content: center;
-  }
-  .weeks {
-    display: grid;
-    grid-template-columns: repeat(7, 24px);
-    gap: 6px;
-    justify-content: start;
-  }
-  .weeks.head {
-    margin-bottom: -3px;
-  }
-  .weeks.head span {
-    width: 24px;
-    text-align: center;
-  }
-  .weeks i {
-    width: 24px;
-    height: 24px;
-    background: var(--panel-2);
-    box-shadow: inset 0 0 0 var(--u) rgba(127, 140, 160, 0.4);
-  }
-  .weeks i.on {
-    background: var(--warn-fill);
-    box-shadow:
-      inset 0 0 0 var(--u) #7e2a3a,
-      inset 0 0 0 6px var(--warn-fill),
-      inset 0 0 0 9px #f4f4f4;
-  }
-  .weeks i.future {
-    opacity: 0.35;
-  }
-  .weeks i.today {
-    outline: var(--u) solid var(--ink);
-    outline-offset: 0;
-  }
-  @media (forced-colors: active) {
-    .weeks i {
-      border: 1px solid CanvasText;
-    }
-    .weeks i.on {
-      forced-color-adjust: none;
-      background: Highlight;
-    }
-    .weeks i.today {
-      outline-color: CanvasText;
-    }
   }
   .badges {
     display: grid;
