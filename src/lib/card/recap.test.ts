@@ -153,7 +153,7 @@ describe('결산 카드 그리기', () => {
       expect(texts.some((t) => t.value === '25,123,000원')).toBe(true);
       expect(texts.some((t) => t.value.includes('2026 결산'))).toBe(true);
       // 달력: 들른 날(11월 24·25일) 두 칸이 칸 크기로 그려진다
-      const cell = calendarSize(ratio).w === 31 * 4 - 1 ? 3 : 4;
+      const cell = calendarSize(ratio).w === 31 * 4 - 1 ? 3 : 5;
       const visits = rects.filter((r) => r.color === '#b13e53' && r.w === cell && r.h === cell);
       expect(visits).toHaveLength(2);
     });

@@ -403,4 +403,46 @@ test.describe('반응형과 조작', () => {
     expect(home.wallet - home.career, '정년 ↔ 지갑').toBeLessThanOrEqual(24);
     expect(home.upcoming - home.leave, '연가 ↔ 다가오는 일정').toBeLessThanOrEqual(24);
   });
+
+  // 올해 결산(#12): 업적 탭의 1년 달력과 카드 화면의 결산을 밝게·어둡게 두 폭에서 본다
+  for (const width of [360, 1280]) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`${width}px ${theme}: 1년 달력과 결산 카드가 넘치지 않고 44px 이상이다`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        const seed = JSON.parse(makeSeed());
+        seed.data.settings.theme = theme;
+        await openApp(page, { seed: JSON.stringify(seed), hash: 'badges' });
+        const overflow = () =>
+          page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        // 달력 칸은 정수 px, 줄(달)마다 31칸 안에 들어가고 창 안에 있다
+        const cal = await page.evaluate(() => {
+          const win = document.querySelector('#visits')!.getBoundingClientRect();
+          const cells = [...document.querySelectorAll<HTMLElement>('#visits [role="img"] i')];
+          const sizes = new Set(cells.map((c) => c.getBoundingClientRect().width));
+          const right = Math.max(...cells.map((c) => c.getBoundingClientRect().right));
+          return { count: cells.length, sizes: [...sizes], right, winRight: win.right };
+        });
+        expect(cal.count).toBe(365);
+        expect(cal.sizes).toHaveLength(1);
+        expect(Number.isInteger(cal.sizes[0])).toBe(true);
+        expect(cal.right).toBeLessThanOrEqual(cal.winRight);
+        await page.getByText('달마다 글로 보기').click();
+        expect(await overflow(), '업적 가로 넘침').toBeLessThanOrEqual(0);
+        expect(await page.evaluate(smallTargets), '업적 화면의 작은 터치 대상').toEqual([]);
+
+        await page
+          .getByRole('navigation', { name: '화면 이동' })
+          .getByRole('link', { name: '카드' })
+          .click();
+        await page.getByRole('radio', { name: '올해 결산' }).click();
+        await page.getByRole('checkbox', { name: /올해 번 봉급/ }).check();
+        await tick(page, 600);
+        expect(await overflow(), '결산 카드 가로 넘침').toBeLessThanOrEqual(0);
+        expect(await page.evaluate(smallTargets), '결산 카드 화면의 작은 터치 대상').toEqual([]);
+        await expect(page.locator('#card-omitted')).toHaveCount(0);
+      });
+    }
+  }
 });

@@ -4,7 +4,7 @@
  * - 사실만 적는다(근무일·연가·출근 도장·배지·승급). 사람을 평가하는 말은 넣지 않는다.
  * - 날짜는 하루 단위로 적지 않는다('11월까지'). 결산 시작일(올해 임용이면 임용일)이 드러나지 않게 한다.
  * - 금액(올해 번 봉급)은 호출한 쪽이 켰을 때만 model 에 들어온다. 글자 카드에는 넣지 않는다.
- * - 1년 달력은 칸 3·4픽셀에 간격 1픽셀(정수 좌표)이라 내보내기 ×4 에서도 정수배다.
+ * - 1년 달력은 칸 3·5픽셀에 간격 1픽셀(정수 좌표)이라 내보내기 ×4 에서도 정수배다.
  */
 import type { Tier } from '../achievements.ts';
 import type { YearDay, YearRecap } from '../calc/recap.ts';
@@ -78,7 +78,8 @@ export function recapPeriodText(recap: YearRecap): string {
 
 /** 금액 줄의 이름표(긴 것이 들어가지 않으면 짧은 것) */
 export const RECAP_SALARY_LABEL = '올해 번 봉급(봉급표 기준 추정)';
-const RECAP_SALARY_SHORT = '올해 번 봉급(추정)';
+/** 한 줄에 금액과 함께 들어가지 않을 때 차례로 써 보는 짧은 이름표(받는 사람도 봉급표 기준임을 알게) */
+const RECAP_SALARY_SHORT = ['번 봉급(봉급표 기준)', '번 봉급(추정)'];
 
 export { recapStepText };
 
@@ -88,7 +89,7 @@ const LEAVE = P[6] as string;
 const PLANNED = P[5] as string;
 
 /** 1년 달력의 칸 크기(논리 픽셀). 간격은 1 */
-const CELL: Record<CardRatio, number> = { square: 3, portrait: 4 };
+const CELL: Record<CardRatio, number> = { square: 3, portrait: 5 };
 
 export function calendarSize(ratio: CardRatio): { w: number; h: number } {
   const pitch = CELL[ratio] + 1;
@@ -277,10 +278,14 @@ export function drawRecapCard(
 
   if (model.salary !== null) {
     const amountW = widthOf(ctx, model.salary, 12);
-    const long = widthOf(ctx, RECAP_SALARY_LABEL, 12) + amountW + 8 <= inner;
+    const fits = (label: string) => widthOf(ctx, label, 12) + amountW + 8 <= inner;
+    const long = fits(RECAP_SALARY_LABEL);
     if (long || ratio === 'square') {
       if (y + 14 <= bottom) {
-        text(ctx, long ? RECAP_SALARY_LABEL : RECAP_SALARY_SHORT, left, y, 12, C.MUTED);
+        const label = long
+          ? RECAP_SALARY_LABEL
+          : (RECAP_SALARY_SHORT.find(fits) ?? (RECAP_SALARY_SHORT[1] as string));
+        text(ctx, label, left, y, 12, C.MUTED);
         text(ctx, model.salary, right, y, 12, C.INK, 'right');
       } else omitted.salary = true;
     } else if (y + 32 <= bottom) {
