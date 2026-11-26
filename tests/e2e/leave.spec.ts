@@ -45,8 +45,15 @@ test.describe('연가 장부', () => {
     await expect(page.locator('#leave-entry')).toContainText('11월 27일 (금)');
     await page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }).click();
     await expect(page.locator('#leave-records')).toContainText('예정');
+    // 빗금(예정)은 낭독 문구와 범례에도 적는다
+    await expect(calendar.getByRole('gridcell', { name: /11월 27일.*예정/ })).toHaveCount(1);
+    await expect(calendar).toContainText('빗금: 예정');
     // 토요일
     await calendar.getByRole('gridcell', { name: /11월 28일/ }).click();
+    await expect(page.locator('#leave-entry')).toContainText(
+      '이날은 토요일이라 연가를 쓰지 않아도 돼요.',
+    );
+    await expect(page.locator('#leave-entry')).not.toContainText('(는)');
     await expect(
       page.locator('#leave-entry').getByRole('button', { name: '1일', exact: true }),
     ).toBeDisabled();
@@ -102,5 +109,24 @@ test.describe('연가 장부', () => {
     await expect(
       page.getByText('공식 인사시스템(e-사람 등)의 기록이 기준이며 이 장부는 참고용이에요.'),
     ).toBeVisible();
+  });
+});
+
+test.describe('연가 장부(쉬는 날에 열었을 때)', () => {
+  test('오늘이 토요일이면 "가까운 근무일로" 버튼이 다음 근무일을 고른다', async ({ page }) => {
+    await openApp(page, { seed: makeSeed(), hash: 'leave', time: '2026-11-28T10:00:00+09:00' });
+    // 사흘 만에 여는 것이므로 복귀 정산이 먼저 뜬다(마지막으로 들른 날은 연도까지)
+    const back = page.getByRole('dialog');
+    await expect(back).toContainText('2026. 11. 25.');
+    await back.getByRole('button', { name: '확인' }).click();
+    const entry = page.locator('#leave-entry');
+    await page
+      .locator('#leave-calendar')
+      .getByRole('gridcell', { name: /11월 27일/ })
+      .click();
+    await expect(entry).toContainText('11월 27일 (금)');
+    await expect(entry.getByRole('button', { name: '오늘로' })).toHaveCount(0);
+    await entry.getByRole('button', { name: '가까운 근무일로' }).click();
+    await expect(entry).toContainText('11월 30일 (월)');
   });
 });

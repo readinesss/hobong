@@ -40,7 +40,7 @@ function seed(profile, { theme = 'light' } = {}) {
         { id: 'a4', date: '2026-08-10', hours: 8, kind: 'day', memo: '여름휴가' },
         { id: 'a5', date: '2026-08-11', hours: 8, kind: 'day', memo: '여름휴가' },
         { id: 'a6', date: '2026-08-12', hours: 8, kind: 'day', memo: '여름휴가' },
-        { id: 'a7', date: '2026-10-08', hours: 2, kind: 'hours', memo: '병원' },
+        { id: 'a7', date: '2026-10-08', hours: 2, kind: 'hours', memo: '은행 업무' },
         { id: 'a8', date: '2026-12-24', hours: 8, kind: 'day', memo: '' },
       ],
       grantOverrideHours: {},

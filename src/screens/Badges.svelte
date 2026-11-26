@@ -111,7 +111,7 @@
           {#if item.open}
             <Icon name="icon-check" label="얻음" />
           {:else}
-            <Icon name="icon-lock" label="아직" />
+            <Icon name="icon-lock" label="아직 얻지 못함" />
           {/if}
         </li>
       {/each}
@@ -157,7 +157,7 @@
             onclick={() => (detail = badge)}
             aria-label="{badge.title}, {badge.at
               ? `${formatKorean(badge.at, false)} 달성`
-              : `아직. ${badge.hint ?? ''}`}"
+              : `아직 얻지 못함${badge.hint ? `. 조건: ${badge.hint}` : ''}`}"
           >
             <span class="medal" aria-hidden="true">
               <Icon name={badge.at === null ? 'icon-lock' : badge.icon} scale={2} />

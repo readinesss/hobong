@@ -2,7 +2,7 @@
   import { formatDday } from '../lib/app/format.ts';
   import { app, type WelcomeBack } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
-  import { formatMonthDay } from '../lib/calc/date.ts';
+  import { formatKorean } from '../lib/calc/date.ts';
   import Modal from '../lib/ui/Modal.svelte';
   import Sprite from '../lib/ui/Sprite.svelte';
 
@@ -27,7 +27,7 @@
     <dl class="well stack">
       <div class="kv">
         <dt>마지막으로 들른 날</dt>
-        <dd>{formatMonthDay(info.since)}</dd>
+        <dd>{formatKorean(info.since, false)}</dd>
       </div>
       <div class="kv">
         <dt>그사이 지나간 근무일</dt>

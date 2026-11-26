@@ -20,7 +20,7 @@
 </script>
 
 {#if hidden}
-  <span class="num masked" aria-label="금액 가림">{MASKED_WON}</span>
+  <span class="num masked" role="img" aria-label="금액 가려짐">{MASKED_WON}</span>
 {:else}
   <span class="num">{text}</span>
 {/if}

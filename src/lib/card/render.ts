@@ -165,21 +165,44 @@ function bar(
   }
 }
 
-/** 여러 항목을 ' · '로 이어 폭 안에 들어가는 줄들로 나눈다 */
-function packFacts(ctx: Ctx, facts: string[], max: number, maxLines: number): string[] {
-  const lines: string[] = [];
+/**
+ * 여러 항목을 ' · '로 이어 폭 안에 들어가는 줄들로 나눈다.
+ * shown 은 maxLines 안에 들어간 항목 수(나머지는 카드에 들어가지 못한다).
+ */
+function packFacts(
+  ctx: Ctx,
+  facts: string[],
+  max: number,
+  maxLines: number,
+): { lines: string[]; shown: number } {
+  const lines: { text: string; count: number }[] = [];
   let current = '';
+  let count = 0;
   for (const fact of facts) {
     const next = current ? `${current} · ${fact}` : fact;
     if (current && widthOf(ctx, next, 12) > max) {
-      lines.push(current);
+      lines.push({ text: current, count });
       current = fact;
+      count = 1;
     } else {
       current = next;
+      count += 1;
     }
   }
-  if (current) lines.push(current);
-  return lines.slice(0, maxLines).map((line) => fit(ctx, line, 12, max));
+  if (current) lines.push({ text: current, count });
+  const kept = lines.slice(0, Math.max(0, maxLines));
+  return {
+    lines: kept.map((line) => fit(ctx, line.text, 12, max)),
+    shown: kept.reduce((sum, line) => sum + line.count, 0),
+  };
+}
+
+/** 카드에 자리가 모자라 빠진 것 */
+export interface CardOmitted {
+  /** 켰지만 들어가지 못한 항목(model.facts 의 뒤쪽부터) */
+  facts: string[];
+  /** 켰지만 들어가지 못한 배지 줄 */
+  badges: boolean;
 }
 
 function badgeRow(ctx: Ctx, model: CardModel, x: number, y: number, max: number): void {
@@ -235,7 +258,7 @@ function chip(ctx: Ctx, label: string, x: number, y: number): number {
 /**
  * 카드를 그린다. ctx의 캔버스는 (CARD_SIZES[ratio] × scale) 크기여야 한다.
  */
-export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: number): void {
+export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: number): CardOmitted {
   const { w: W, h: H } = CARD_SIZES[ratio];
   ctx.save();
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -325,21 +348,19 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     }
   }
 
-  // 켠 항목과 배지: 남은 높이만큼만
-  const rowsLeft = () => Math.floor((footerY - 4 - y) / 18);
+  // 켠 항목과 배지: 남은 높이만큼만. 사용자가 골라 켠 글(금액·정년 등)을 먼저 넣고 배지는 남는 자리에.
+  // 들어가지 못한 것은 돌려줘서 화면이 알려 준다(말없이 빠지지 않게).
   const wantBadges = model.badges.length > 0;
-  const factLines = packFacts(
-    ctx,
-    model.facts,
-    inner,
-    Math.max(0, rowsLeft() - (wantBadges && rowsLeft() > 1 ? 1 : 0)),
-  );
+  const packed = packFacts(ctx, model.facts, inner, Math.floor((footerY - 4 - y) / 18));
+  const factLines = packed.lines;
   for (const line of factLines) {
     text(ctx, line, left, y, 12, MUTED);
     y += 18;
   }
+  let badgesShown = false;
   if (wantBadges && footerY - 4 - y >= 24) {
     badgeRow(ctx, model, left, y, inner);
+    badgesShown = true;
     y += 26;
   }
   if (ratio === 'square' && footerY - 4 - y >= 18 && factLines.length === 0 && !wantBadges) {
@@ -355,6 +376,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
   text(ctx, model.siteUrl, px + pw - 8, footerY + 4, 12, GOLD, 'right');
 
   ctx.restore();
+  return { facts: model.facts.slice(packed.shown), badges: wantBadges && !badgesShown };
 }
 
 /** 이미지가 막힌 메신저용 글자 카드(금액은 넣지 않는다) */

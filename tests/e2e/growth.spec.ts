@@ -176,7 +176,14 @@ test.describe('승급과 시간의 흐름', () => {
     expect(second - first).toBeGreaterThanOrEqual(14);
     expect(second - first).toBeLessThanOrEqual(23);
 
-    await page.getByRole('button', { name: /금액 가리기/ }).click();
+    const hide = page.locator('#today').getByRole('button', { name: '금액 가리기' });
+    await expect(hide).toHaveAttribute('aria-pressed', 'false');
+    await hide.click();
+    // 눌러도 이름은 같고 눌림 상태만 바뀐다
+    await expect(hide).toHaveAttribute('aria-pressed', 'true');
+    await expect(
+      page.locator('#wallet').getByRole('img', { name: '금액 가려짐' }).first(),
+    ).toBeVisible();
     await expect(page.locator('#today')).not.toContainText('2,226,100');
     await expect(page.locator('#wallet')).not.toContainText('2,226,100원');
     await expect(page.locator('#wallet')).toContainText('●●●,●●●원');
@@ -198,6 +205,32 @@ test.describe('승급과 시간의 흐름', () => {
     await openApp(page, { seed: JSON.stringify(seed), time: '2026-11-26T10:00:00+09:00' });
     await expect(page.locator('#status')).toContainText('연가 중');
     await expect(page.locator('#today')).toContainText('연가 중');
+    // 하루 연가인 날에는 퇴근 카운트다운과 근무 진행률을 보이지 않는다
+    await expect(page.locator('#today')).toContainText('푹 쉬세요');
+    await expect(page.locator('#today')).not.toContainText('퇴근까지');
+    await expect(
+      page.locator('#today').getByRole('progressbar', { name: '오늘 근무 진행률' }),
+    ).toHaveCount(0);
+  });
+
+  test('봉급표가 확정되지 않은 해의 인상액에는 어느 해 표로 셈했는지 붙인다', async ({ page }) => {
+    // 다음 승급일 2027-01-01: 2027년 봉급표는 아직 없다
+    await openApp(page, { seed: makeSeed() });
+    await expect(page.locator('#growth')).toContainText('+38,500원(2026년 봉급표 기준)');
+  });
+
+  test('같은 해 안의 승급이면 꼬리표를 붙이지 않는다', async ({ page }) => {
+    await openApp(page, { seed: makeSeed({ nextStepDate: '2026-12-01' }) });
+    await expect(page.locator('#growth')).toContainText('+38,500원');
+    await expect(page.locator('#growth')).not.toContainText('년 봉급표 기준)');
+  });
+
+  test('반일 연가인 날에는 퇴근 카운트다운이 그대로 있다', async ({ page }) => {
+    const seed = JSON.parse(makeSeed());
+    seed.data.leave.records = [{ id: 'v1', date: '2026-11-26', hours: 4, kind: 'pm', memo: '' }];
+    await openApp(page, { seed: JSON.stringify(seed), time: '2026-11-26T10:00:00+09:00' });
+    await expect(page.locator('#today')).toContainText('퇴근까지');
+    await expect(page.locator('#today')).not.toContainText('푹 쉬세요');
   });
 
   test('탭 제목에 퇴근까지 남은 시간을 띄울 수 있다(기본은 꺼짐)', async ({ page }) => {

@@ -116,12 +116,12 @@ export async function shareFile(
 export function readFileText(file: File, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
     if (file.size > maxBytes) {
-      reject(new Error('파일이 너무 큽니다. 호봉 백업 파일이 맞는지 확인해 주세요.'));
+      reject(new Error('파일이 너무 커요. 호봉 백업 파일이 맞는지 확인해 주세요.'));
       return;
     }
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-    reader.onerror = () => reject(new Error('파일을 읽지 못했습니다.'));
+    reader.onerror = () => reject(new Error('파일을 읽지 못했어요.'));
     reader.readAsText(file, 'utf-8');
   });
 }

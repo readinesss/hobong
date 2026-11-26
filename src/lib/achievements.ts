@@ -309,7 +309,7 @@ export function achievementViews(
   views.push({
     id: 'long-rest',
     title: '긴 숨 고르기',
-    desc: '연가를 붙여 닷새 넘게 이어 쉬었다.',
+    desc: '연가를 붙여 닷새 이상 이어 쉬었다.',
     icon: 'icon-plane',
     tier: 'silver',
     group: 'leave',

@@ -104,7 +104,7 @@ export type ProfileErrors = Partial<Record<ProfileField, string>>;
 /** 입력 폼과 불러오기에서 함께 쓰는 프로필 검사. 문제가 없으면 빈 객체 */
 export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   const errors: ProfileErrors = {};
-  if (!isDict(raw)) return { nickname: '내 정보가 없습니다.' };
+  if (!isDict(raw)) return { nickname: '내 정보가 없어요.' };
   const { today } = ctx;
 
   const semantic = !ctx.stored;
@@ -118,7 +118,7 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   if (!isValidYmd(birth)) errors.birthDate = '생년월일을 넣어 주세요.';
   else if (semantic && birth > today) errors.birthDate = '생년월일이 오늘보다 뒤예요.';
   else if (Number(birth.slice(0, 4)) < LIMITS.minBirthYear)
-    errors.birthDate = '생년월일을 다시 확인해 주세요.';
+    errors.birthDate = `생년은 ${LIMITS.minBirthYear}년 이후로 넣어 주세요.`;
 
   const hire = raw.hireDate;
   if (!isValidYmd(hire)) errors.hireDate = '임용일을 넣어 주세요.';
@@ -157,7 +157,7 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   else if (ctx.raiseDateRule === 'future' && next <= today)
     errors.nextStepDate = '다음 승급일은 오늘보다 뒤여야 해요. 이미 올랐다면 호봉을 올려 주세요.';
   else if (semantic && next > addMonthsClamped(today, LIMITS.maxNextStepYears * 12)) {
-    errors.nextStepDate = '다음 승급일이 너무 먼 미래예요.';
+    errors.nextStepDate = `다음 승급일은 오늘부터 ${LIMITS.maxNextStepYears}년 안의 날짜로 넣어 주세요.`;
   }
 
   const asOf = raw.stepAsOf;
@@ -208,7 +208,7 @@ export function toProfile(raw: Dict): Profile {
 
 function checkSettings(raw: unknown, errors: string[], semantic: boolean): Settings | null {
   if (!isDict(raw)) {
-    errors.push('설정 값이 없습니다.');
+    errors.push('설정 값이 없어요.');
     return null;
   }
   const before = errors.length;
@@ -218,12 +218,12 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
   }
   const work = raw.work;
   const times: Record<string, string> = {};
-  if (!isDict(work)) errors.push('설정: 근무시간 값이 없습니다.');
+  if (!isDict(work)) errors.push('설정: 근무시간 값이 없어요.');
   else {
     for (const key of ['start', 'end', 'lunchStart', 'lunchEnd'] as const) {
       const v = work[key];
       if (typeof v !== 'string' || parseHm(v) === null)
-        errors.push(`설정: 근무시간(${WORK_LABELS[key]}) 형식이 틀렸습니다.`);
+        errors.push(`설정: 근무시간(${WORK_LABELS[key]}) 값이 시:분 형식이 아니에요.`);
       else times[key] = v;
     }
     if (semantic && Object.keys(times).length === 4) {
@@ -237,15 +237,15 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
     }
   }
   if (raw.theme !== 'auto' && raw.theme !== 'light' && raw.theme !== 'dark') {
-    errors.push('설정: 화면 테마 값이 틀렸습니다.');
+    errors.push('설정: 화면 테마 값이 틀렸어요.');
   }
-  if (typeof raw.reduceMotion !== 'boolean') errors.push('설정: 움직임 줄이기 값이 틀렸습니다.');
-  if (typeof raw.hideAmounts !== 'boolean') errors.push('설정: 금액 가리기 값이 틀렸습니다.');
+  if (typeof raw.reduceMotion !== 'boolean') errors.push('설정: 움직임 줄이기 값이 틀렸어요.');
+  if (typeof raw.hideAmounts !== 'boolean') errors.push('설정: 금액 가리기 값이 틀렸어요.');
   if (raw.tabTitle !== 'default' && raw.tabTitle !== 'countdown')
-    errors.push('설정: 탭 제목 값이 틀렸습니다.');
+    errors.push('설정: 탭 제목 값이 틀렸어요.');
   const card = raw.card;
   let cardOut: CardSettings | null = null;
-  if (!isDict(card)) errors.push('설정: 카드 설정이 없습니다.');
+  if (!isDict(card)) errors.push('설정: 카드 설정이 없어요.');
   else if (
     (card.ratio !== 'square' && card.ratio !== 'portrait') ||
     typeof card.showSalary !== 'boolean' ||
@@ -253,7 +253,7 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
     typeof card.showTenure !== 'boolean' ||
     typeof card.showBadges !== 'boolean'
   ) {
-    errors.push('설정: 카드 설정 값이 틀렸습니다.');
+    errors.push('설정: 카드 설정 값이 틀렸어요.');
   } else {
     cardOut = {
       ratio: card.ratio,
@@ -307,11 +307,11 @@ const ACHIEVEMENT_ID_RE = /^[a-z][a-z0-9-]{0,39}$/;
 
 function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
   if (!isDict(raw) || !Array.isArray(raw.records) || !isDict(raw.grantOverrideHours)) {
-    errors.push('연가 장부의 형식이 틀렸습니다.');
+    errors.push('연가 장부의 형식이 틀렸어요.');
     return null;
   }
   if (raw.records.length > LIMITS.maxLeaveRecords) {
-    errors.push(`연가 기록이 너무 많습니다(${raw.records.length}건).`);
+    errors.push(`연가 기록이 너무 많아요(${raw.records.length}건).`);
     return null;
   }
   const records: LeaveRecord[] = [];
@@ -331,7 +331,7 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
       !leaveHoursFit(item.kind as LeaveKind, item.hours)
     ) {
       bad += 1;
-      if (bad <= 3) errors.push(`연가 기록 ${index + 1}번째 항목의 형식이 틀렸습니다.`);
+      if (bad <= 3) errors.push(`연가 기록 ${index + 1}번째 항목의 형식이 틀렸어요.`);
       return;
     }
     ids.add(item.id);
@@ -343,7 +343,7 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
       memo: cleanText(item.memo, LIMITS.memoMax),
     });
   });
-  if (bad > 3) errors.push(`그 밖에 연가 기록 ${bad - 3}건의 형식이 틀렸습니다.`);
+  if (bad > 3) errors.push(`그 밖에 연가 기록 ${bad - 3}건의 형식이 틀렸어요.`);
 
   const grantOverrideHours: Record<string, number> = {};
   for (const [year, hours] of Object.entries(raw.grantOverrideHours)) {
@@ -354,7 +354,7 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
       hours < 0 ||
       hours > 8 * 100
     ) {
-      errors.push(`연가 부여일수 수정값(${year})이 틀렸습니다.`);
+      errors.push(`연가 부여일수 수정값(${year})이 틀렸어요.`);
       bad += 1;
       continue;
     }
@@ -371,7 +371,7 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
  */
 export function validateUserData(raw: unknown, ctx: ProfileContext): Result<UserData> {
   const errors: string[] = [];
-  if (!isDict(raw)) return { ok: false, errors: ['데이터가 비어 있거나 형식이 다릅니다.'] };
+  if (!isDict(raw)) return { ok: false, errors: ['데이터가 비어 있거나 형식이 달라요.'] };
 
   const profileErrors = checkProfile(raw.profile, ctx);
   for (const message of Object.values(profileErrors)) errors.push(`내 정보: ${message}`);
@@ -379,9 +379,9 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
   const leave = checkLeave(raw.leave, errors);
 
   const achievements: UserData['achievements'] = {};
-  if (!isDict(raw.achievements)) errors.push('업적 기록의 형식이 틀렸습니다.');
+  if (!isDict(raw.achievements)) errors.push('업적 기록의 형식이 틀렸어요.');
   else if (Object.keys(raw.achievements).length > LIMITS.maxAchievements) {
-    errors.push('업적 기록이 너무 많습니다.');
+    errors.push('업적 기록이 너무 많아요.');
   } else {
     for (const [id, value] of Object.entries(raw.achievements)) {
       if (
@@ -390,7 +390,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
         !isDict(value) ||
         !isValidYmd(value.at)
       ) {
-        errors.push(`업적 기록(${id.slice(0, 20)})의 형식이 틀렸습니다.`);
+        errors.push(`업적 기록(${id.slice(0, 20)})의 형식이 틀렸어요.`);
         break;
       }
       achievements[id] = { at: value.at };
@@ -410,7 +410,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     ch.lastStep < 1 ||
     ch.lastStep > 99
   ) {
-    errors.push('캐릭터 상태의 형식이 틀렸습니다.');
+    errors.push('캐릭터 상태의 형식이 틀렸어요.');
   } else {
     character = {
       seenForms: [...new Set(ch.seenForms as string[])],
@@ -428,7 +428,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     !vs.days.every((d: unknown) => isValidYmd(d)) ||
     !(vs.lastVisit === null || isValidYmd(vs.lastVisit))
   ) {
-    errors.push('출근 도장 기록의 형식이 틀렸습니다.');
+    errors.push('출근 도장 기록의 형식이 틀렸어요.');
   } else {
     visits = { days: [...new Set(vs.days as Ymd[])].sort(), lastVisit: vs.lastVisit as Ymd | null };
   }
@@ -444,7 +444,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     !Number.isInteger(mt.changesSinceBackup) ||
     mt.changesSinceBackup < 0
   ) {
-    errors.push('기록 시각 정보의 형식이 틀렸습니다.');
+    errors.push('기록 시각 정보의 형식이 틀렸어요.');
   } else {
     meta = {
       createdAt: mt.createdAt,
@@ -455,7 +455,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
   }
 
   if (errors.length > 0 || !settings || !leave || !character || !visits || !meta) {
-    return { ok: false, errors: errors.length > 0 ? errors : ['데이터 형식이 틀렸습니다.'] };
+    return { ok: false, errors: errors.length > 0 ? errors : ['데이터 형식이 틀렸어요.'] };
   }
   return {
     ok: true,

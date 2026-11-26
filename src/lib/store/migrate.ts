@@ -136,20 +136,20 @@ export function migrateEnvelope(
   defaults: Settings,
   nowIso: string,
 ): MigrateResult {
-  if (!isDict(envelope)) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
-  if (envelope.app !== APP_ID) return { ok: false, reason: '호봉 데이터 파일이 아닙니다.' };
+  if (!isDict(envelope)) return { ok: false, reason: '호봉 데이터 파일이 아니에요.' };
+  if (envelope.app !== APP_ID) return { ok: false, reason: '호봉 데이터 파일이 아니에요.' };
   const version = envelope.schemaVersion;
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
-    return { ok: false, reason: '데이터 버전 정보(schemaVersion)가 없거나 틀렸습니다.' };
+    return { ok: false, reason: '데이터 버전 정보가 없거나 틀렸어요.' };
   }
   if (version > SCHEMA_VERSION) {
     return {
       ok: false,
       code: 'newer',
-      reason: `이 파일은 더 새로운 버전의 호봉에서 만든 것입니다(파일 버전 ${version}, 지원 버전 ${SCHEMA_VERSION}). 호봉을 최신 버전으로 바꾼 뒤 다시 불러와 주세요.`,
+      reason: `이 파일은 더 새 버전의 호봉 앱에서 만든 거예요(파일 버전 ${version}, 지금 앱이 읽는 버전 ${SCHEMA_VERSION}). 새 hobong.html 을 받아 열거나, 온라인이라면 새로 고침한 뒤 다시 불러와 주세요.`,
     };
   }
-  if (!isDict(envelope.data)) return { ok: false, reason: '파일 안에 데이터가 없습니다.' };
+  if (!isDict(envelope.data)) return { ok: false, reason: '파일 안에 데이터가 없어요.' };
 
   const exportedAt =
     typeof envelope.exportedAt === 'string' && !Number.isNaN(Date.parse(envelope.exportedAt))
@@ -158,13 +158,13 @@ export function migrateEnvelope(
   let data: Dict = envelope.data;
   for (let v = version; v < SCHEMA_VERSION; v += 1) {
     const step = MIGRATIONS[v];
-    if (!step) return { ok: false, reason: `버전 ${v} 데이터를 변환하는 방법을 모릅니다.` };
+    if (!step) return { ok: false, reason: `버전 ${v} 데이터를 바꾸는 방법을 몰라요.` };
     try {
       data = step(data, { defaultSettings: defaults, exportedAt });
     } catch {
       return {
         ok: false,
-        reason: `버전 ${v} 데이터를 변환하다 실패했습니다. 파일이 손상됐을 수 있습니다.`,
+        reason: `버전 ${v} 데이터를 바꾸지 못했어요. 파일이 손상됐을 수 있어요.`,
       };
     }
   }

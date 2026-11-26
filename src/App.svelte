@@ -166,7 +166,10 @@
       return;
     }
     const status = view.status;
-    if (status.workday && status.secondsToEnd !== null) {
+    // 하루를 통째로 연가로 쉬는 날에는 퇴근 시각을 세지 않는다
+    if (view.leave.todayHours >= view.rules.leave.units.hoursPerDay) {
+      document.title = '연가 중 · 호봉';
+    } else if (status.workday && status.secondsToEnd !== null) {
       document.title = `퇴근까지 ${formatDuration(status.secondsToEnd).slice(0, -3)} · 호봉`;
     } else {
       document.title = status.workday ? '오늘 근무 끝 · 호봉' : '쉬는 날 · 호봉';
@@ -192,7 +195,7 @@
       <div class="brand">
         <Icon name="icon-tiger" scale={2} />
         <div class="stack names">
-          <strong>호봉</strong>
+          <h1>호봉</h1>
           <span class="cap sub">공무원 상태창</span>
         </div>
       </div>
@@ -301,7 +304,7 @@
   .names {
     gap: 0;
   }
-  .names strong {
+  .names h1 {
     font-weight: 400;
     line-height: 21px;
   }

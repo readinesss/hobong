@@ -62,6 +62,8 @@
       if (holiday) parts.push(holiday);
       if (hours >= perDay) parts.push('연가 1일');
       else if (hours > 0) parts.push(`연가 ${hours}시간`);
+      // 빗금(예정)은 색으로만 구분되므로 낭독 문구에도 적는다
+      if (hours > 0 && date > view.today) parts.push('예정');
       if (date === view.today) parts.push('오늘');
       out.push({
         date,
@@ -159,7 +161,7 @@
               <span class="n">{cell.day}</span>
               {#if cell.hours > 0}
                 <span class="mark cap" aria-hidden="true">
-                  {cell.hours >= view.rules.leave.units.hoursPerDay ? '연가' : `${cell.hours}h`}
+                  {cell.hours >= view.rules.leave.units.hoursPerDay ? '연가' : `${cell.hours}시간`}
                 </span>
               {:else if cell.holiday}
                 <span class="mark cap hol" aria-hidden="true">휴</span>
@@ -176,6 +178,7 @@
   <ul class="legend cap muted">
     <li><i class="sw full"></i> 연가 1일</li>
     <li><i class="sw part"></i> 반일·시간</li>
+    <li><i class="sw planned"></i> 빗금: 예정</li>
     <li><i class="sw hol"></i> 공휴일</li>
     <li><i class="sw today"></i> 오늘</li>
   </ul>
@@ -302,6 +305,9 @@
   }
   .sw.part {
     background: linear-gradient(135deg, var(--good-fill) 0 50%, var(--panel-2) 50% 100%);
+  }
+  .sw.planned {
+    background: repeating-linear-gradient(135deg, var(--good-fill) 0 4px, var(--c5) 4px 6px);
   }
   .sw.hol {
     background: var(--warn-fill);

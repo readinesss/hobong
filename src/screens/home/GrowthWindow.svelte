@@ -29,7 +29,9 @@
         <p class="cap muted">
           {formatKorean(view.nextRaise.date)} · {view.nextRaise.fromStep}호봉 → {view.nextRaise
             .toStep}호봉 · 봉급
-          <Money value={view.nextRaise.diff} sign="+" />
+          <Money value={view.nextRaise.diff} sign="+" />{view.nextRaise.confirmed
+            ? ''
+            : `(${view.salary.tableYear}년 봉급표 기준)`}
         </p>
       {:else if view.noRaiseReason === 'retire'}
         <p class="cap muted">정년퇴직일 전에 남은 정기승급이 없어요.</p>
@@ -97,7 +99,11 @@
         {#if view.promotion}
           <p class="cap muted">
             이때 승진하면 {view.promotion.toGrade}급 {view.promotion.toStep}호봉 · 봉급
-            <Money value={view.promotion.diff} sign={view.promotion.diff >= 0 ? '+' : ''} />
+            <Money
+              value={view.promotion.diff}
+              sign={view.promotion.diff >= 0 ? '+' : ''}
+              approx={!view.promotion.confirmed}
+            />{view.promotion.confirmed ? '' : '(지금 봉급표 기준)'}
           </p>
         {/if}
         {#if view.longService.quotaNote}<p class="cap muted">{view.longService.quotaNote}</p>{/if}

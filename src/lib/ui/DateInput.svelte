@@ -155,7 +155,8 @@
 
 <div class="field">
   <span class="label" id="{id}-label">
-    {label}{#if required}<span class="cap muted">필수</span>{/if}
+    {label}
+    {#if required}<span class="cap muted">필수</span>{/if}
   </span>
   <div class="date" role="group" aria-labelledby="{id}-label" aria-describedby={describedBy}>
     <input
@@ -169,6 +170,7 @@
       maxlength="10"
       aria-label="{label} 연도"
       aria-invalid={error ? 'true' : undefined}
+      aria-required={required ? 'true' : undefined}
       value={year}
       oninput={onYear}
       onpaste={onPaste}
@@ -184,6 +186,7 @@
       maxlength="2"
       aria-label="{label} 월"
       aria-invalid={error ? 'true' : undefined}
+      aria-required={required ? 'true' : undefined}
       value={month}
       oninput={onMonth}
       onpaste={onPaste}
@@ -200,6 +203,7 @@
       maxlength="2"
       aria-label="{label} 일"
       aria-invalid={error ? 'true' : undefined}
+      aria-required={required ? 'true' : undefined}
       value={day}
       oninput={onDay}
       onpaste={onPaste}

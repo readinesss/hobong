@@ -448,7 +448,7 @@
   </Win>
 
   <Win title="근거 법령" icon="icon-book" id="set-sources" area="sources">
-    {#snippet aside()}확인일 {view.rules.meta.verifiedAt.replaceAll('-', '. ')}.{/snippet}
+    {#snippet aside()}확인일 {formatKorean(view.rules.meta.verifiedAt, false)}{/snippet}
     <Sources />
   </Win>
 

@@ -36,7 +36,7 @@
     try {
       result = app.inspect(await readFileText(f, MAX_BACKUP_BYTES));
     } catch (error) {
-      readError = error instanceof Error ? error.message : '파일을 읽지 못했습니다.';
+      readError = error instanceof Error ? error.message : '파일을 읽지 못했어요.';
     } finally {
       busy = false;
     }

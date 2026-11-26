@@ -247,22 +247,31 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
   };
 
   it('빈 파일·깨진 JSON·다른 파일', () => {
-    expect(reason('')).toContain('비어 있습니다');
-    expect(reason('   ')).toContain('비어 있습니다');
+    expect(reason('')).toContain('비어 있어요');
+    expect(reason('   ')).toContain('비어 있어요');
     expect(reason('{"app":"hobong","schemaVersion":2,"data":{')).toContain('손상');
     expect(reason('<html></html>')).toContain('손상');
-    expect(reason([])).toContain('호봉 데이터 파일이 아닙니다');
+    expect(reason([])).toContain('호봉 데이터 파일이 아니에요');
     expect(reason({ app: 'other', schemaVersion: 2, data: {} })).toContain(
-      '호봉 데이터 파일이 아닙니다',
+      '호봉 데이터 파일이 아니에요',
     );
-    expect(reason('null')).toContain('호봉 데이터 파일이 아닙니다');
-    expect(reason('x'.repeat(MAX_BACKUP_BYTES + 1))).toContain('너무 큽니다');
+    expect(reason('null')).toContain('호봉 데이터 파일이 아니에요');
+    expect(reason('x'.repeat(MAX_BACKUP_BYTES + 1))).toContain('너무 커요');
+    expect(reason('{')).toContain('백업 파일 형식(JSON)이 아니에요');
+  });
+  it('세부 사유에 내부 키 이름을 쓰지 않는다', () => {
+    const env = good();
+    env.data.settings.work.lunchStart = '25:00';
+    const text = reason(env);
+    expect(text).toContain('점심');
+    expect(text).not.toContain('lunchStart');
+    expect(reason({ ...good(), schemaVersion: '2' })).not.toContain('schemaVersion');
   });
   it('버전 정보', () => {
-    expect(reason({ ...good(), schemaVersion: 99 })).toContain('더 새로운 버전');
+    expect(reason({ ...good(), schemaVersion: 99 })).toContain('더 새 버전');
     expect(reason({ ...good(), schemaVersion: '2' })).toContain('버전 정보');
     expect(reason({ ...good(), schemaVersion: 0 })).toContain('버전 정보');
-    expect(reason({ app: 'hobong', schemaVersion: 2 })).toContain('데이터가 없습니다');
+    expect(reason({ app: 'hobong', schemaVersion: 2 })).toContain('데이터가 없어요');
   });
   it('BOM이 붙은 파일은 그대로 읽는다', () => {
     expect(reason(`\ufeff${JSON.stringify(good())}`)).toBe('OK');
@@ -292,7 +301,7 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
       [(e) => (e.data.settings.work.start = '아침'), '근무시간'],
       [(e) => (e.data.settings.theme = 'pink'), '테마'],
       [(e) => (e.data.settings.card.ratio = 'wide'), '카드'],
-      [(e) => delete e.data.settings, '설정 값이 없습니다'],
+      [(e) => delete e.data.settings, '설정 값이 없어요'],
       [(e) => (e.data.leave.records[0].date = '2026-02-31'), '연가 기록 1번째'],
       [(e) => (e.data.leave.records[1].hours = 0), '연가 기록 2번째'],
       [(e) => (e.data.leave.records[1].id = 'a1'), '연가 기록 2번째'],
@@ -642,6 +651,8 @@ describe('입력 폼 검사', () => {
     expect(checkProfile({ ...base, nickname: '가'.repeat(13) }, ctx).nickname).toContain('12자');
     expect(checkProfile({ ...base, birthDate: '2030-01-01' }, ctx).birthDate).toBeDefined();
     expect(checkProfile({ ...base, birthDate: '1900-01-01' }, ctx).birthDate).toBeDefined();
+    // 기준을 말해 준다
+    expect(checkProfile({ ...base, birthDate: '1929-12-31' }, ctx).birthDate).toContain('1930');
     expect(checkProfile({ ...base, birthDate: '2010-01-01' }, ctx).hireDate).toContain(
       '너무 일러요',
     );
@@ -649,7 +660,7 @@ describe('입력 폼 검사', () => {
     expect(checkProfile({ ...base, grade: 9, step: 32 }, ctx).step).toContain('31호봉');
     expect(checkProfile({ ...base, grade: 6, step: 32 }, ctx).step).toBeUndefined();
     expect(checkProfile({ ...base, nextStepDate: '2040-01-01' }, ctx).nextStepDate).toContain(
-      '너무 먼',
+      '5년 안',
     );
     expect(
       checkProfile({ ...base, overrides: { longServiceDate: '2020-01-01', seniorDate: null } }, ctx)

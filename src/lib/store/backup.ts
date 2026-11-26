@@ -42,12 +42,12 @@ export type ParseResult =
 /** 백업 파일 내용(문자열)을 읽어 현재 버전의 사용자 데이터로 만든다 */
 export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   if (typeof text !== 'string' || text.trim().length === 0) {
-    return { ok: false, reason: '파일이 비어 있습니다.', details: [] };
+    return { ok: false, reason: '파일이 비어 있어요.', details: [] };
   }
   if (text.length > MAX_BACKUP_BYTES) {
     return {
       ok: false,
-      reason: '파일이 너무 큽니다. 호봉 백업 파일이 맞는지 확인해 주세요.',
+      reason: '파일이 너무 커요. 호봉 백업 파일이 맞는지 확인해 주세요.',
       details: [],
     };
   }
@@ -58,8 +58,8 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   } catch {
     return {
       ok: false,
-      reason: '파일을 읽을 수 없습니다. 내용이 잘렸거나 손상된 것 같습니다.',
-      details: ['JSON 형식이 아닙니다.'],
+      reason: '파일을 읽지 못했어요. 내용이 잘렸거나 손상된 것 같아요.',
+      details: ['백업 파일 형식(JSON)이 아니에요. 내려받은 파일을 그대로 골랐는지 확인해 주세요.'],
     };
   }
   const migrated = migrateEnvelope(parsed, ctx.defaultSettings, ctx.nowIso);
@@ -72,7 +72,7 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   if (!checked.ok) {
     return {
       ok: false,
-      reason: '파일 내용 중 형식이 맞지 않는 곳이 있어 불러오지 않았습니다.',
+      reason: '파일 내용 중 형식이 맞지 않는 곳이 있어 불러오지 않았어요.',
       details: checked.errors,
     };
   }

@@ -18,6 +18,10 @@ test.describe('첫 화면과 입력 폼', () => {
   test('빈 폼은 넘어가지 않고 고칠 곳을 알려준다', async ({ page }) => {
     await openApp(page);
     await page.getByRole('button', { name: '새로 시작' }).click();
+    // 날짜 묶음의 이름은 '생년월일 필수'(띄어 읽힌다), 닉네임 예시는 직함이 아닌 별명
+    await expect(page.getByRole('group', { name: '생년월일 필수' })).toHaveCount(1);
+    await expect(page.getByLabel('생년월일 연도')).toHaveAttribute('aria-required', 'true');
+    await expect(page.getByLabel('닉네임')).toHaveAttribute('placeholder', '예: 호봉이집사');
     await page.getByRole('button', { name: '알 깨우기' }).click();
     await expect(page.getByText('닉네임을 넣어 주세요.')).toBeVisible();
     await expect(page.getByText('생년월일을 넣어 주세요.')).toBeVisible();
@@ -42,6 +46,9 @@ test.describe('첫 화면과 입력 폼', () => {
     const errors = collectErrors(page);
     await openApp(page);
     await onboard(page);
+    // 본 화면에도 h1 이 정확히 하나 있다(머리말의 '호봉')
+    await expect(page.locator('h1')).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 1, name: '호봉' })).toBeVisible();
 
     // 9급 3호봉 봉급(2026년 봉급표)
     await expect(page.locator('#status')).toContainText('9급 3호봉');

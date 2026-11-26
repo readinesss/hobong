@@ -46,10 +46,11 @@
           class="btn small"
           aria-pressed={hidden}
           onclick={toggleHide}
-          title={hidden ? '금액 보이기' : '금액 가리기'}
+          title="금액 가리기"
         >
+          <!-- 이름은 그대로 두고 눌림 상태(aria-pressed)만 바꾼다: 글자·title·상태가 서로 어긋나지 않게 -->
           <Icon name={hidden ? 'icon-eye-off' : 'icon-eye'} />
-          <span class="cap">{hidden ? '금액 가림' : '금액 가리기'}</span>
+          <span class="cap">금액 가리기</span>
         </button>
       </div>
       <p class="big earn"><Money value={earn.today} /></p>
@@ -63,13 +64,15 @@
     <div class="stack">
       <div class="kv">
         <span>{headline}</span>
-        {#if status.workday && status.secondsToEnd !== null}
+        {#if onLeave}
+          <span>푹 쉬세요</span>
+        {:else if status.workday && status.secondsToEnd !== null}
           <span class="num">퇴근까지 <strong>{formatDuration(status.secondsToEnd)}</strong></span>
         {:else if status.workday}
           <span>수고하셨습니다</span>
         {/if}
       </div>
-      {#if status.workday}
+      {#if status.workday && !onLeave}
         <Progress
           value={status.progress}
           label="오늘 근무 진행률"

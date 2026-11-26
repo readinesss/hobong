@@ -31,6 +31,35 @@ function collectSources(value: unknown, out: SourceRef[] = []): SourceRef[] {
   return out;
 }
 
+/** 화면(설정 > 근거 법령)에 그대로 찍히는 글: 각 근거의 note 와 파일 머리의 notes */
+function screenNotes(file: RulesFile): string[] {
+  const out: string[] = [...(file.notes ?? [])];
+  for (const source of collectSources(file)) {
+    if (source.note) out.push(source.note);
+  }
+  return out;
+}
+
+describe('근거 법령 화면에 보이는 설명', () => {
+  it.each(files.map((f) => [f.year, f] as const))(
+    '%i.json: 개발 메모(내부 버전·파일 이름·저장소 경로·필드 이름·ISO 날짜)가 없다',
+    (_year, file) => {
+      for (const note of screenNotes(file)) {
+        expect(note).not.toMatch(/\bv2\b|화면 안내용|구현상의 가정|\.txt|docs\/|\.json/);
+        expect(note).not.toMatch(/\b(salary|pending|status|verified|effective|grace)\b/);
+        expect(note).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+      }
+    },
+  );
+  it('반영하지 않는 사정(한계)을 밝힌 문장은 남아 있다', () => {
+    const file = files.find((f) => f.year === 2026) as RulesFile;
+    const limits = screenNotes(file).filter((n) => n.includes('반영하지 않는다'));
+    expect(limits.length).toBeGreaterThanOrEqual(10);
+    // 서비스의 해석(가정)은 그렇다고 풀어 쓴다
+    expect(screenNotes(file).filter((n) => n.includes('이 서비스의')).length).toBeGreaterThan(0);
+  });
+});
+
 describe('규정 파일 형식', () => {
   it.each(files.map((f) => [f.year, f] as const))('%i.json: 머리 정보', (_year, file) => {
     expect(file.schema).toBe(1);

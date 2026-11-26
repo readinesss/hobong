@@ -48,14 +48,14 @@
 {#if view.retired}
   <p class="note banner" role="status">
     정년퇴직일({formatKorean(view.retire.retireDate, false)})이 지났어요. 호봉·봉급·재직기간은
-    퇴직일 기준에서 멈춰 있어요. 그동안 수고 많으셨습니다.
+    퇴직일 기준에서 멈춰 있어요. 그동안 수고 많으셨어요.
   </p>
 {/if}
 
 {#if view.holidayDataMissing}
   <p class="note banner" role="status">
-    {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 호봉을 최신
-    버전으로 바꿔 주세요.
+    {view.rules.year}년 공휴일 데이터가 아직 없어 주말만 쉬는 날로 계산하고 있어요. 지금 연 호봉
+    앱이 옛 버전이에요. 새 hobong.html 을 받아 열거나, 온라인이라면 새로 고침해 주세요.
   </p>
 {/if}
 

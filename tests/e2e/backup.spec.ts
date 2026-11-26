@@ -137,10 +137,10 @@ test.describe('데이터 내려받기·불러오기', () => {
     await expect(dialog.getByRole('alert')).toContainText('지금 데이터는 그대로예요');
 
     await importFile(page, other);
-    await expect(dialog.getByRole('alert')).toContainText('호봉 데이터 파일이 아닙니다');
+    await expect(dialog.getByRole('alert')).toContainText('호봉 데이터 파일이 아니에요');
 
     await importFile(page, newer);
-    await expect(dialog.getByRole('alert')).toContainText('더 새로운 버전');
+    await expect(dialog.getByRole('alert')).toContainText('더 새 버전');
 
     expect(await storedData(page)).toEqual(before);
   });

@@ -70,6 +70,16 @@ const rec = (date: string, hours = 8, kind: LeaveRecord['kind'] = 'day'): LeaveR
 });
 
 describe('연속 휴식 계산', () => {
+  it('정확히 닷새(금 연가 + 주말 + 월·화 연가)면 받는다: 배지 설명도 "이상"이다', () => {
+    expect(
+      longRestEnd(cal, [rec('2026-11-06'), rec('2026-11-09'), rec('2026-11-10')], 8, TODAY),
+    ).toBe('2026-11-10');
+    expect(longRestEnd(cal, [rec('2026-11-06'), rec('2026-11-09')], 8, TODAY)).toBeNull();
+    const views = achievementViews(inputOf(makeData()), {});
+    const desc = views.find((v) => v.id === 'long-rest')?.desc ?? '';
+    expect(desc).toContain('닷새 이상');
+    expect(desc).not.toContain('넘게');
+  });
   it('연속 근무일 연가가 수천 건이어도 빠르게 끝난다', () => {
     const records: LeaveRecord[] = [];
     let d = '2000-01-03';

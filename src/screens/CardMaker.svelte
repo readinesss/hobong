@@ -19,6 +19,7 @@
     EXPORT_SCALE,
     textCard,
     type CardModel,
+    type CardOmitted,
   } from '../lib/card/render.ts';
   import { resolveLook } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
@@ -102,8 +103,23 @@
     el.width = size.w * previewScale;
     el.height = size.h * previewScale;
     const ctx = el.getContext('2d');
-    if (ctx) drawCard(ctx, model, card.ratio, previewScale);
+    if (ctx) omitted = drawCard(ctx, model, card.ratio, previewScale);
   });
+
+  /** 자리가 모자라 카드에 들어가지 못한 것(미리보기를 그릴 때 정해진다) */
+  let omitted = $state<CardOmitted>({ facts: [], badges: false });
+  const FACT_NAMES: [string, string][] = [
+    ['재직', '재직기간'],
+    ['정년', '정년 D-day'],
+    ['월 봉급', '월 봉급'],
+  ];
+  const factName = (fact: string) =>
+    FACT_NAMES.find(([prefix]) => fact.startsWith(prefix))?.[1] ?? fact;
+  const omittedNames = $derived([
+    ...omitted.facts.map(factName),
+    ...(omitted.badges ? ['배지'] : []),
+  ]);
+  const drawnFacts = $derived(model.facts.filter((fact) => !omitted.facts.includes(fact)));
 
   function setCard(patch: Partial<CardSettings>) {
     app.updateSettings({ card: { ...card, ...patch } }, false);
@@ -120,9 +136,9 @@
     return canvasToBlob(out);
   }
 
-  /** 미리보기의 낭독 문구: 카드에 켠 항목까지 그대로 읽는다 */
+  /** 미리보기의 낭독 문구: 카드에 실제로 들어간 항목까지 그대로 읽는다 */
   const previewLabel = $derived(
-    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...model.facts].join(', ')}`,
+    `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`,
   );
   const fileName = $derived(`hobong-card-${view.today.replaceAll('-', '')}.png`);
 
@@ -210,12 +226,7 @@
 <div class="page">
   <Win title="카드 미리보기" icon="icon-image" id="card-preview" area="preview">
     {#snippet aside()}{size.w * EXPORT_SCALE}×{size.h * EXPORT_SCALE}px{/snippet}
-    <div
-      class="holder"
-      bind:this={holder}
-      role="img"
-      aria-label={previewLabel}
-    >
+    <div class="holder" bind:this={holder} role="img" aria-label={previewLabel}>
       <canvas
         bind:this={canvas}
         class="preview"
@@ -223,6 +234,13 @@
         aria-hidden="true"
       ></canvas>
     </div>
+    {#if omittedNames.length > 0}
+      <p class="note" role="status" id="card-omitted">
+        자리가 모자라 카드에 들어가지 못했어요: {omittedNames.join(', ')}. {card.ratio === 'square'
+          ? '세로형을 고르거나 '
+          : ''}다른 항목을 꺼 보세요.
+      </p>
+    {/if}
   </Win>
 
   <Win title="카드 만들기" icon="icon-camera" id="card-options" area="options">
@@ -280,7 +298,9 @@
             onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
           />
           <span class="box" aria-hidden="true"></span>
-          <span>월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span></span>
+          <span>
+            월 봉급 <span class="cap muted">봉급표 금액이 그대로 보여요(수당·공제 전)</span>
+          </span>
         </label>
         <p class="cap muted">금액과 정년은 기본으로 꺼져 있어요. 켠 것만 카드에 들어가요.</p>
       </fieldset>
