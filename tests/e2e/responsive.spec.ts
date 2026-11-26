@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { makeSeed, openApp, tick } from './helpers.ts';
+import { closeDialogs, makeSeed, makeSeedV4, openApp, tick } from './helpers.ts';
 
 const TABS = [
   { hash: 'home', label: '홈' },
@@ -499,4 +499,75 @@ test.describe('반응형과 조작', () => {
       expect(await page.evaluate(smallTargets), '연가 화면의 작은 터치 대상').toEqual([]);
     });
   }
+
+  // #20 직종 시드: 네 글자 계급('치안정감'·'소방준감')·우정 계급·교원(계급 없음)·준비 중 직종에서도
+  // 모든 탭이 가로로 넘치지 않고, 누를 수 있는 것은 44px 이상이다(준비 중 띠·꺼진 항목 줄 포함)
+  const TRACK_SEEDS: [string, string][] = [
+    ['교원', makeSeedV4({ track: 'teacher', payTable: null, rank: '교원', step: 12 })],
+    [
+      '경찰 치안정감',
+      makeSeedV4({
+        track: 'police',
+        payTable: null,
+        rank: '치안정감',
+        rankDate: '2024-01-01',
+        step: 23,
+        birthDate: '1968-01-01',
+        hireDate: '1992-03-02',
+      }),
+    ],
+    ['소방 소방준감', makeSeedV4({ track: 'fire', payTable: null, rank: '소방준감', step: 20 })],
+    ['우정7급', makeSeedV4({ payTable: 'table8', rank: '7', step: 14 })],
+    ['그 밖의 특정직', makeSeedV4({ track: 'otherSpecial', payTable: null, rank: null, step: 7 })],
+  ];
+  for (const width of [320, 360, 1280]) {
+    test(`${width}px: 직종별 화면이 넘치지 않는다(360px 부터 44px 이상)`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.setViewportSize({ width, height: 800 });
+      for (const [name, seed] of TRACK_SEEDS) {
+        await openApp(page, { seed });
+        await tick(page, 6000);
+        await closeDialogs(page);
+        for (const tab of TABS) {
+          await page
+            .getByRole('navigation', { name: '화면 이동' })
+            .getByRole('link', { name: tab.label })
+            .click();
+          await tick(page, 500);
+          const over = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+          expect(over, `${name} ${tab.label}: 가로 넘침`).toBeLessThanOrEqual(0);
+          // 320px 의 연가 달력은 7칸이라 칸 폭이 44px 에 못 미친다(직종과 무관, 360px 부터 검사)
+          if (width >= 360)
+            expect(
+              await page.evaluate(smallTargets),
+              `${name} ${tab.label}: 작은 터치 대상`,
+            ).toEqual([]);
+        }
+      }
+    });
+  }
+
+  test('320px: 직종·봉급표 칩과 별표 4 안내를 펼친 입력 폼도 넘치지 않고 44px 이상이다', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 760 });
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByText('별표 4는 누가 쓰나요?').click();
+    await page.getByRole('button', { name: /예외가 있어요/ }).click();
+    const check = async (what: string) => {
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(over, `${what}: 가로 넘침`).toBeLessThanOrEqual(0);
+      expect(await page.evaluate(smallTargets), `${what}: 작은 터치 대상`).toEqual([]);
+    };
+    await check('일반직');
+    await page.getByRole('radio', { name: '경찰', exact: true }).click();
+    await check('경찰(계급정년 칸)');
+    await page.getByRole('radio', { name: '그 밖의 특정직 (준비 중)' }).click();
+    await check('그 밖의 특정직');
+  });
 });

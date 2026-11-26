@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { josa } from '../lib/app/format.ts';
   import { theme } from '../lib/app/theme.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
-  import { resolveLook, unlockList } from '../lib/character/look.ts';
+  import { resolveLook, stageLabels, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import type { AchievementView } from '../lib/achievements.ts';
   import Icon from '../lib/ui/Icon.svelte';
@@ -12,18 +13,32 @@
   import YearPixelCalendar from './badges/YearPixelCalendar.svelte';
 
   const seen = $derived(new Set(view.data.character.seenForms));
+  const noun = $derived(view.careerRules.ladder?.noun ?? '직급');
   const currentForm = $derived(view.look.form.id);
   const currentIndex = $derived(characterRules.forms.findIndex((f) => f.id === currentForm));
   /** 못 본 모습의 그림자 색(팔레트 번호): 어두운 화면에서는 밝은 회청색이라야 배경에 묻히지 않는다 */
   const silhouette = $derived(theme.dark ? 13 : 15);
+  /** 형태 아래 이름: 사다리가 있으면 계급('9급'·'경위·경감'), 없으면 재직 연수('교직 2년') */
+  const byLadder = $derived(
+    view.careerRules.ladderId !== null &&
+      view.careerRules.rank !== null &&
+      !view.careerRules.rank.hideLabel,
+  );
+  const labels = $derived(
+    stageLabels(
+      characterRules,
+      byLadder
+        ? { id: view.careerRules.ladderId, ladder: view.careerRules.ladder }
+        : { id: null, ladder: null },
+      view.profile.track === 'teacher' ? '교직' : '재직',
+    ),
+  );
   const forms = $derived(
     characterRules.forms.map((form, index) => {
-      const level = form.grades[0] ?? 9;
       // 직급은 내려가지 않으니, 지금보다 아래 직급의 모습은 지나온 것으로 친다(높은 직급으로 시작한 사람도)
       const passed = index < currentIndex;
       const known = seen.has(form.id) || form.id === currentForm || passed;
-      const gradeLabel =
-        form.grades.length === 1 ? `${level}급` : `${Math.max(...form.grades)}급 이상`;
+      const gradeLabel = labels[form.id] ?? '';
       return {
         form,
         known,
@@ -95,8 +110,9 @@
         {/each}
       </ul>
       <p class="cap muted">
-        직급이 오르면 모습이 바뀌어요. 지나온 직급의 모습은 열려 있고, 아직 만나지 못한 모습은
-        그림자로만 보여요.
+        {byLadder
+          ? `${josa(noun, '이', '가')} 오르면 모습이 바뀌어요. 지나온 ${noun}의 모습은 열려 있고, 아직 만나지 못한 모습은 그림자로만 보여요.`
+          : '함께 지낸 해가 쌓이면 모습이 바뀌어요. 지나온 모습은 열려 있고, 아직 만나지 못한 모습은 그림자로만 보여요.'}
       </p>
     </Win>
 

@@ -67,7 +67,7 @@ function model(over: Partial<RecapInput> = {}, extra: Partial<RecapCardModel> = 
     periodText: recapPeriodText(recap),
     look: resolveLook(characterRules, '9', 5, 'work'),
     formName: '아기 봉황',
-    rank: '9',
+    rankLabel: '9급',
     step: recap.stepTo,
     stepText: recapStepText(recap),
     facts: recapFacts(recap),

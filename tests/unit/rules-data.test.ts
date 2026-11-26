@@ -118,7 +118,7 @@ describe('규정 파일 형식', () => {
   it.each(files.map((f) => [f.year, f] as const))('%i.json: 머리 정보', (_year, file) => {
     expect(file.schema).toBe(1);
     expect(file.target).toEqual(files[0]?.target);
-    expect(file.target.id).toBe('national-general');
+    expect(file.target).toEqual({ id: 'national', label: '국가공무원' });
     expect(['verified', 'partial']).toContain(file.status);
     expect(isValidYmd(file.verifiedAt)).toBe(true);
     for (const law of Object.values(file.laws)) {
@@ -261,6 +261,8 @@ describe('연도 합치기', () => {
     // 별표 4·8·10·11 도 2026년 표(확정 전)를 이어 쓴다
     const file2027 = files.find((f) => f.year === 2027) as RulesFile;
     expect(file2027.pending).toEqual(expect.arrayContaining(['salary', 'payTables']));
+    // 화면(근거 법령)에 찍히는 notes 도 별표 3만이 아니라 직종 봉급표가 함께 확정 전임을 말한다
+    expect(file2027.notes?.[0]).toContain('별표 4·8·10·11도 같아요');
     expect(r.meta.sectionYear.payTables).toBe(2026);
     for (const id of PAY_TABLE_IDS) expect(r.meta.payTableYear[id]).toBe(2026);
     expect(r.payTables.items.table10?.table).toEqual(r2026.payTables.items.table10?.table);

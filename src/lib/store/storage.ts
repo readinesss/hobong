@@ -77,6 +77,8 @@ export type LoadResult =
       status: 'ok';
       data: UserData;
       migrated: boolean;
+      /** 저장본이 원래 어느 형식 버전이었는지(바꾸기 전) */
+      fromVersion: number;
       /** 예전에 읽지 못해 옮겨 뒀던 저장본을 되살렸는지 */
       restored: boolean;
     }
@@ -141,7 +143,13 @@ export function loadData(
   }
   const parsed = parseBackup(raw, ctx);
   if (parsed.ok) {
-    return { status: 'ok', data: parsed.data, migrated: parsed.migrated, restored: false };
+    return {
+      status: 'ok',
+      data: parsed.data,
+      migrated: parsed.migrated,
+      fromVersion: parsed.fromVersion,
+      restored: false,
+    };
   }
   if (parsed.code === 'newer') return { status: 'newer', reason: parsed.reason };
   if (options.readOnly) return { status: 'corrupt', reason: parsed.reason, kept: false };
@@ -163,7 +171,13 @@ function restoreCorrupt(store: KeyValueStore, ctx: ParseContext): LoadResult | n
     if (!parsed.ok) continue;
     if (!write(store, KEYS.data, raw)) return null;
     remove(store, key);
-    return { status: 'ok', data: parsed.data, migrated: parsed.migrated, restored: true };
+    return {
+      status: 'ok',
+      data: parsed.data,
+      migrated: parsed.migrated,
+      fromVersion: parsed.fromVersion,
+      restored: true,
+    };
   }
   return null;
 }

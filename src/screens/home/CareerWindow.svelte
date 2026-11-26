@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { formatNumber, formatSpan } from '../../lib/app/format.ts';
+  import { formatLongDate, formatNumber, formatSpan } from '../../lib/app/format.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean, spanBetween } from '../../lib/calc/date.ts';
+  import OffNote from '../../lib/ui/OffNote.svelte';
   import Progress from '../../lib/ui/Progress.svelte';
   import Win from '../../lib/ui/Win.svelte';
 
@@ -58,14 +59,45 @@
         퇴직해요({retire.basis}).
       </p>
       {#if retire.cause === 'rankLimit' && retire.rankLimit}
-        <p class="cap muted">
-          계급정년에 이르는 날({formatKorean(retire.rankLimit.reachDate, false)})이 더 먼저라 그
-          기준으로 퇴직해요.
+        {@const limit = retire.rankLimit}
+        <p class="cap muted" id="career-rank-limit">
+          {limit.years !== null
+            ? `계급정년(${view.rankLabel} ${limit.years}년) 기준`
+            : `직접 넣은 계급정년에 이르는 날(${formatKorean(limit.reachDate, false)}) 기준`} · 연령정년({retire.age}세)은
+          {formatLongDate(retire.ageRetireDate)} · 승진하면 달라져요.
+        </p>
+        {#if limit.years !== null}
+          <p class="cap muted">
+            계급정년에 이르는 날은 현 {view.careerRules.ladder?.noun ?? '계급'} 임용일부터 {limit.years}년이
+            되는 날({formatLongDate(limit.reachDate)})로 셌어요.
+          </p>
+        {/if}
+        {#if limit.boundary && !limit.overridden}
+          <p class="note warn" id="career-rank-limit-boundary">
+            하루 차이로 퇴직일이 6개월 달라질 수 있어요. 인사 담당 부서에 확인해 주세요.
+          </p>
+        {/if}
+      {/if}
+      {#if retire.leapAltRetireDate}
+        <p class="note warn" id="career-leap-birth">
+          2월 29일생은 평년에는 3월 1일에 {retire.age}세가 된다고 보아 {formatLongDate(
+            retire.ageRetireDate,
+          )}로 계산했어요. 2월 28일로 보면 {formatLongDate(retire.leapAltRetireDate)}이라, 인사 담당
+          부서에 확인해 주세요.
         </p>
       {/if}
     </div>
   {:else}
-    <p class="cap muted">정년 계산은 준비 중이에요. {view.retirementOff?.reason ?? ''}</p>
+    {#if view.retirementOff?.status === 'input'}
+      <!-- 원문 미확인이 아니라 계급을 고르지 않은 것: '준비 중'이라고 하지 않는다 -->
+      <OffNote label="정년" off={view.retirementOff} />
+    {:else if view.retirementOff}
+      <!-- 꼬리표가 이미 '준비 중'을 말하므로 같은 문장을 앞에 두지 않는다 -->
+      <OffNote label="정년" off={view.retirementOff} />
+    {:else}
+      <p class="cap muted">정년 계산은 준비 중이에요.</p>
+    {/if}
+    <p class="cap muted">재직 {formatSpan(view.tenure)}째예요.</p>
   {/if}
 </Win>
 

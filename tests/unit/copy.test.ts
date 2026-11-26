@@ -61,6 +61,15 @@ describe('표기 통일', () => {
   it("조사를 '은(는)'처럼 뭉뚱그리지 않는다", () => {
     for (const { path, text } of sources) expect(text, path).not.toMatch(/\((는|를|가|과)\)/);
   });
+  it("계급 이름을 숫자 뒤 '급'으로 만들지 않는다('}급' 꼴 0건 — 경찰·교원은 '경위급'·'null급'이 된다)", () => {
+    // 계급 이름은 규정 데이터 사다리의 label('7급'·'경위'·'우정7급')을 rankLabel·rankStepLabel 로 쓴다
+    for (const { path, text } of sources) expect(text, path).not.toMatch(/\}급|\$\{[^}]*\}급/);
+  });
+  it('직종·계급 이름 변수 뒤에 조사를 고정하지 않는다(josa·withRo 로 고른다)', () => {
+    // '외무은'·'해양경찰는' 같은 오류를 막는다. 받침이 정해진 기존 문구(${SITE_NAME}이 등)는 대상이 아니다
+    const fixed = /(rankLabel|trackLabel|rankStepLabel|\.label)\)?\}(은|는|이|가|을|를|으로|로)/;
+    for (const { path, text } of sources) expect(text, path).not.toMatch(fixed);
+  });
   it('날짜는 formatKorean 으로만 찍는다(0을 채운 2026. 01. 01. 꼴 금지)', () => {
     for (const { path, text } of sources) expect(text, path).not.toContain("replaceAll('-', '. ')");
     expect(formatKorean('2026-10-02', false)).toBe('2026. 10. 2.');

@@ -189,11 +189,11 @@ describe('정년 창 값(view.retire)', () => {
     app.data = seed({});
     expect(view.retire?.basis).toMatch(/^국가공무원법 제74조/);
   });
-  it('경찰 계급을 모르면 정년은 준비 중(계급을 골라 주세요), 다음 승급은 payOff(입력한 날로 보이지 않는다)', () => {
+  it('경찰 계급을 모르면 정년은 입력 필요(계급을 골라 주세요), 다음 승급은 payOff(입력한 날로 보이지 않는다)', () => {
     at('2026-11-25T10:00:00+09:00');
     app.data = seed({ track: 'police', payTable: null, rank: null });
     expect(view.retire).toBeNull();
-    expect(view.retirementOff).toEqual({ status: 'pending', reason: '계급을 골라 주세요.' });
+    expect(view.retirementOff).toEqual({ status: 'input', reason: '계급을 골라 주세요.' });
     expect(view.noRaiseReason).toBe('payOff');
     expect(view.payOff?.reason).toBe('계급을 골라 주세요.');
     expect(view.manualRaiseOverdue).toBe(false);
@@ -267,5 +267,55 @@ describe('성장 연출 기준(app.checkGrowth)', () => {
     app.checkGrowth(view.profile.rank, view.step, view.formId);
     expect(app.celebration).toBeNull();
     expect(app.data?.character).toEqual(before);
+  });
+});
+
+describe('내 정보 고치기 뒤 안내 띠(app.trackChange)', () => {
+  it('일반직 안에서 봉급표만 바꿔도(별표 3 → 8) 카드 계급 이름이 바뀌면 띠로 알린다(월급날은 묻지 않는다)', () => {
+    at('2026-11-25T10:00:00+09:00');
+    app.data = seed({});
+    expect(app.data.settings.card.showRank).toBe(true);
+    app.trackChange = null;
+    app.updateProfile({ ...view.profile, payTable: 'table8', rank: '7' });
+    expect(app.data?.settings.card.showRank).toBe(false);
+    expect(app.trackChange).toMatchObject({
+      trackLabel: '일반직(별표 8)',
+      paydayDefault: null,
+      cardShowRank: false,
+    });
+    // 되돌리면 다시 켜고 그 사실도 알린다
+    app.updateProfile({ ...view.profile, payTable: 'table3', rank: '7' });
+    expect(app.data?.settings.card.showRank).toBe(true);
+    expect(app.trackChange).toMatchObject({ trackLabel: '일반직', cardShowRank: true });
+  });
+  it('경찰 25일은 별표 30에 따로 적혀 있지 않은 기본값이라 권하지 않고(paydayFirm false), 교원 17일은 권한다', () => {
+    at('2026-11-25T10:00:00+09:00');
+    app.data = seed({});
+    app.data.settings.payday = 20;
+    app.updateProfile({ ...view.profile, track: 'police', payTable: null, rank: '경위' });
+    expect(app.trackChange).toMatchObject({ paydayDefault: 25, paydayFirm: false });
+    app.updateProfile({ ...view.profile, track: 'teacher', payTable: null, rank: '교원' });
+    expect(app.trackChange).toMatchObject({ paydayDefault: 17, paydayFirm: true });
+  });
+});
+
+describe('연가 일수가 준비 중인 직종(needsManualGrant)', () => {
+  it('부여 0을 계산값처럼 쓰지 않는다: 직접 넣기 전에는 needsManualGrant, 넣으면 남은 연가를 센다', () => {
+    at('2026-11-25T10:00:00+09:00');
+    app.data = seed({ track: 'otherSpecial', payTable: null, rank: null });
+    expect(view.leave).toMatchObject({ needsManualGrant: true, grantedHours: 0, usedHours: 8 });
+    app.setGrantOverride(2026, 21 * 8);
+    expect(view.leave).toMatchObject({ needsManualGrant: false, remainingHours: 20 * 8 });
+  });
+});
+
+describe('내 정보 점검: 계급을 고르지 않은 저장본', () => {
+  it("'이 계급은 고를 수 없어요'가 아니라 사다리 이름으로 골라 달라고 한다", () => {
+    at('2026-11-25T10:00:00+09:00');
+    app.data = seed({ track: 'police', payTable: null, rank: null });
+    expect(view.profileIssueMap.rank).toBe('계급을 골라 주세요.');
+    app.data = seed({ track: 'foreign', payTable: null, rank: null });
+    expect(view.profileIssueMap.rank).toBe('직무등급을 골라 주세요.');
+    expect(view.payOff).toEqual({ status: 'input', reason: '직무등급을 골라 주세요.' });
   });
 });

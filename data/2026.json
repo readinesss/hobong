@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "year": 2026,
-  "target": { "id": "national-general", "label": "국가직 일반직 공무원" },
+  "target": { "id": "national", "label": "국가공무원" },
   "status": "verified",
   "verifiedAt": "2026-11-25",
   "notes": ["모든 값은 국가법령정보센터 현행 원문(법령·행정규칙·법령해석례)으로 확인했어요(확인일은 위에 표시). 음력 명절 날짜는 한국천문연구원 달력자료를 따랐어요.", "휴직·징계·경력 인정 등 개인별 예외는 반영하지 않아요. 해당하면 설정 > 내 정보에서 날짜를 직접 넣어 맞출 수 있어요."],
@@ -836,7 +836,7 @@
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
           "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
         },
-        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "workHoursNote": "교대 근무라면 출근·퇴근 시각을 내 근무에 맞춰 주세요.",
         "notes": []
       },
       "coastGuard": {
@@ -937,7 +937,7 @@
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
         },
         "pendingReason": "해양경찰청 소속 경찰공무원에게 적용되는 이 규정은 아직 원문으로 확인하지 않았어요.",
-        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "workHoursNote": "교대 근무라면 출근·퇴근 시각을 내 근무에 맞춰 주세요.",
         "notes": []
       },
       "fire": {
@@ -1056,7 +1056,7 @@
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
           "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
         },
-        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "workHoursNote": "교대 근무라면 출근·퇴근 시각을 내 근무에 맞춰 주세요.",
         "notes": []
       },
       "teacher": {
@@ -1128,7 +1128,7 @@
             "snapshot": "teacher-leave-directive.txt",
             "note": "예규가 국가공무원 복무규정 제15조(연가 일수)를 배제하지 않아 그대로 적용해요. 연가는 수업일을 빼고 쓰는 것이 원칙이에요(제4조제1항)."
           },
-          "leaveLongService": {"law": "teacherLeave", "article": "제8조제4항", "snapshot": "teacher-leave-directive.txt"},
+          "leaveLongService": {"law": "teacherLeave", "article": "제8조제4항·제5항", "snapshot": "teacher-leave-directive.txt"},
           "diligence": {
             "law": "allowance",
             "article": "제7조제1항·제4항",
@@ -1137,7 +1137,7 @@
           },
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
         },
-        "workHoursNote": "학교마다 근무시간이 달라요. 설정 > 근무시간에서 맞춰 주세요.",
+        "workHoursNote": "학교마다 근무시간이 달라요. 출근·퇴근 시각을 학교 근무시간에 맞춰 주세요.",
         "leaveNote": "수업일 중 연가는 생일·기일·가족 간호 등 사유가 있을 때 학교장이 승인해요(예규 제5조제1항). 반일연가는 13시 기준이에요(제5조제2항). 성실 근무 가산(병가 1일 미만·연가 3일 미만, 각 1일, 총 2일 이내, 제5조제5항)은 부여 일수를 직접 고쳐 주세요.",
         "leaveScreen": {
           "recordSystem": "나이스(교육정보시스템)",

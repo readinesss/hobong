@@ -265,8 +265,11 @@ export interface Ladder {
   source: SourceRef;
 }
 
-/** 꺼진 항목: pending(원문 미확인) · none(그 직종에 해당 없음) · external(조례 등 다른 규정) */
-export type UnavailableStatus = 'pending' | 'none' | 'external';
+/**
+ * 꺼진 항목: pending(원문 미확인) · none(그 직종에 해당 없음) · external(조례 등 다른 규정)
+ * · input(규정 데이터가 아니라 사용자 입력이 모자람: 계급을 고르지 않았거나 목록에 없음. 코드에서만 만든다)
+ */
+export type UnavailableStatus = 'pending' | 'none' | 'external' | 'input';
 export interface Unavailable {
   status: UnavailableStatus;
   reason: string;

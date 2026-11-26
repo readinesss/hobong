@@ -3,7 +3,7 @@
  * 규칙은 data/character.json 에 있다.
  */
 import { completedYears, type Ymd } from '../calc/date.ts';
-import type { LadderId, RankKey } from '../rules/types.ts';
+import type { Ladder, LadderId, RankKey } from '../rules/types.ts';
 
 export type MoodId =
   'work' | 'lunch' | 'off' | 'sleep' | 'vacation' | 'tired' | 'payday' | 'celebrate';
@@ -106,7 +106,8 @@ export interface Look {
 export function formFor(rules: CharacterRules, rank: RankKey | null): FormRule {
   const level = Number(rank);
   const form = rules.forms.find((f) => f.grades.includes(level));
-  if (!form) throw new Error(`${String(rank)}급에 해당하는 형태가 character.json에 없습니다`);
+  if (!form)
+    throw new Error(`계급 키 '${String(rank)}'에 해당하는 형태가 character.json에 없습니다`);
   return form;
 }
 
@@ -153,6 +154,44 @@ export function formIdFor(rules: CharacterRules, input: FormInput): string {
   }
   const stage = tenureStage(rules, input.hireDate, input.today);
   return stage?.form ?? formById(rules, '').id;
+}
+
+/**
+ * 도감에 적는 형태별 단계 이름(#20 설계 §5.7). 사용자의 사다리 기준이다.
+ * - 사다리(일반직·우정·경찰·소방·외무): 그 형태가 되는 계급들 — '9급', '경위·경감', '우정6급~우정3급',
+ *   마지막 형태는 '5급 이상'·'경정 이상'
+ * - 사다리가 없거나 계급으로 자라지 않으면(교원·준비 중 직종): 재직 연수 — '교직 2년'·'재직 첫해'
+ */
+export function stageLabels(
+  rules: CharacterRules,
+  ladder: { id: LadderId | null; ladder: Pick<Ladder, 'ranks'> | null },
+  tenureWord = '재직',
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const { id, ladder: l } = ladder;
+  const byRank = id && id !== 'general' ? rules.evolution.byRank[id] : undefined;
+  if (l && id && (id === 'general' || byRank)) {
+    const formOf = (key: RankKey) =>
+      id === 'general'
+        ? rules.forms.find((f) => f.grades.includes(Number(key)))?.id
+        : byRank?.[key];
+    const last = rules.forms[rules.forms.length - 1]?.id;
+    for (const form of rules.forms) {
+      const ranks = l.ranks.filter((r) => formOf(r.key) === form.id).map((r) => r.label);
+      const first = ranks[0];
+      if (first === undefined) out[form.id] = '';
+      else if (ranks.length === 1) out[form.id] = first;
+      else if (form.id === last) out[form.id] = `${first} 이상`;
+      else if (ranks.length === 2) out[form.id] = ranks.join('·');
+      else out[form.id] = `${first}~${ranks[ranks.length - 1] ?? ''}`;
+    }
+    return out;
+  }
+  for (const form of rules.forms) {
+    const stage = rules.evolution.byTenure.find((s) => s.form === form.id);
+    out[form.id] = stage ? `${tenureWord} ${stage.label}` : '';
+  }
+  return out;
 }
 
 /** 형태의 순서(forms 안의 위치). 모르는 id 면 -1 */

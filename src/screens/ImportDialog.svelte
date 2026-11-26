@@ -7,6 +7,7 @@
   import { careerOf } from '../lib/calc/career-profile.ts';
   import { todayYmd, yearOf } from '../lib/calc/date.ts';
   import { rankStepLabel, rulesFor } from '../lib/rules/index.ts';
+  import { trackNameOf } from '../lib/app/track.ts';
   import { type ParseResult } from '../lib/store/backup.ts';
   import {
     canEncrypt,
@@ -50,15 +51,13 @@
 
   const hasExisting = $derived(app.data !== null);
   const ok = $derived(result && result.ok ? (result as Ok) : null);
-  /** 불러올 파일의 '경위 12호봉' / '12호봉'(교원) / '7급 12호봉'(저장된 호봉 그대로) */
-  const importedRankStep = $derived(
-    ok
-      ? rankStepLabel(
-          careerOf(rulesFor, ok.data.profile, yearOf(todayYmd(new Date()))),
-          ok.data.profile.step,
-        )
-      : '',
-  );
+  /** 불러올 파일의 직종과 '경위 12호봉' / '12호봉'(교원) / '7급 12호봉'(저장된 호봉 그대로) */
+  const importedRankStep = $derived.by(() => {
+    if (!ok) return '';
+    const c = careerOf(rulesFor, ok.data.profile, yearOf(todayYmd(new Date())));
+    // '경찰 · 경위 12호봉' / '교원 · 12호봉' / '일반직(별표 4) · 7급 12호봉'
+    return `${trackNameOf(c)} · ${rankStepLabel(c, ok.data.profile.step)}`;
+  });
 
   function lockMessage(code: LockError, from: 'file' | 'paste'): string {
     switch (code) {
@@ -212,7 +211,7 @@
           <dd>{ok.data.profile.nickname}</dd>
         </div>
         <div class="kv">
-          <dt>직급·호봉</dt>
+          <dt>직종·호봉</dt>
           <dd>{importedRankStep}</dd>
         </div>
         <div class="kv">

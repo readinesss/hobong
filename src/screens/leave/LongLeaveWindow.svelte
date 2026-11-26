@@ -5,13 +5,26 @@
    * 이미 썼는지는 저장하지 않으므로 알 수 없다(사실만 적는다).
    */
   import { view } from '../../lib/app/view.svelte.ts';
+  import { withRo } from '../../lib/app/format.ts';
   import { formatKorean, type Ymd } from '../../lib/calc/date.ts';
   import type { LongLeaveNotice } from '../../lib/calc/milestones.ts';
+  import OffNote from '../../lib/ui/OffNote.svelte';
   import Win from '../../lib/ui/Win.svelte';
 
   const notices = $derived(view.longLeave);
-  const source = $derived(view.rules.leave.longService.source);
-  const lawName = $derived(view.rules.laws[source.law]?.name ?? source.law);
+  /** 이 직종에서 장기재직휴가를 계산하지 않으면(소방: 조례, 준비 중) 숫자 대신 사유를 보인다 */
+  const off = $derived(view.longLeaveOff);
+  // 일수는 국가공무원 복무규정 제20조제18항에서 온다. 직종 규정이 그 조문을 적용하게 하면
+  // (경찰공무원 복무규정 제20조, 교원휴가에 관한 예규 제8조 등) 적용 조항을 괄호에 함께 적는다.
+  const lawOf = (s: { law: string; article: string }) =>
+    `${view.rules.laws[s.law]?.name ?? s.law} ${s.article}`;
+  const sourceText = $derived.by(() => {
+    const own = view.careerRules.sources.filter((s) => s.feature === 'leaveLongService');
+    const base = own.find((s) => s.base)?.source;
+    const applies = own.find((s) => !s.base)?.source;
+    if (base && applies) return `${lawOf(base)} · ${withRo(lawOf(applies))} 적용`;
+    return lawOf(applies ?? base ?? view.rules.leave.longService.source);
+  });
   const d = (date: Ymd) => formatKorean(date, false);
 
   function band(n: LongLeaveNotice): string {
@@ -35,7 +48,17 @@
   }
 </script>
 
-{#if notices.length > 0}
+{#if off}
+  <Win title="장기재직휴가" icon="icon-plane" id="leave-long" area="long">
+    {#snippet aside()}특별휴가{/snippet}
+    <div class="stack wide">
+      <OffNote {off} id="leave-long-off" />
+      <p class="cap muted">
+        이 직종의 장기재직휴가 일수는 여기서 계산하지 않아요. 소속 기관의 규정을 확인해 주세요.
+      </p>
+    </div>
+  </Win>
+{:else if notices.length > 0}
   <Win title="장기재직휴가" icon="icon-plane" id="leave-long" area="long">
     {#snippet aside()}특별휴가{/snippet}
     <div class="stack wide">
@@ -74,7 +97,7 @@
         구간마다 한 번이에요. 이미 썼다면 넘겨 주세요. 날짜는 임용일부터 센 재직기간으로
         계산했어요(휴직 등은 빼지 않았어요).
       </p>
-      <p class="cap muted src">근거: {lawName} {source.article}</p>
+      <p class="cap muted src">근거: {sourceText}</p>
     </div>
   </Win>
 {/if}

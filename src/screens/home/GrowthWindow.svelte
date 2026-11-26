@@ -1,14 +1,47 @@
 <script lang="ts">
   import { formatDday, withRo } from '../../lib/app/format.ts';
   import { view } from '../../lib/app/view.svelte.ts';
-  import { formatKorean, type Ymd } from '../../lib/calc/date.ts';
+  import { diffDays, formatKorean, type Ymd } from '../../lib/calc/date.ts';
   import Icon from '../../lib/ui/Icon.svelte';
+  import { isAvailable, type Unavailable } from '../../lib/rules/index.ts';
   import Money from '../../lib/ui/Money.svelte';
+  import OffNote from '../../lib/ui/OffNote.svelte';
   import Win from '../../lib/ui/Win.svelte';
 
   const DOT = ' · ';
   /** 바로 위 계급(없으면 null). 이름은 사다리의 이름('6급'·'경감') */
   const nextRank = $derived(view.careerRules.nextRank);
+  const c = $derived(view.careerRules);
+  /** 계급(직급)이 없는 직종(교원): 승진 계열 대신 안내 */
+  const noLadderRank = $derived(c.rank?.hideLabel === true);
+  /** 꺼진 승진 계열(준비 중 등). 사유가 같으면 한 줄로 묶는다 */
+  const promotionOff = $derived.by(() => {
+    if (noLadderRank || view.retired) return [];
+    const items: { label: string; off: Unavailable }[] = [];
+    if (view.minServiceOff) items.push({ label: '승진소요최저연수', off: view.minServiceOff });
+    if (view.longServiceOff) items.push({ label: '근속승진', off: view.longServiceOff });
+    if (view.seniorOff) items.push({ label: '대우공무원', off: view.seniorOff });
+    const merged: typeof items = [];
+    for (const item of items) {
+      const same = merged.find(
+        (m) => m.off.status === item.off.status && m.off.reason === item.off.reason,
+      );
+      if (same) same.label = `${same.label}·${item.label}`;
+      else merged.push({ ...item });
+    }
+    return merged;
+  });
+  /** 근속승진 '할 수 있다' 규정 안내(경찰·해양경찰·소방) */
+  const discretionNote = $derived(
+    isAvailable(c.longService) ? (c.longService.discretionNote ?? '') : '',
+  );
+  const showsPromotion = $derived(
+    !view.retired &&
+      !noLadderRank &&
+      ((view.minService !== null && nextRank !== null) ||
+        (view.senior.applicable && view.senior.date !== null) ||
+        (view.longService.applicable && view.longService.date !== null)),
+  );
   const reached = (date: Ymd) => date <= view.today;
   const yearsOf = (months: number | null) => {
     if (months === null) return '';
@@ -18,7 +51,7 @@
   };
 </script>
 
-<Win title="승급·승진" icon="icon-stairs" id="growth" area="growth">
+<Win title={noLadderRank ? '성장' : '승급·승진'} icon="icon-stairs" id="growth" area="growth">
   <ul class="items">
     <li>
       <div class="head">
@@ -39,18 +72,30 @@
         <p class="cap muted">정년퇴직일 전에 남은 정기승급이 없어요.</p>
       {:else if view.noRaiseReason === 'manual'}
         <p class="cap muted">
-          {formatKorean(view.profile.nextStepDate)}(입력한 날){view.manualRaiseOverdue
+          입력한 날: {formatKorean(view.profile.nextStepDate)}{view.manualRaiseOverdue
             ? ' · 승급일이 지났어요. 내 정보에서 호봉을 고쳐 주세요.'
             : ''}
         </p>
       {:else if view.noRaiseReason === 'payOff'}
         <p class="cap muted">
-          봉급표를 정할 수 없어 다음 승급일을 셀 수 없어요. {view.payOff?.reason ?? ''}
+          {view.payOff?.status === 'input'
+            ? `${view.payOff.reason} 그러면 다음 승급일을 셀 수 있어요.`
+            : `봉급표를 정할 수 없어 다음 승급일을 셀 수 없어요. ${view.payOff?.reason ?? ''}`}
         </p>
       {:else}
-        <p class="cap muted">{view.rankLabel}의 최고호봉({view.maxStep}호봉)이에요.</p>
+        <p class="cap muted">
+          {view.rankLabel ? `${view.rankLabel}의 ` : ''}최고호봉({view.maxStep}호봉)이에요.
+        </p>
       {/if}
     </li>
+
+    {#if noLadderRank}
+      <li id="growth-no-rank">
+        <p class="cap muted">
+          교원 봉급표에는 직급이 없어 호봉만 올라요. 교감·교장 등 직위는 여기서 계산하지 않아요.
+        </p>
+      </li>
+    {/if}
 
     <!-- 정년퇴직 뒤에는 승진·대우공무원 요건이 뜻이 없으니 보여 주지 않는다 -->
     {#if !view.retired && view.minService && nextRank}
@@ -122,11 +167,21 @@
         {:else if view.promotion?.toUnavailableReason}
           <p class="cap muted">{view.promotion.toUnavailableReason}</p>
         {/if}
+        {#if view.longService.reviewFrom && !reached(view.longService.date)}
+          <p class="cap muted">
+            근속승진 심사는 요건일 {diffDays(view.longService.reviewFrom, view.longService.date)}일
+            전({formatKorean(view.longService.reviewFrom, false)})부터 할 수 있어요.
+          </p>
+        {/if}
         {#if view.longService.quotaNote}<p class="cap muted">{view.longService.quotaNote}</p>{/if}
+        {#if discretionNote}<p class="cap muted">{discretionNote}</p>{/if}
       </li>
     {/if}
   </ul>
-  {#if !view.retired}<p class="note">
+  {#each promotionOff as item (item.label)}
+    <OffNote label={item.label} off={item.off} />
+  {/each}
+  {#if showsPromotion}<p class="note">
       요건을 채우는 날이며 실제 승진·선발은 심사와 명부에 따라 달라요. 휴직·징계 기간은 반영하지
       않았으니, 해당하면 설정 &gt; 내 정보에서 날짜를 직접 넣어 주세요.
     </p>{/if}

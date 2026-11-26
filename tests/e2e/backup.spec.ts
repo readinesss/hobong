@@ -174,7 +174,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     ['경찰', fixture('backup-v4-police.json'), /별표 10/],
     ['교원', fixture('backup-v4-teacher.json'), /별표 11/],
     ['그 밖의 특정직', fixture('backup-v4-other.json'), /준비 중/],
-    ['일반직 계급 없음', makeSeedV4({ rank: null }), /계급을 골라 주세요/],
+    ['일반직 계급 없음', makeSeedV4({ rank: null }), /직급을 골라 주세요/],
     ['외무 1등급', makeSeedV4({ track: 'foreign', payTable: null, rank: '1' }), /별표 3/],
     [
       '일반직 별표 8',

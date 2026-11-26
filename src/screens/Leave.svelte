@@ -7,6 +7,7 @@
     formatWon,
     leaveBalance,
     MASKED_WON,
+    josa,
     withRo,
   } from '../lib/app/format.ts';
   import { app } from '../lib/app/state.svelte.ts';
@@ -28,7 +29,11 @@
     recordsOfYear,
     workdaysInRange,
   } from '../lib/calc/leave.ts';
+  import { isAvailable } from '../lib/rules/index.ts';
+  import type { Unavailable } from '../lib/rules/types.ts';
+  import { nav } from '../lib/app/nav.svelte.ts';
   import { LIMITS, type LeaveKind } from '../lib/store/schema.ts';
+  import OffNote from '../lib/ui/OffNote.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
@@ -41,6 +46,30 @@
   const leave = $derived(view.leave);
   const hpd = $derived(leave.hoursPerDay);
   const rules = $derived(view.rules.leave);
+  /** 이 직종의 연가 규정(연가보상비·미리 쓰기는 직종마다 다르다) */
+  const career = $derived(view.careerRules);
+  /** 연가 화면 문구: 교원은 나이스, 저축·이월 연가 없음(교원휴가 예규 제10조). 없으면 일반 문구 */
+  const screen = $derived(career.track.leaveScreen ?? null);
+  const compensation = $derived(
+    isAvailable(career.leave.compensation) ? career.leave.compensation : null,
+  );
+  const advance = $derived(isAvailable(career.leave.advance) ? career.leave.advance : null);
+  /** 연가 일수 계산이 꺼진 직종(준비 중): 재직기간 계산·제15조 문구를 쓰지 않고, 넣기 전에는 남은 숫자도 보이지 않는다 */
+  const annualOff = $derived(
+    isAvailable(career.leave.annual) ? null : (career.leave.annual as unknown as Unavailable),
+  );
+  const lawOf = (law: string) => view.rules.laws[law]?.name ?? law;
+  /** 미리 쓰기 표의 기간 이름('1년 이상 2년 미만'). 데이터에 이름이 있으면 그대로 */
+  function monthsText(months: number): string {
+    if (months % 12 === 0) return `${months / 12}년`;
+    return months < 12 ? `${months}개월` : `${Math.floor(months / 12)}년 ${months % 12}개월`;
+  }
+  function bandText(tier: { fromMonths: number; toMonths: number | null; label?: string }): string {
+    if (tier.label) return tier.label;
+    if (tier.toMonths === null) return `${monthsText(tier.fromMonths)} 이상`;
+    if (tier.fromMonths === 0) return `${monthsText(tier.toMonths)} 미만`;
+    return `${monthsText(tier.fromMonths)} 이상 ${monthsText(tier.toMonths)} 미만`;
+  }
 
   function firstWorkdayFrom(date: Ymd): Ymd {
     let cur = date;
@@ -126,8 +155,19 @@
   function resetGrant() {
     app.setGrantOverride(leave.year, null);
     showGrant = false;
-    app.toast('재직기간으로 자동 계산하도록 되돌렸어요.', 'info', 'icon-undo');
+    app.toast(
+      annualOff ? '직접 넣은 부여 일수를 지웠어요.' : '재직기간으로 자동 계산하도록 되돌렸어요.',
+      'info',
+      'icon-undo',
+    );
   }
+  // 홈 연가 창의 [부여 일수 넣기]로 들어오면 대화상자를 바로 연다
+  $effect(() => {
+    if (nav.editGrantRequested) {
+      nav.editGrantRequested = false;
+      untrack(openGrant);
+    }
+  });
 
   // ── 여러 날 한꺼번에 ─────────────────────────────────────────────────
   let rangeFrom = $state<Ymd | ''>('');
@@ -190,41 +230,65 @@
     <Win title="올해 연가" icon="icon-palm" id="leave-summary" area="summary">
       {#snippet aside()}{leave.year}년{/snippet}
       <div class="stack wide">
-        <div class="kv">
-          <span>{balance.label}</span>
-          <strong class="big" class:warn={balance.over}>
-            {balance.value}
-          </strong>
-        </div>
-        <Progress
-          value={leave.rate}
-          label="올해 연가 사용률"
-          valueText={leave.grantedHours > 0 ? `${balance.rateText} 사용` : '부여된 연가 없음'}
-          cells={Math.max(4, Math.min(24, Math.round(leave.grantedHours / hpd)))}
-        />
+        {#if leave.needsManualGrant}
+          <div class="kv">
+            <span>사용</span>
+            <strong class="big">{formatLeaveHours(leave.usedHours, hpd)}</strong>
+          </div>
+        {:else}
+          <div class="kv">
+            <span>{balance.label}</span>
+            <strong class="big" class:warn={balance.over}>
+              {balance.value}
+            </strong>
+          </div>
+          <Progress
+            value={leave.rate}
+            label="올해 연가 사용률"
+            valueText={leave.grantedHours > 0 ? `${balance.rateText} 사용` : '부여된 연가 없음'}
+            cells={Math.max(4, Math.min(24, Math.round(leave.grantedHours / hpd)))}
+          />
+        {/if}
         <dl class="stack">
           <div class="kv">
             <dt>부여</dt>
             <dd>
-              {formatLeaveHours(leave.grantedHours, hpd)}
-              <span class="cap muted">
-                {leave.overridden ? '(직접 수정)' : '(재직기간으로 계산)'}
-              </span>
+              {#if leave.needsManualGrant}
+                <span class="muted">직접 넣어 주세요</span>
+              {:else}
+                {formatLeaveHours(leave.grantedHours, hpd)}
+                <span class="cap muted">
+                  {leave.overridden
+                    ? annualOff
+                      ? '(직접 넣은 값)'
+                      : '(직접 수정)'
+                    : '(재직기간으로 계산)'}
+                </span>
+              {/if}
             </dd>
           </div>
-          <div class="kv">
-            <dt>사용</dt>
-            <dd>
-              {formatLeaveHours(leave.usedHours, hpd)}
-              {#if leave.plannedHours > 0}<span class="cap muted">
-                  (예정 {formatLeaveHours(leave.plannedHours, hpd)} 포함)
-                </span>{/if}
-            </dd>
-          </div>
-          <div class="kv">
-            <dt>사용률</dt>
-            <dd class="num">{balance.rateText}</dd>
-          </div>
+          <!-- 부여 일수를 넣기 전에는 위 큰 글자가 사용 시간이라 같은 줄을 되풀이하지 않는다(예정만 덧붙인다) -->
+          {#if !leave.needsManualGrant || leave.plannedHours > 0}
+            <div class="kv">
+              <dt>{leave.needsManualGrant ? '그중 예정' : '사용'}</dt>
+              <dd>
+                {#if leave.needsManualGrant}
+                  {formatLeaveHours(leave.plannedHours, hpd)}
+                {:else}
+                  {formatLeaveHours(leave.usedHours, hpd)}
+                  {#if leave.plannedHours > 0}<span class="cap muted">
+                      (예정 {formatLeaveHours(leave.plannedHours, hpd)} 포함)
+                    </span>{/if}
+                {/if}
+              </dd>
+            </div>
+          {/if}
+          {#if !leave.needsManualGrant}
+            <div class="kv">
+              <dt>사용률</dt>
+              <dd class="num">{balance.rateText}</dd>
+            </div>
+          {/if}
         </dl>
         {#if leave.nextChange}
           <p class="note">
@@ -234,26 +298,40 @@
           </p>
         {/if}
         {#if leave.needsManualGrant}
-          <p class="note">
-            올해 연가 일수를 직접 넣어 주세요(이 직종의 연가 계산은 준비 중이에요).
+          <p class="note" id="leave-manual-grant">
+            올해 연가 일수를 직접 넣어 주세요. 넣으면 남은 연가와 사용률을 셀 수 있어요.
           </p>
+          {#if annualOff}<OffNote label="연가 일수" off={annualOff} id="leave-annual-off" />{/if}
         {:else if leave.grantedHours === 0 && !leave.overridden}
           <p class="note">임용 후 1개월이 지나면 연가가 생겨요.</p>
         {/if}
         {#if leave.remainingHours < 0 && view.advanceLimit !== null}
           <p class="note warn">
-            부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요(복무규정
-            제16조).
+            부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요({advance
+              ? `${lawOf(advance.source.law)} ${advance.source.article}`
+              : '복무규정 제16조'}).
           </p>
         {/if}
         <div class="btn-row">
           <button type="button" class="btn small" onclick={openGrant}>
-            <Icon name="icon-pencil" /> 부여 일수 고치기
+            <Icon name="icon-pencil" />
+            {leave.needsManualGrant ? '부여 일수 넣기' : '부여 일수 고치기'}
           </button>
         </div>
-        <p class="cap muted">가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.</p>
+        <!-- 연가 일수가 준비 중인 직종은 위 안내가 같은 말을 하므로 일반직용 도움말을 쓰지 않는다 -->
+        {#if !annualOff}
+          <p class="cap muted">
+            {screen && !screen.savingCarryOver
+              ? '성실 근무 가산(총 2일 이내)이 있으면 부여 일수를 직접 고쳐 주세요.'
+              : '가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.'}
+          </p>
+        {/if}
         <p class="note" id="leave-reference">
-          참고용 장부예요. 공식 기록은 소속 기관 인사시스템(e-사람 등)이 기준이에요.
+          {screen
+            ? `참고용 장부예요. 공식 기록은 ${josa(screen.recordSystem, '이', '가')} 기준이에요.`
+            : annualOff
+              ? '참고용 장부예요. 공식 기록은 소속 기관 인사시스템이 기준이에요.'
+              : '참고용 장부예요. 공식 기록은 소속 기관 인사시스템(e-사람 등)이 기준이에요.'}
         </p>
       </div>
     </Win>
@@ -481,35 +559,71 @@
     <LongLeaveWindow />
   </div>
   <section class="about">
-    <p class="note">
-      연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가
-      기록은 다루지 않아요.
+    <p class="note" id="leave-about">
+      {#if annualOff}
+        이 직종의 연가 일수는 계산하지 않고 직접 넣은 값을 써요. 휴직·결근 공제와 병가·공가·특별휴가
+        기록은 다루지 않아요.
+      {:else}
+        연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가
+        기록은 다루지 않아요.
+      {/if}
       {#if view.leaveProrated}
         올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
       {/if}
     </p>
-    {#if view.leaveDayPrice !== null}
+    {#if view.leaveDayPrice !== null && compensation}
       <p class="note">
         연가보상비 1일 단가: {view.data.settings.hideAmounts
           ? MASKED_WON
-          : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(
-          rules.compensation.rate * 100,
-        )}% ÷
-        {rules.compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관
-        방침에 따라 달라요(최대 {rules.compensation.maxDays}일).
+          : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(compensation.rate * 100)}%
+        ÷
+        {compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관 방침에
+        따라 달라요(최대 {compensation.maxDays}일).
       </p>
     {:else if view.leaveCompensationOff}
-      <p class="note">연가보상비: {view.leaveCompensationOff.reason}</p>
+      <OffNote label="연가보상비" off={view.leaveCompensationOff} id="leave-compensation-off" />
+    {/if}
+    {#if career.track.leaveNote}
+      <p class="note" id="leave-track-note">{career.track.leaveNote}</p>
+    {/if}
+    {#each career.track.notes ?? [] as note, i (i)}
+      <p class="cap muted">{note}</p>
+    {/each}
+    {#if advance}
+      <details class="cap" id="leave-advance">
+        <summary>
+          미리 쓸 수 있는 연가({lawOf(advance.source.law)}
+          {advance.source.article})
+        </summary>
+        <table class="advance">
+          <thead><tr><th scope="col">재직기간</th><th scope="col">최대</th></tr></thead>
+          <tbody>
+            {#each advance.tiers as tier (tier.fromMonths)}
+              <tr><td>{bandText(tier)}</td><td class="num">{tier.days}일</td></tr>
+            {/each}
+          </tbody>
+        </table>
+        {#if advance.source.note}<p class="muted">{advance.source.note}</p>{/if}
+      </details>
+    {:else if !isAvailable(career.leave.advance)}
+      <OffNote label="연가 미리 쓰기" off={career.leave.advance} />
     {/if}
   </section>
 </div>
 
 {#if showGrant}
-  <Modal title="올해 부여 일수 고치기" icon="icon-pencil" onclose={() => (showGrant = false)}>
+  <Modal
+    title={annualOff ? '올해 부여 일수 넣기' : '올해 부여 일수 고치기'}
+    icon="icon-pencil"
+    onclose={() => (showGrant = false)}
+  >
     <div class="stack wide">
       <p>
-        가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 e-사람에
-        나온 일수를 그대로 넣어 주세요.
+        {annualOff
+          ? '이 직종의 연가 일수는 아직 계산하지 않아요. 소속 기관 인사시스템에 나온 올해 연가 일수를 그대로 넣어 주세요.'
+          : screen && !screen.savingCarryOver
+            ? `성실 근무 가산 연가(총 2일 이내), 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen.recordSystem.replace(/\(.*\)$/, '')}에 나온 일수를 그대로 넣어 주세요.`
+            : '가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 e-사람에 나온 일수를 그대로 넣어 주세요.'}
       </p>
       <div class="grant">
         <Stepper id="grant-days" label="일" bind:value={grantDays} min={0} max={60} unit="일" />
@@ -522,11 +636,15 @@
           unit="시간"
         />
       </div>
-      <p class="cap muted">재직기간으로 계산한 값: {formatLeaveHours(leave.autoHours, hpd)}</p>
+      {#if !annualOff}
+        <p class="cap muted">재직기간으로 계산한 값: {formatLeaveHours(leave.autoHours, hpd)}</p>
+      {/if}
     </div>
     {#snippet actions()}
       {#if leave.overridden}
-        <button type="button" class="btn" onclick={resetGrant}>자동 계산으로 되돌리기</button>
+        <button type="button" class="btn" onclick={resetGrant}>
+          {annualOff ? '넣은 값 지우기' : '자동 계산으로 되돌리기'}
+        </button>
       {/if}
       <button type="button" class="btn primary" data-autofocus onclick={saveGrant}>저장</button>
     {/snippet}
@@ -679,6 +797,22 @@
   }
   .bridges .kv {
     width: 100%;
+  }
+  .advance {
+    border-collapse: collapse;
+    margin: 6px 0;
+  }
+  .advance th,
+  .advance td {
+    padding: 3px 12px 3px 0;
+    text-align: left;
+    font-weight: 400;
+  }
+  #leave-advance summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
   }
   .about {
     grid-area: about;

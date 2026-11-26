@@ -112,6 +112,8 @@ export interface CareerLookup {
   rankLabel: (sel: CareerPick) => string;
   /** 그 해 규칙의 사다리에서 고를 수 있는 계급 키(낮은 계급부터). 사다리가 없으면 [] */
   selectableRanks: (track: TrackId, payTable: PayTableId | null) => readonly RankKey[];
+  /** 그 사다리의 이름('직급'·'계급'·'직무등급'). 사다리가 없거나 이름이 없으면(교원) null */
+  rankNoun?: (track: TrackId, payTable: PayTableId | null) => string | null;
 }
 
 /** 직종·봉급표·계급 선택(규정 쪽 CareerSel 과 같은 모양) */
@@ -196,7 +198,13 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   const choices = semantic && track && payTableOk ? ctx.selectableRanks(track, payTable) : null;
   if (choices && rankOk) {
     const fits = choices.length === 0 ? rank === null : choices.includes(rank as RankKey);
-    if (!fits) errors.rank = '이 계급은 고를 수 없어요.';
+    // 고른 적이 없으면(null) '고를 수 없다'가 아니라 사다리 이름으로 골라 달라고 한다
+    const noun =
+      rank === null && track && choices.length > 0
+        ? (ctx.rankNoun?.(track, payTable as PayTableId | null) ?? null)
+        : null;
+    if (!fits)
+      errors.rank = noun ? `${josa(noun, '을', '를')} 골라 주세요.` : '이 계급은 고를 수 없어요.';
   }
   const sel: CareerPick | null =
     track && payTableOk && rankOk && !errors.rank

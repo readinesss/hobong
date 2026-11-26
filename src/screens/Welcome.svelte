@@ -213,7 +213,10 @@
               <Icon name="icon-lock" /> 외부로 나가는 통신이 없어요. 인터넷이 막힌 업무망에서도 그대로
               동작해요.
             </li>
-            <li><Icon name="icon-user" /> 실명·소속은 묻지 않아요. 닉네임만 받아요.</li>
+            <li>
+              <Icon name="icon-user" /> 실명·소속은 묻지 않아요. 이름 대신 닉네임을 쓰고, 직종·계급은
+              계산 규정을 고르는 데만 써요. 홈 화면에는 계급 이름이 보이니 화면을 공유할 때 참고해 주세요.
+            </li>
             <li><Icon name="icon-book" /> 금액은 봉급표 기준 추정치이며 실수령액과 달라요.</li>
           </ul>
           {#if !app.persistent}
@@ -239,7 +242,8 @@
           </div>
         </section>
         <p class="cap muted center foot">
-          적용 대상: {rules.target.label}. 입력한 값은 설정에서 언제든 고칠 수 있어요.
+          적용 대상: {rules.target.label} — 일반직(공안·우정 포함)·경찰·소방·국공립 교원. 해양경찰·외무는
+          일부, 군무원과 그 밖의 특정직은 준비 중이에요. 입력한 값은 설정에서 언제든 고칠 수 있어요.
         </p>
       </div>
     {/if}

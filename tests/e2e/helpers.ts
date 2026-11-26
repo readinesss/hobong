@@ -211,3 +211,53 @@ export function makeSeedV4(
     data,
   });
 }
+
+export interface FillProfile {
+  /** 직종 칩의 글자('경찰'·'교원'·'해양경찰 (일부 준비 중)') */
+  track?: string;
+  /** 일반직 봉급표 칩의 글자('공안업무 등(별표 4)') */
+  payTable?: string;
+  /** 계급 select 의 값('경정'·'7') */
+  rank?: string;
+  /** 계급 칸 이름('현재 계급'·'현재 직급'·'현재 직무등급') */
+  rankLabel?: string;
+  rankDate?: string;
+  birthDate?: string;
+  hireDate?: string;
+  step?: number;
+  nextStepDate?: string;
+}
+
+/**
+ * 첫 화면에서 직종 → (일반직이면) 봉급표 → 계급 순서로 내 정보를 넣고 대시보드까지 간다(#20 §7.1).
+ * 계급 칸이 없는 직종(교원·준비 중)은 rank 를 비워 둔다.
+ */
+export async function onboardTrack(page: Page, p: FillProfile): Promise<void> {
+  await page.getByRole('button', { name: '새로 시작' }).click();
+  await page.getByLabel('닉네임').fill('호봉이집사');
+  await fillDate(page, '생년월일', p.birthDate ?? '1975-03-10');
+  await fillDate(page, '임용일', p.hireDate ?? '2005-03-02');
+  if (p.track) await page.getByRole('radio', { name: p.track, exact: true }).click();
+  if (p.payTable) await page.getByRole('radio', { name: p.payTable, exact: true }).click();
+  if (p.rank) await page.getByLabel(p.rankLabel ?? '현재 계급').selectOption(p.rank);
+  if (p.rankDate) {
+    await page.getByRole('checkbox', { name: '임용 후 승진한 적이 있어요' }).check();
+    const noun = (p.rankLabel ?? '현재 계급').replace('현재 ', '');
+    await fillDate(page, `현 ${noun} 임용일(승진일)`, p.rankDate);
+  }
+  await page.getByLabel('현재 호봉', { exact: true }).fill(String(p.step ?? 10));
+  await fillDate(page, '다음 승급일', p.nextStepDate ?? '2027-03-01');
+  await page.getByRole('button', { name: '알 깨우기' }).click();
+  await tick(page, 6000);
+  await page.getByRole('button', { name: '시작하기' }).click();
+  await tick(page);
+  await expect(page.getByRole('heading', { name: '상태창' })).toBeVisible();
+}
+
+/** 열 때 뜨는 연출·복귀 정산 대화상자를 닫는다 */
+export async function closeDialogs(page: Page): Promise<void> {
+  for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
+    await page.getByRole('dialog').getByRole('button').last().click();
+    await tick(page);
+  }
+}

@@ -11,11 +11,7 @@ import {
   type Ymd,
 } from './date.ts';
 import type { CareerProfile } from './career-profile.ts';
-import {
-  RANK_MISSING_REASON,
-  RANK_NOT_IN_LADDER_REASON,
-  type CareerRules,
-} from '../rules/career.ts';
+import { rankProblemOff, type CareerRules } from '../rules/career.ts';
 import { isAvailable, type Avail, type RankKey, type RetirementRules } from '../rules/types.ts';
 
 export interface RetirementInfo {
@@ -126,10 +122,7 @@ export function effectiveRetirement(
   if (!isAvailable(rules)) return rules;
   const override = p.overrides.rankLimitDate;
   if (rules.rankLimit && c.rankProblem !== null && override === null) {
-    return {
-      status: 'pending',
-      reason: c.rankProblem === 'missing' ? RANK_MISSING_REASON : RANK_NOT_IN_LADDER_REASON,
-    };
+    return rankProblemOff(c.rankProblem, c.ladder?.noun);
   }
   const age = retirementInfo(rules, p.birthDate);
   const rankLimit = rankLimitInfo(rules, c.rank ? c.rank.key : null, p.rankDate, override);
@@ -146,10 +139,13 @@ export function effectiveRetirement(
 /** 정년 구간 규칙을 글로 만든다('1~6월이면 6월 30일, 7~12월이면 12월 31일'). 규정 데이터 periods 에서 읽는다 */
 export function retirePeriodText(rules: RetirementRules): string {
   const months = (from: number, to: number) => (from === to ? `${from}월` : `${from}~${to}월`);
+  // 다음 해로 넘어가는 구간이 있으면(교원 9~12월) 같은 해 구간에 '그해'를 붙여 앞 구절에 끌려 읽히지 않게 한다
+  const crossesYear = rules.periods.some((p) => (p.yearOffset ?? 0) !== 0);
   return rules.periods
     .map((p) => {
       const offset = p.yearOffset ?? 0;
-      const year = offset === 1 ? '다음 해 ' : offset === 0 ? '' : `${offset}년 뒤 `;
+      const year =
+        offset === 1 ? '다음 해 ' : offset === 0 ? (crossesYear ? '그해 ' : '') : `${offset}년 뒤 `;
       const day =
         p.retireDay === 'last'
           ? p.retireMonth === 2

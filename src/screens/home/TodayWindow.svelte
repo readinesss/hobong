@@ -1,5 +1,6 @@
 <script lang="ts">
   import { formatDday, formatNumber } from '../../lib/app/format.ts';
+  import { offSentence } from '../../lib/app/track.ts';
   import { app } from '../../lib/app/state.svelte.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatMonthDay, weekdayName } from '../../lib/calc/date.ts';
@@ -59,17 +60,18 @@
     <div class="stack">
       <div class="row between">
         <span class="muted">오늘 번 돈</span>
-        <button
-          type="button"
-          class="btn small"
-          aria-pressed={hidden}
-          onclick={toggleHide}
-          title="금액 가리기"
-        >
-          <!-- 이름은 그대로 두고 눌림 상태(aria-pressed)만 바꾼다: 글자·title·상태가 서로 어긋나지 않게 -->
-          <Icon name={hidden ? 'icon-eye-off' : 'icon-eye'} />
-          <span class="cap">금액 가리기</span>
-        </button>
+        <!-- 봉급을 계산하지 않는 직종은 가릴 금액이 없다 -->
+        {#if view.salary}<button
+            type="button"
+            class="btn small"
+            aria-pressed={hidden}
+            onclick={toggleHide}
+            title="금액 가리기"
+          >
+            <!-- 이름은 그대로 두고 눌림 상태(aria-pressed)만 바꾼다: 글자·title·상태가 서로 어긋나지 않게 -->
+            <Icon name={hidden ? 'icon-eye-off' : 'icon-eye'} />
+            <span class="cap">금액 가리기</span>
+          </button>{/if}
       </div>
       {#if earn}
         <p class="big earn"><Money value={earn.today} /></p>
@@ -79,7 +81,9 @@
             : ''}
         </p>
       {:else}
-        <p class="cap muted">봉급 계산은 준비 중이에요. {view.payOff?.reason ?? ''}</p>
+        <p class="cap muted" id="today-pay-off">
+          {view.payOff ? offSentence('봉급', view.payOff) : '봉급 계산은 준비 중이에요.'}
+        </p>
       {/if}
     </div>
 

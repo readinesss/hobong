@@ -54,6 +54,7 @@ import {
 import {
   careerProgress,
   effectiveRetirement,
+  retireDateFor,
   retirePeriodText,
   serviceDayOf,
 } from '../calc/retirement.ts';
@@ -141,14 +142,14 @@ class View {
    * 저장된 내 정보 중 지금 기준으로 맞지 않는 값(PC 시계가 뒤로 갔거나 규정이 바뀐 경우).
    * 저장본은 그대로 열고, 화면에서 확인을 부탁한다.
    */
-  profileIssues = $derived(
-    Object.values(
-      checkProfile(this.profile, {
-        today: this.today,
-        ...careerLookup(this.rules),
-      }),
-    ),
+  /** 내 정보 점검 결과(칸 이름 → 문구) */
+  profileIssueMap = $derived(
+    checkProfile(this.profile, {
+      today: this.today,
+      ...careerLookup(this.rules),
+    }) as Partial<Record<string, string>>,
   );
+  profileIssues = $derived(Object.values(this.profileIssueMap).filter((m): m is string => !!m));
 
   // ── 정년 ─────────────────────────────────────────────────────────────
   /** 정년(연령정년·계급정년 중 먼저 오는 날). 정년 규정이 꺼진 직종은 그 상태 */
@@ -164,8 +165,19 @@ class View {
     const rules = this.careerRules.retirement;
     if (!isAvailable(r) || !isAvailable(rules)) return null;
     const law = this.rules.laws[rules.source.law]?.name ?? rules.source.law;
+    // 2월 29일생이 평년에 정년 나이가 되면 '이른 날'을 3월 1일로 본다. 2월 28일로 보면 퇴직일이 달라지는
+    // 직종(교원: 3~8월 → 8월 31일, 1~2월 → 2월 말일)에서는 그 날을 함께 알려 준다(설계 §11.1-2)
+    const leapBirth =
+      this.profile.birthDate.endsWith('-02-29') && r.age.reachDate.endsWith('-03-01');
+    const altRetire = leapBirth
+      ? retireDateFor(rules, `${r.age.reachDate.slice(0, 4)}-02-28`)
+      : r.age.retireDate;
     return {
       reachDate: r.age.reachDate,
+      /** 연령정년의 퇴직일(계급정년이 먼저여도 함께 보여 준다) */
+      ageRetireDate: r.age.retireDate,
+      /** 2월 29일생의 다른 해석(2월 28일에 이른 것으로 볼 때) 퇴직일. 같으면 null */
+      leapAltRetireDate: altRetire !== r.age.retireDate ? altRetire : null,
       retireDate: r.retireDate,
       age: r.ageYears,
       cause: r.cause,

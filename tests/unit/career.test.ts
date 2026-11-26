@@ -93,7 +93,8 @@ describe('모든 조합이 예외 없이 해석된다', () => {
         expect(f).toBeTruthy();
         if (!isAvailable(f as object)) {
           const off = f as { status: string; reason: string };
-          expect(['pending', 'none', 'external']).toContain(off.status);
+          // input: 계급을 고르지 않았거나 목록에 없음(조합에 그런 선택도 들어 있다)
+          expect(['pending', 'none', 'external', 'input']).toContain(off.status);
         }
       }
       if (isAvailable(c.pay)) {
@@ -368,12 +369,21 @@ describe('계급이 없거나 사다리에 없을 때', () => {
       rank: null,
       nextRank: null,
     });
-    expect(c.pay).toEqual({ status: 'pending', reason: RANK_MISSING_REASON });
+    expect(c.pay).toEqual({ status: 'input', reason: RANK_MISSING_REASON });
   });
   it('사다리에 없는 계급 → 계급을 다시 골라 주세요(계급 기준 값은 찾지 못한다)', () => {
     const c = resolveCareer(R, sel('general', '경위', 'table3'));
     expect(c).toMatchObject({ rankUnknown: true, rankProblem: 'notInLadder' });
-    expect(c.pay).toEqual({ status: 'pending', reason: RANK_NOT_IN_LADDER_REASON });
+    // 사유는 사다리 이름을 따른다(일반직은 '직급')
+    expect(c.pay).toEqual({ status: 'input', reason: '직급을 다시 골라 주세요.' });
+    expect(resolveCareer(R, sel('police', '7')).pay).toEqual({
+      status: 'input',
+      reason: RANK_NOT_IN_LADDER_REASON,
+    });
+    expect(resolveCareer(R, sel('foreign', null)).pay).toEqual({
+      status: 'input',
+      reason: '직무등급을 골라 주세요.',
+    });
     expect(on(c.minService).monthsByGrade['경위']).toBeUndefined();
     const t = resolveCareer(R, sel('teacher', '9'));
     expect(t.rankProblem).toBe('notInLadder');

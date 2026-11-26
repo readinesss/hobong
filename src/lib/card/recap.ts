@@ -18,6 +18,7 @@ import type { CardRatio } from '../store/schema.ts';
 import {
   CARD_COLORS as C,
   CARD_SIZES,
+  cardRankStep,
   chip,
   fit,
   frame,
@@ -41,7 +42,8 @@ export interface RecapCardModel {
   periodText: string;
   look: Look;
   formName: string;
-  rank: string;
+  /** 카드에 넣을 계급 이름. 빈 문자열이면 '12호봉'만(교원·'계급 이름 넣기' 끔) */
+  rankLabel: string;
   step: number;
   /** '4→5호봉'. 올해 오른 적이 없으면 null */
   stepText: string | null;
@@ -217,7 +219,7 @@ export function drawRecapCard(
   cy += 24;
   text(ctx, fit(ctx, model.nickname, 15, cw), cx, cy, 15, C.INK);
   cy += 20;
-  const stepLine = `${model.rank}급 ${model.step}호봉`;
+  const stepLine = cardRankStep(model);
   text(ctx, stepLine, cx, cy, widthOf(ctx, stepLine, 15) <= cw ? 15 : 12, C.INK);
   cy += 20;
   if (model.stepText) {
@@ -345,7 +347,7 @@ export function recapTextCard(model: RecapCardModel): string {
   const pair = (a: string, b: string) => [fact(a), fact(b)].filter(Boolean).join(' · ');
   const lines = [
     `[${model.siteName}] ${model.nickname}의 ${model.year}년 (${model.periodText})`,
-    `${model.rank}급 ${model.step}호봉${model.stepText ? ` · 승급 ${model.stepText}` : ''}`,
+    `${cardRankStep(model)}${model.stepText ? ` · 승급 ${model.stepText}` : ''}`,
     pair('근무일', '연가'),
     pair('출근 도장', '배지'),
     model.siteUrl,

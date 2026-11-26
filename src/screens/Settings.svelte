@@ -3,11 +3,13 @@
   import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
+  import { PAY_TABLE_SHORT, trackStatusText } from '../lib/app/track.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
   import { session } from '../lib/app/session.svelte.ts';
   import { APP_VERSION, app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
+  import { isAvailable } from '../lib/rules/index.ts';
   import { checkWorkHours } from '../lib/calc/today.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { REPO_URL, SITE_URL } from '../lib/config.ts';
@@ -30,6 +32,9 @@
   const settings = $derived(view.data.settings);
   const meta = $derived(view.data.meta);
   const profile = $derived(view.profile);
+  const trackStatus = $derived(trackStatusText(view.careerRules.track));
+  /** '직급'·'계급'·'직무등급'(사다리가 없으면 '직급') */
+  const noun = $derived(view.careerRules.ladder?.noun ?? '직급');
 
   let editing = $state(false);
   let importing = $state(false);
@@ -91,6 +96,13 @@
       app.toast('새 배지: 야근 모드', 'good', 'icon-moon', 4500);
     }
   }
+
+  // 직접 넣은 날짜는 직종을 바꿔도 지우지 않는다(되돌아가면 다시 쓴다). 지금 직종이 그 항목을 계산하지
+  // 않으면 정년·승진 계산에 들어가는 것처럼 읽히지 않게 한마디 붙인다
+  const unusedNote = ' (지금 직종에서는 쓰지 않아요)';
+  const rankLimitApplies = $derived(
+    isAvailable(view.careerRules.retirement) && !!view.careerRules.retirement.rankLimit,
+  );
 
   // 안내 띠의 '내 정보 고치기'로 들어오면 고치기 대화상자를 바로 연다
   $effect(() => {
@@ -272,12 +284,26 @@
           <dd>{formatKorean(profile.hireDate, false)}</dd>
         </div>
         <div class="kv">
-          <dt>직급·호봉</dt>
-          <dd>{view.rankStepLabel}</dd>
+          <dt>직종</dt>
+          <dd>
+            {view.careerRules.track.label}{#if trackStatus}<span class="cap muted">
+                ({trackStatus})
+              </span>{/if}
+          </dd>
+        </div>
+        {#if PAY_TABLE_SHORT[view.careerRules.payTableId ?? 'table3'] && profile.track === 'general'}
+          <div class="kv">
+            <dt>봉급표</dt>
+            <dd>{PAY_TABLE_SHORT[view.careerRules.payTableId ?? 'table3']}</dd>
+          </div>
+        {/if}
+        <div class="kv">
+          <dt>{view.rankLabel ? `${noun}·호봉` : '호봉'}</dt>
+          <dd>{view.rankStepLabel}{view.raisesAutomatically ? '' : ' (입력값)'}</dd>
         </div>
         {#if profile.rankDate !== profile.hireDate}
           <div class="kv">
-            <dt>현 직급 임용일</dt>
+            <dt>현 {noun} 임용일</dt>
             <dd>{formatKorean(profile.rankDate, false)}</dd>
           </div>
         {/if}
@@ -288,19 +314,45 @@
               ? formatKorean(view.nextRaise.date, false)
               : view.noRaiseReason === 'retire'
                 ? '정년 전 승급 없음'
-                : '최고호봉'}
+                : view.noRaiseReason === 'manual'
+                  ? `${formatKorean(view.profile.nextStepDate, false)} (입력한 날)`
+                  : view.noRaiseReason === 'payOff'
+                    ? '봉급표를 정한 뒤 계산'
+                    : '최고호봉'}
           </dd>
         </div>
         {#if profile.overrides.longServiceDate}
           <div class="kv">
             <dt>근속승진 요건일(직접)</dt>
-            <dd>{formatKorean(profile.overrides.longServiceDate, false)}</dd>
+            <dd>
+              {formatKorean(profile.overrides.longServiceDate, false)}{isAvailable(
+                view.careerRules.longService,
+              )
+                ? ''
+                : unusedNote}
+            </dd>
           </div>
         {/if}
         {#if profile.overrides.seniorDate}
           <div class="kv">
             <dt>대우공무원 예정일(직접)</dt>
-            <dd>{formatKorean(profile.overrides.seniorDate, false)}</dd>
+            <dd>
+              {formatKorean(profile.overrides.seniorDate, false)}{isAvailable(
+                view.careerRules.seniorTreatment,
+              )
+                ? ''
+                : unusedNote}
+            </dd>
+          </div>
+        {/if}
+        {#if profile.overrides.rankLimitDate}
+          <div class="kv">
+            <dt>계급정년에 이르는 날(직접)</dt>
+            <dd>
+              {formatKorean(profile.overrides.rankLimitDate, false)}{rankLimitApplies
+                ? ''
+                : unusedNote}
+            </dd>
           </div>
         {/if}
       </dl>
@@ -435,6 +487,9 @@
               {paydayOptions.find((o) => o.day === settings.payday)?.orgs ?? '직접 정한 날'} · 토요일이나
               공휴일이면 그 전날 받아요(보수규정 제20조).
             </p>
+            {#if view.careerRules.payday.note}
+              <p class="cap muted">{view.careerRules.payday.note}</p>
+            {/if}
             <div class="field inline">
               <label for="set-payday">다른 날이면</label>
               <input
@@ -509,6 +564,11 @@
             <p class="cap muted">
               유연근무를 한다면 맞게 고쳐 주세요. "오늘 번 돈"과 퇴근 카운트다운에 쓰여요.
             </p>
+            {#if view.careerRules.track.workHoursNote}
+              <p class="cap muted" id="set-work-track-note">
+                {view.careerRules.track.workHoursNote}
+              </p>
+            {/if}
           </fieldset>
         </div>
       </Win>

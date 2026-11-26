@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { formatDday, josa } from '../../lib/app/format.ts';
+  import { nav } from '../../lib/app/nav.svelte.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean } from '../../lib/calc/date.ts';
   import Progress from '../../lib/ui/Progress.svelte';
@@ -20,6 +21,8 @@
   });
 
   const look = $derived(view.look);
+  /** '직급'·'계급'·'직무등급' */
+  const rankNoun = $derived(view.careerRules.ladder?.noun ?? '계급');
   const raise = $derived(view.raiseProgress);
   const wearing = $derived(
     look.wearing.map((w) => (w.tint ? `${w.name}(${w.tint})` : w.name)).join(', '),
@@ -47,9 +50,35 @@
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
         </p>
-        <p class="big level">{view.rankStepLabel}</p>
+        <p class="big level">
+          {view.rankStepLabel}{#if !view.raisesAutomatically}<span class="cap muted">
+              (입력값)
+            </span>{/if}
+        </p>
         <p class="cap muted">{look.form.blurb}</p>
       </div>
+
+      {#if view.careerRules.rankProblem}
+        <div class="note warn stack" id="status-rank-problem">
+          <p>
+            {view.careerRules.rankProblem === 'missing'
+              ? `${josa(rankNoun, '을', '를')} 골라 주세요. 아직 ${josa(rankNoun, '을', '를')} 고르지 않아 봉급·승진을 계산하지 않았어요.`
+              : `${josa(rankNoun, '을', '를')} 다시 골라 주세요. 저장된 값이 이 직종의 ${rankNoun} 목록에 없어 봉급·승진을 계산하지 않았어요.`}
+          </p>
+          <div class="btn-row">
+            <button
+              type="button"
+              class="btn small"
+              onclick={() => {
+                nav.editProfileRequested = true;
+                nav.go('settings');
+              }}
+            >
+              내 정보 고치기
+            </button>
+          </div>
+        </div>
+      {/if}
 
       {#if view.maxStep !== null}
         {@const maxStep = view.maxStep}
@@ -87,6 +116,16 @@
             ? '정년퇴직하셨어요. 긴 길을 끝까지 걸어오셨어요.'
             : '정년퇴직일 전에 남은 정기승급이 없어요.'}
         </p>
+      {:else if view.noRaiseReason === 'manual'}
+        <p class="note" class:warn={view.manualRaiseOverdue} id="status-manual-raise">
+          {view.manualRaiseOverdue
+            ? `입력한 다음 승급일(${formatKorean(view.profile.nextStepDate, false)})이 지났어요. 내 정보에서 호봉을 고쳐 주세요.`
+            : `다음 승급일(입력한 날)은 ${formatKorean(view.profile.nextStepDate, false)}이에요. 승급은 자동으로 계산하지 않아요.`}
+        </p>
+      {:else if view.noRaiseReason === 'payOff' && view.careerRules.rankProblem}
+        <!-- 위 상자가 이미 계급을 골라 달라고 한다(같은 말을 두 번 하지 않는다) -->
+      {:else if view.noRaiseReason === 'payOff'}
+        <p class="note">다음 승급은 봉급표를 정한 뒤 셀 수 있어요. {view.payOff?.reason ?? ''}</p>
       {:else}
         <p class="note">최고호봉이에요. 여기까지 오신 걸 축하해요.</p>
       {/if}

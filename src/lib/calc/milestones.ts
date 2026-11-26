@@ -328,13 +328,15 @@ export function buildMilestones(
     // '할 수 있다' 규정임을 밝히는 문구는 규정 데이터(longService.discretionNote)에서 읽는다.
     const note = isAvailable(c.longService) ? c.longService.discretionNote : undefined;
     const discretion = note ? ` ${note}` : '';
+    // 명부 이름은 직종마다 다르다(일반직 승진후보자명부, 소방 승진대상자명부 등). 일반직만 이름을 쓴다
+    const roster = c.sel.track === 'general' ? '승진후보자명부' : '명부';
     push({
       id: `long-service-${slug}`,
       date: longService.date,
       title: `${longService.targetRank.label} 근속승진 요건`,
       detail: longService.overridden
         ? '직접 입력한 요건 충족일.'
-        : `${withRo(rank.label)} ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(승진후보자명부 등재 등 요건 별도).${discretion}`,
+        : `${withRo(rank.label)} ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(${roster} 등재 등 요건 별도).${discretion}`,
       icon: 'icon-stairs',
       kind: 'promotion',
       badge: false,

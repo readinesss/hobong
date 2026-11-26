@@ -15,7 +15,11 @@ import type { CardRatio } from '../store/schema.ts';
 
 export interface CardModel {
   nickname: string;
-  rank: string;
+  /**
+   * 카드에 넣을 계급 이름('7급'·'경위'·'우정7급'). 빈 문자열이면 계급 줄을 접는다
+   * (교원처럼 계급 이름이 없거나, 카드 설정 '계급 이름 넣기'(card.showRank)를 끈 경우).
+   */
+  rankLabel: string;
   step: number;
   /** 봉급표의 최고호봉. 봉급표가 없는 직종(준비 중)은 null('깃' 줄·게이지를 그리지 않는다) */
   maxStep: number | null;
@@ -25,8 +29,13 @@ export interface CardModel {
   line: string;
   /** '2026. 11. 25.' */
   dateText: string;
-  /** 다음 승급까지(최고호봉이면 null) */
-  raise: { ratio: number; dday: string } | null;
+  /**
+   * 다음 승급까지. ratio 가 null 이면 진행 막대 없이 D-day 만(정기승급을 계산하지 않는 직종: 입력한 날).
+   * 다음 승급이 없으면 null
+   */
+  raise: { ratio: number | null; dday: string } | null;
+  /** 다음 승급이 없는 까닭이 최고호봉인지('최고호봉' 줄). 정년 전 승급 없음·준비 중이면 false(줄 없음) */
+  maxReached: boolean;
   /** 켠 항목만 들어온다: '재직 4년 2개월', '정년 D-10,810', '월 봉급 2,226,100원' */
   facts: string[];
   /** 켰을 때만: 최근 배지 */
@@ -329,20 +338,30 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     let cy = py + 28;
     chip(ctx, model.formName, cx - 2, cy);
     cy += 27;
-    // 두 자리 호봉("14호봉")은 큰 글자로는 오른쪽 칸을 넘친다. 넘치면 두 줄 모두 한 단계 작게 쓴다.
+    // 두 자리 호봉("14호봉")·네 글자 계급("치안정감")은 큰 글자로는 오른쪽 칸을 넘친다.
+    // 계급·호봉 중 넓은 쪽이 넘치면 두 줄 모두 한 단계 작게 쓰고, 그래도 넘치는 계급 줄만 더 줄인다.
     const stepText = `${model.step}호봉`;
-    const big: 24 | 30 = widthOf(ctx, stepText, 30) <= cw ? 30 : 24;
-    text(ctx, `${model.rank}급`, cx, cy, big, INK);
-    cy += big + 4;
+    const rankText = model.rankLabel;
+    const widest = Math.max(widthOf(ctx, stepText, 30), rankText ? widthOf(ctx, rankText, 30) : 0);
+    const big: 24 | 30 = widest <= cw ? 30 : 24;
+    if (rankText) {
+      // 계급 이름이 없으면(교원·'계급 이름 넣기' 끔) 이 줄을 접고 호봉 줄을 그 자리로 올린다
+      const rankSize: 15 | 24 | 30 = widthOf(ctx, rankText, big) <= cw ? big : 15;
+      text(ctx, fit(ctx, rankText, rankSize, cw), cx, cy, rankSize, INK);
+      cy += rankSize + 4;
+    }
     text(ctx, stepText, cx, cy, big, INK);
     cy += big + 8;
-    if (model.maxStep !== null) text(ctx, `깃 ${model.step}/${model.maxStep}`, cx, cy, 12, MUTED);
-    cy += 18;
+    // 최고호봉을 모르면(봉급표가 없는 직종) '깃 n/m' 줄을 그리지 않는다(m 을 지어내지 않는다)
+    if (model.maxStep !== null) {
+      text(ctx, `깃 ${model.step}/${model.maxStep}`, cx, cy, 12, MUTED);
+      cy += 18;
+    }
     if (model.raise) {
       text(ctx, `승급 ${model.raise.dday}`, cx, cy, 12, INK);
       cy += 18;
-      bar(ctx, cx + 2, cy, cw - 4, 8, model.raise.ratio, 10, GOLD);
-    } else {
+      if (model.raise.ratio !== null) bar(ctx, cx + 2, cy, cw - 4, 8, model.raise.ratio, 10, GOLD);
+    } else if (model.maxReached) {
       text(ctx, '최고호봉', cx, cy, 12, INK);
     }
     // 닉네임 줄을 무대 바로 밑에 붙여, 켠 항목이 없을 때 배지 한 줄(24) 자리가 남게 한다
@@ -359,13 +378,22 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     const chipW = chip(ctx, model.formName, left, y);
     text(ctx, fit(ctx, model.nickname, 15, inner - chipW - 4), left + chipW + 4, y + 1, 15, INK);
     y += 24;
-    text(ctx, `${model.rank}급 ${model.step}호봉`, left, y, 30, INK);
-    // 아래 점 막대의 이름표(정사각형의 '깃 14/31'과 같다)
-    const maxStep = model.maxStep ?? 0;
-    if (model.maxStep !== null)
-      text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
+    const level = cardRankStep(model);
+    // 네 글자 계급('치안정감 23호봉')은 큰 글자로 오른쪽의 '깃 n/m' 과 겹친다. 한 단계 줄이고,
+    // 그래도 나란히 들어가지 않으면 '깃 n/m' 을 다음 줄로 내린다(계급 글자를 자르지 않는다)
+    const gauge = model.maxStep !== null ? `깃 ${model.step}/${model.maxStep}` : '';
+    const gaugeW = gauge ? Math.ceil(widthOf(ctx, gauge, 12)) + 6 : 0;
+    const levelSize: 24 | 30 = widthOf(ctx, level, 30) + gaugeW <= inner ? 30 : 24;
+    const beside = widthOf(ctx, level, levelSize) + gaugeW <= inner;
+    text(ctx, fit(ctx, level, levelSize, inner), left, y, levelSize, INK);
+    if (gauge && beside) text(ctx, gauge, right, y + 14, 12, MUTED, 'right');
     y += 34;
-    // 깃 게이지
+    if (gauge && !beside) {
+      text(ctx, gauge, right, y - 4, 12, MUTED, 'right');
+      y += 14;
+    }
+    // 깃 게이지(최고호봉을 모르면 그리지 않는다)
+    const maxStep = model.maxStep ?? 0;
     const pipW = 5;
     const pipGap = 2;
     const perRow = Math.floor((inner + pipGap) / (pipW + pipGap));
@@ -381,9 +409,11 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
       text(ctx, '다음 승급까지', left, y, 12, MUTED);
       text(ctx, model.raise.dday, right, y, 12, INK, 'right');
       y += 18;
-      bar(ctx, left + 2, y, inner - 4, 8, model.raise.ratio, 20, GOLD);
-      y += 16;
-    } else {
+      if (model.raise.ratio !== null) {
+        bar(ctx, left + 2, y, inner - 4, 8, model.raise.ratio, 20, GOLD);
+        y += 16;
+      }
+    } else if (model.maxReached) {
       text(ctx, '최고호봉에 올랐어요', left, y, 12, MUTED);
       y += 20;
     }
@@ -420,17 +450,21 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
   return { facts: model.facts.slice(packed.shown), badges: wantBadges && !badgesShown };
 }
 
+/** 카드의 계급·호봉 글자: '7급 12호봉', 계급 이름을 넣지 않으면 '12호봉' */
+export function cardRankStep(model: Pick<CardModel, 'rankLabel' | 'step'>): string {
+  return model.rankLabel ? `${model.rankLabel} ${model.step}호봉` : `${model.step}호봉`;
+}
+
 /** 이미지가 막힌 메신저용 글자 카드(금액은 넣지 않는다) */
 export function textCard(model: CardModel, cells = 10): string {
-  const lines = [
-    `[${model.siteName}] ${model.nickname} · ${model.formName}`,
-    `${model.rank}급 ${model.step}호봉`,
-  ];
-  if (model.raise) {
+  const lines = [`[${model.siteName}] ${model.nickname} · ${model.formName}`, cardRankStep(model)];
+  if (model.raise && model.raise.ratio !== null) {
     const filled = Math.round(Math.min(1, Math.max(0, model.raise.ratio)) * cells);
     lines.push(
       `다음 승급 ${'■'.repeat(filled)}${'□'.repeat(cells - filled)} ${Math.round(model.raise.ratio * 100)}% (${model.raise.dday})`,
     );
+  } else if (model.raise) {
+    lines.push(`다음 승급 ${model.raise.dday}`);
   }
   for (const fact of model.facts) {
     if (!fact.includes('봉급')) lines.push(fact);

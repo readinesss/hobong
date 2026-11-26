@@ -19,6 +19,8 @@ class Nav {
   tab = $state<TabId>('home');
   /** 설정 화면을 열면서 '내 정보 고치기' 대화상자도 바로 열어 달라는 요청(안내 띠의 버튼) */
   editProfileRequested = $state(false);
+  /** 연가 화면을 열면서 '부여 일수' 대화상자도 바로 열어 달라는 요청(홈 연가 창의 [부여 일수 넣기]) */
+  editGrantRequested = $state(false);
 
   start(): void {
     this.tab = fromHash(location.hash);

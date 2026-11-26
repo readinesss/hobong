@@ -8,6 +8,7 @@
   import { nav, TABS, type TabId } from './lib/app/nav.svelte.ts';
   import { app } from './lib/app/state.svelte.ts';
   import { view } from './lib/app/view.svelte.ts';
+  import { trackNameOf } from './lib/app/track.ts';
   import { formatKorean } from './lib/calc/date.ts';
   import { formatDuration } from './lib/calc/today.ts';
   import Icon from './lib/ui/Icon.svelte';
@@ -253,7 +254,8 @@
       {/if}
       <footer class="foot cap muted">
         <p>
-          {view.rules.target.label} 기준 · 규정 확인일 {formatKorean(
+          {view.rules.target.label}
+          {trackNameOf(view.careerRules)} 기준 · 규정 확인일 {formatKorean(
             view.rules.meta.verifiedAt,
             false,
           )} · 공식 인사·급여 시스템의 기록이 기준이며 이 화면은 참고용이에요.

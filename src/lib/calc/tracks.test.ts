@@ -246,9 +246,9 @@ describe('계급정년이 있는 직종에서 계급을 모르면(rankProblem) �
     ['police', '경위급', '계급을 다시 골라 주세요.'],
     ['fire', null, '계급을 골라 주세요.'],
     ['coastGuard', '7', '계급을 다시 골라 주세요.'],
-  ] as const)('%s / %s → 준비 중(%s), 정년·정기승급 일정 없음', (track, rank, reason) => {
+  ] as const)('%s / %s → 입력 필요(%s), 정년·정기승급 일정 없음', (track, rank, reason) => {
     const p = person({ track, rank, ...base });
-    expect(effectiveRetirement(career(track, rank), p)).toEqual({ status: 'pending', reason });
+    expect(effectiveRetirement(career(track, rank), p)).toEqual({ status: 'input', reason });
     const ms = buildMilestones(rulesFor, p, TODAY);
     expect(ms.filter((m) => m.kind === 'retire')).toEqual([]);
     // 최고호봉을 몰라 정기승급 일정도 넣지 않는다(상한 99 로 '32호봉' 같은 일정을 만들지 않는다)
@@ -282,7 +282,7 @@ describe('정년 구간 규칙 글(retirePeriodText, 규정 데이터 periods �
   });
   it('교원: 3~8월 → 8월 31일, 9~12월 → 다음 해 2월 말일, 1~2월 → 2월 말일(교육공무원법 제47조제2항)', () => {
     expect(retirePeriodText(teacherRetirement)).toBe(
-      '3~8월이면 8월 31일, 9~12월이면 다음 해 2월 말일, 1~2월이면 2월 말일',
+      '3~8월이면 그해 8월 31일, 9~12월이면 다음 해 2월 말일, 1~2월이면 그해 2월 말일',
     );
   });
 });

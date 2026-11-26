@@ -138,7 +138,13 @@ describe('내보내기 → 초기화 → 불러오기', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     saveData(store, parsed.data, '0.1.0', NOW);
-    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false, restored: false });
+    expect(loadData(store, ctx)).toEqual({
+      status: 'ok',
+      data,
+      migrated: false,
+      fromVersion: 4,
+      restored: false,
+    });
   });
 
   it('파일에는 파생 값이 없다(입력값과 기록만 담는다)', () => {
@@ -364,7 +370,13 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
     const before = store.getItem(KEYS.data);
     expect(parseBackup('{"app":"hobong"', ctx).ok).toBe(false);
     expect(store.getItem(KEYS.data)).toBe(before);
-    expect(loadData(store, ctx)).toEqual({ status: 'ok', data, migrated: false, restored: false });
+    expect(loadData(store, ctx)).toEqual({
+      status: 'ok',
+      data,
+      migrated: false,
+      fromVersion: 4,
+      restored: false,
+    });
   });
 });
 
@@ -395,6 +407,7 @@ describe('되돌리기와 손상된 저장본', () => {
       status: 'ok',
       data: before,
       migrated: false,
+      fromVersion: 4,
       restored: false,
     });
     expect(loadUndo(store, ctx)).toBeNull();

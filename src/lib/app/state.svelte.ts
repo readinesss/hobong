@@ -10,6 +10,7 @@ import { decideGrowth } from '../character/growth.ts';
 import { formIdFor } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { careerLookup, rankStepLabel, rulesFor } from '../rules/index.ts';
+import { defaultShowRank, trackNameOf } from './track.ts';
 import type { RankKey } from '../rules/types.ts';
 import {
   makeEnvelope,
@@ -52,6 +53,21 @@ export interface Toast {
   kind: 'info' | 'good' | 'warn';
   icon?: string;
   action?: ToastAction;
+}
+
+/** 내 정보에서 직종을 바꿔 저장한 뒤 한 번 보여 줄 안내 */
+export interface TrackChange {
+  trackLabel: string;
+  /** 새 직종의 월급날 기본값(지금 월급날과 같으면 null) */
+  paydayDefault: number | null;
+  paydayNote: string;
+  /**
+   * 별표 30 에 이 직종의 기관이 따로 적혀 있어 기본값을 권할 수 있는지(교원 17일·군무원 10일).
+   * 경찰·소방·해양경찰의 25일은 '따로 적혀 있지 않아' 둔 값이라(T13) 권하지 않고 같은 무게로 묻는다.
+   */
+  paydayFirm: boolean;
+  /** 카드의 계급 이름 넣기를 이 값으로 다시 맞췄다(바꾸지 않았으면 null) */
+  cardShowRank: boolean | null;
 }
 
 export interface WelcomeBack {
@@ -132,6 +148,13 @@ class AppStore {
   toasts = $state<Toast[]>([]);
   welcomeBack = $state<WelcomeBack | null>(null);
   celebration = $state<Celebration | null>(null);
+  /**
+   * 직종이 없던 형식(v3 이하)의 저장본을 방금 바꿔 열었다. 홈에 '이제 경찰·소방·교원도 계산해요' 띠를
+   * 한 번 띄운다(이 탭의 메모리. 바꾼 저장본은 v4 로 저장되므로 다음에 열면 뜨지 않는다).
+   */
+  upgradedFromV3 = $state(false);
+  /** 내 정보에서 직종을 바꿔 저장한 뒤의 안내(월급날 기본값·카드 계급 이름). 띠를 닫으면 null */
+  trackChange = $state<TrackChange | null>(null);
 
   #store: KeyValueStore | null = null;
   #toastSeq = 0;
@@ -204,6 +227,7 @@ class AppStore {
     this.newerNotice = null;
     if (loaded.status === 'ok') {
       this.data = loaded.data;
+      if (loaded.fromVersion < 4) this.upgradedFromV3 = true;
       if (loaded.migrated || loaded.restored) this.#persist();
       if (loaded.restored) {
         this.toast(
@@ -335,13 +359,19 @@ class AppStore {
     const now = new Date();
     const today = todayYmd(now);
     const rules = rulesFor(yearOf(today));
+    const mark = growthMarkOf(profile, today);
+    const base = defaultSettings(rules);
     const data = newUserData(
       profile,
-      { ...defaultSettings(rules), ...settings },
+      {
+        ...base,
+        // 카드의 계급 이름은 일반직 사다리(1~9급)만 기본으로 넣는다(경찰·소방·우정 계급 이름은 직종을 드러낸다)
+        card: { ...base.card, showRank: defaultShowRank(mark.career) },
+        ...settings,
+      },
       now.toISOString(),
       today,
     );
-    const mark = growthMarkOf(profile, today);
     data.character.lastStep = mark.step;
     data.character.lastForm = mark.form;
     this.data = data;
@@ -361,13 +391,44 @@ class AppStore {
   updateProfile(profile: Profile): void {
     const today = todayYmd(new Date());
     const mark = growthMarkOf(profile, today);
+    const before = this.data ? careerOf(rulesFor, this.data.profile, yearOf(today)) : null;
+    const trackChanged = before !== null && before.sel.track !== profile.track;
+    // 일반직 사다리(1~9급)와 다른 사다리 사이를 오가면 카드의 계급 이름 기본값을 다시 맞춘다(Q2)
+    const showRank = defaultShowRank(mark.career);
+    const cardReset =
+      before !== null &&
+      defaultShowRank(before) !== showRank &&
+      this.data?.settings.card.showRank !== showRank;
     this.commit((d) => {
       d.profile = profile;
       // 직접 고친 값(직종·계급을 바꾼 경우 포함)이 연출을 일으키지 않게 기준을 맞춘다.
       d.character.lastRank = profile.rank;
       d.character.lastStep = mark.step;
       d.character.lastForm = mark.form;
+      if (cardReset) d.settings.card = { ...d.settings.card, showRank };
     });
+    const payday = mark.career.payday;
+    // 월급날은 직종을 바꿀 때만 묻는다. 카드 설정은 봉급표만 바꿔 사다리가 바뀌어도(별표 3 ↔ 8) 알린다.
+    const paydayDiffers =
+      trackChanged && this.data !== null && this.data.settings.payday !== payday.defaultDay;
+    const generalDay = rulesFor(yearOf(today)).tracks.items.general.payday.defaultDay;
+    this.trackChange =
+      paydayDiffers || cardReset
+        ? {
+            trackLabel: trackNameOf(mark.career),
+            paydayDefault: paydayDiffers ? payday.defaultDay : null,
+            paydayNote: payday.note,
+            paydayFirm: payday.defaultDay !== generalDay,
+            cardShowRank: cardReset ? showRank : null,
+          }
+        : null;
+  }
+
+  /** 직종을 바꾼 뒤 안내 띠의 '그 날로 바꾸기' */
+  applyTrackPayday(): void {
+    const day = this.trackChange?.paydayDefault ?? null;
+    this.trackChange = null;
+    if (day !== null) this.updateSettings({ payday: day });
   }
 
   /** 승급·성장 연출을 본 것으로 기록한다 */
@@ -631,6 +692,8 @@ class AppStore {
     this.corruptKept = false;
     this.welcomeBack = null;
     this.celebration = null;
+    this.upgradedFromV3 = false;
+    this.trackChange = null;
   }
 
   dismissCorruptNotice(): void {

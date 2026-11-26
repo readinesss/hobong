@@ -9,6 +9,7 @@
  *
  * 계산 함수는 직종을 가르지 않고 이 결과(CareerRules)만 본다.
  */
+import { josa } from '../app/format.ts';
 import { RulesError } from './resolve.ts';
 import {
   isAvailable,
@@ -106,14 +107,30 @@ export interface CareerRules {
     meal: AllowanceRules['meal'];
   };
   payday: { defaultDay: number; note: string; options: PaydayRules['options'] };
-  /** 이 직종에서 쓰는 근거(근거 법령 화면용): 봉급표·사다리·덮어쓰기·적용 근거 */
-  sources: { feature: CareerSourceKey; source: SourceRef }[];
+  /**
+   * 이 직종에서 쓰는 근거(근거 법령 화면용): 봉급표·사다리·덮어쓰기·적용 근거.
+   * 일반직 값을 그대로 쓰는 항목(applies)은 적용 조항 다음에 그 값이 나온 기본 구역의 근거를
+   * base: true 로 함께 넣는다(숫자의 조문과 '해석·미반영' 단서가 사라지지 않게).
+   */
+  sources: { feature: CareerSourceKey; source: SourceRef; base?: true }[];
 }
 
 /** pendingReason 이 없는 직종에서 자동으로 꺼진 항목의 사유 */
 export const DEFAULT_PENDING_REASON = '원문을 확인한 뒤 넣을게요.';
 export const RANK_MISSING_REASON = '계급을 골라 주세요.';
 export const RANK_NOT_IN_LADDER_REASON = '계급을 다시 골라 주세요.';
+
+/**
+ * 계급(사다리 이름)을 고르지 않았거나 목록에 없어 꺼진 항목. 원문 미확인('준비 중')이 아니라
+ * 입력이 모자란 것이라 status 'input'('입력 필요')으로 둔다. 사유는 사다리 이름('직무등급을 골라 주세요.')
+ */
+export function rankProblemOff(
+  problem: 'missing' | 'notInLadder',
+  noun: string | null | undefined,
+): Unavailable {
+  const word = josa(noun ?? '계급', '을', '를');
+  return { status: 'input', reason: `${word} ${problem === 'missing' ? '' : '다시 '}골라 주세요.` };
+}
 export const PAY_TABLE_NOT_ALLOWED_REASON = '봉급표를 다시 골라 주세요.';
 
 const OVERRIDE_KEYS: readonly (keyof CareerOverrides)[] = [
@@ -269,7 +286,8 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
     if (sel.track === 'general' || applies) {
       const value = baseValue(rules, f) as T;
       if (applies) sources.push({ feature: f, source: applies });
-      else for (const s of ownSources(value)) sources.push({ feature: f, source: s });
+      for (const s of ownSources(value))
+        sources.push(applies ? { feature: f, source: s, base: true } : { feature: f, source: s });
       return value;
     }
     return pending;
@@ -298,12 +316,8 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
   let pay: Avail<PayInfo>;
   if (!payTableAllowed) pay = { status: 'pending', reason: PAY_TABLE_NOT_ALLOWED_REASON };
   else if (payTableId === null || !ladder) pay = pending;
-  else if (rankProblem !== null) {
-    pay = {
-      status: 'pending',
-      reason: rankProblem === 'missing' ? RANK_MISSING_REASON : RANK_NOT_IN_LADDER_REASON,
-    };
-  } else if (!rank || rank.payColumn === null) {
+  else if (rankProblem !== null) pay = rankProblemOff(rankProblem, ladder.noun);
+  else if (!rank || rank.payColumn === null) {
     pay = { status: 'none', reason: rank?.note ?? '' };
   } else {
     const column = rank.payColumn;
@@ -423,6 +437,7 @@ export function careerLookup(rules: Rules): {
   maxStep: (sel: CareerSel) => number | null;
   rankLabel: (sel: CareerSel) => string;
   selectableRanks: (track: TrackId, payTable: PayTableId | null) => readonly RankKey[];
+  rankNoun: (track: TrackId, payTable: PayTableId | null) => string | null;
 } {
   return {
     maxStep: (sel) => {
@@ -434,5 +449,6 @@ export function careerLookup(rules: Rules): {
       return rankLabel(c) || `${c.track.label} 봉급표`;
     },
     selectableRanks: (track, payTable) => selectableRanks(rules, track, payTable).map((r) => r.key),
+    rankNoun: (track, payTable) => ladderOf(rules, track, payTable)?.noun ?? null,
   };
 }

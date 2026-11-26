@@ -16,6 +16,7 @@
   import { recapRevealsService } from '../lib/calc/recap.ts';
   import {
     CARD_SIZES,
+    cardRankStep,
     drawCard,
     ensureCardFonts,
     EXPORT_SCALE,
@@ -59,20 +60,29 @@
   const hideAmounts = $derived(view.data.settings.hideAmounts);
   const salaryFact = (amount: string) => `월 봉급 ${amount}(봉급표 기준)`;
 
+  /** 카드에 넣는 계급 이름: '계급 이름 넣기'를 켰을 때만(경찰·소방·우정 계급 이름은 직종을 드러낸다) */
+  const cardRank = $derived(card.showRank ? view.rankLabel : '');
+  /** 다음 승급: 정기승급을 계산하지 않는 직종은 입력한 날까지의 D-day 만(진행 막대 없음) */
+  const cardRaise = $derived.by<CardModel['raise']>(() => {
+    if (view.raiseProgress && view.nextRaise)
+      return { ratio: view.raiseProgress.ratio, dday: formatDday(view.today, view.nextRaise.date) };
+    if (view.noRaiseReason === 'manual' && view.profile.nextStepDate > view.today)
+      return { ratio: null, dday: formatDday(view.today, view.profile.nextStepDate) };
+    return null;
+  });
   const model = $derived<CardModel>({
     nickname: view.profile.nickname,
-    rank: view.profile.rank ?? '',
+    rankLabel: cardRank,
     step: view.step,
-    maxStep: view.maxStep,
+    // 최고호봉(깃 n/m 의 m, 게이지 칸 수)도 봉급표를 드러낸다(교원 40·우정1급 24 등). 계급 이름을 넣을 때만
+    maxStep: cardRank ? view.maxStep : null,
     formName: view.look.form.name,
     // 카드에는 언제 찍어도 같은 근무 중 모습을 담는다(기분·시간대에 따라 달라지지 않게).
     look: resolveLook(characterRules, view.formId, view.step, 'work'),
     line: view.line,
     dateText: formatKorean(view.today, false),
-    raise:
-      view.raiseProgress && view.nextRaise
-        ? { ratio: view.raiseProgress.ratio, dday: formatDday(view.today, view.nextRaise.date) }
-        : null,
+    raise: cardRaise,
+    maxReached: view.noRaiseReason === 'max' || view.noRaiseReason === 'retire',
     facts: [
       // 일수까지 적으면 카드 날짜에서 임용일이 하루 단위로 역산되므로 연·월까지만 쓴다.
       ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
@@ -123,7 +133,7 @@
     periodText: recapPeriodText(recap),
     look: resolveLook(characterRules, view.formId, view.step, 'work'),
     formName: view.look.form.name,
-    rank: view.profile.rank ?? '',
+    rankLabel: cardRank,
     step: view.step,
     stepText: recapStepText(recap),
     facts: recapFacts(recap, { workdays: recapWorkdaysOn }),
@@ -231,7 +241,7 @@
       ? `올해 결산 카드 미리보기. ${[
           recapPreviewModel.nickname,
           `${recapPreviewModel.year}년 ${recapPreviewModel.periodText}`,
-          `${recapPreviewModel.rank}급 ${recapPreviewModel.step}호봉`,
+          cardRankStep(recapPreviewModel),
           ...(recapPreviewModel.stepText ? [`승급 ${recapPreviewModel.stepText}`] : []),
           ...recapPreviewModel.facts.map((f) => `${f.label} ${f.value}`),
           ...(recapPreviewModel.salary !== null && !recapOmitted.salary
@@ -239,7 +249,7 @@
             : []),
           ...(recapPreviewModel.grid !== null && !recapOmitted.calendar ? ['1년 달력'] : []),
         ].join(', ')}`
-      : `호봉이 카드 미리보기. ${[model.nickname, `${model.rank}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`
+      : `호봉이 카드 미리보기. ${[model.nickname, cardRankStep(model), model.formName, ...drawnFacts].join(', ')}`
     ).replaceAll(MASKED_WON, '금액 가림'),
   );
   const fileName = $derived(
@@ -423,6 +433,25 @@
           onchange={(ratio) => setCard({ ratio })}
         />
       </div>
+
+      {#if view.rankLabel}
+        <div class="stack">
+          <label class="switch" id="card-show-rank">
+            <input
+              type="checkbox"
+              checked={card.showRank}
+              aria-describedby="card-show-rank-hint"
+              onchange={(e) => setCard({ showRank: e.currentTarget.checked })}
+            />
+            <span class="box" aria-hidden="true"></span>
+            <span>계급 이름 넣기</span>
+          </label>
+          <p class="cap muted" id="card-show-rank-hint">
+            경찰·소방·우정 같은 계급 이름은 직종을 드러낼 수 있어요. 끄면 최고호봉(깃 칸 수)도 넣지
+            않아요. 홈 화면에는 늘 보여요.
+          </p>
+        </div>
+      {/if}
 
       {#if kind === 'recap'}
         <RecapOptions
