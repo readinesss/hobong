@@ -8,6 +8,9 @@
  *       묶음별로 나눈 형식.
  * - v3: 호봉을 확인한 날(profile.stepAsOf)을 더했다. 다음 승급일이 1년보다 멀 때
  *       (휴직·승급제한) 지금 호봉이 한 단계 낮게 계산되던 문제를 고치기 위해서다.
+ * - v4: 직종(track)·봉급표(payTable)·계급 키(rank). grade·gradeDate 를 rank·rankDate 로,
+ *       character.lastGrade 를 lastRank 로 바꾸고, 계급정년 직접 고침(overrides.rankLimitDate)·
+ *       형태 변화 감지(character.lastForm)·카드의 계급 이름 켜기(settings.card.showRank)를 더했다.
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
@@ -16,6 +19,7 @@
  */
 import { addDays, isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
 import { APP_ID, SCHEMA_VERSION, type Settings } from './schema.ts';
+import { isGrade } from './validate.ts';
 
 type Dict = Record<string, unknown>;
 
@@ -116,10 +120,56 @@ function v2ToV3(data: Dict, ctx: MigrationContext): Dict {
   return { ...data, profile: { ...profile, stepAsOf } };
 }
 
+/**
+ * v3 → v4: 직종·봉급표·계급 키. 그때까지 앱은 별표 3 일반직만 계산했으므로 'general'/'table3' 은 사실이다.
+ *
+ * v3 에서 유효했던 직급(1~9 정수)만 계급 키로 옮긴다. 그 밖(문자열 '7', 10, 0 등 손상)은 rank 를
+ * **만들지 않아** 검증이 '직급 없음'으로 거부하게 한다(조용히 고치지 않는다). 문자열 '7' 을 그대로
+ * 옮기면 v4 의 형식 검사를, 10 을 글자로 바꾸면 '10' 이 형식 검사를 통과해 버리므로 둘 다 옮기지 않는다.
+ * 같은 까닭으로 v3 저장본에 이미 v4 이름의 키(rank 등)가 섞여 있어도 옮겨 담지 않는다.
+ */
+function v3ToV4(data: Dict): Dict {
+  const out: Dict = { ...data };
+  if (isDict(data.profile)) {
+    const {
+      grade,
+      gradeDate,
+      overrides,
+      track: _track,
+      payTable: _payTable,
+      rank: _rank,
+      rankDate: _rankDate,
+      ...rest
+    } = data.profile;
+    out.profile = {
+      ...rest,
+      track: 'general',
+      payTable: 'table3',
+      ...(isGrade(grade) ? { rank: String(grade) } : {}),
+      rankDate: gradeDate,
+      overrides: isDict(overrides) ? { ...overrides, rankLimitDate: null } : overrides,
+    };
+  }
+  if (isDict(data.character)) {
+    const { lastGrade, lastRank: _lastRank, lastForm: _lastForm, ...rest } = data.character;
+    out.character = {
+      ...rest,
+      ...(isGrade(lastGrade) ? { lastRank: String(lastGrade) } : {}),
+      lastForm: null,
+    };
+  }
+  if (isDict(data.settings) && isDict(data.settings.card)) {
+    // v3 까지 카드는 늘 'N급'을 넣었다. 지금 카드 그대로 보이게 켠다
+    out.settings = { ...data.settings, card: { ...data.settings.card, showRank: true } };
+  }
+  return out;
+}
+
 /** 키 = 변환 전 버전 */
 const MIGRATIONS: Record<number, Migration> = {
   1: v1ToV2,
   2: v2ToV3,
+  3: v3ToV4,
 };
 
 export type MigrateResult =

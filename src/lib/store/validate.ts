@@ -3,11 +3,17 @@
  * 불러온 파일·저장소의 값은 믿지 않는다. 형식이 맞는 것만 받아 새 객체로 옮겨 담고,
  * 틀린 곳은 사람이 읽을 수 있는 이유와 함께 거부한다(기존 데이터는 건드리지 않는다).
  */
+import { josa } from '../app/format.ts';
 import { addDays, addMonthsClamped, isValidYmd, maxYmd, parseHm, type Ymd } from '../calc/date.ts';
 import { checkWorkHours } from '../calc/today.ts';
+import { TRACK_IDS, type PayTableId, type RankKey, type TrackId } from '../rules/types.ts';
 import {
+  GENERAL_PAY_TABLES,
+  GENERAL_RANKS,
   LIMITS,
+  RANK_KEY_RE,
   type CardSettings,
+  type GeneralPayTableId,
   type Grade,
   type LeaveKind,
   type LeaveRecord,
@@ -54,8 +60,37 @@ export function cleanText(value: unknown, max: number): string {
   return graphemes(value.replace(UNSAFE_CHARS, '').trim()).slice(0, max).join('');
 }
 
+/** v3 까지의 직급(1~9 정수). v1·v2·v3 변환에서만 쓴다 */
 export function isGrade(value: unknown): value is Grade {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 9;
+}
+
+export function isTrackId(value: unknown): value is TrackId {
+  return typeof value === 'string' && (TRACK_IDS as readonly string[]).includes(value);
+}
+
+/** 저장본의 계급 키 형식(숫자·한글 1~8자) 또는 null. 어느 사다리의 키인지는 따지지 않는다 */
+function isRankKeyOrNull(value: unknown): value is RankKey | null {
+  return value === null || (typeof value === 'string' && RANK_KEY_RE.test(value));
+}
+
+/** 그 직종에 맞는 봉급표 값인지: 일반직은 별표 3·4·8 중 하나, 그 밖은 null */
+function payTableFits(track: TrackId, value: unknown): value is GeneralPayTableId | null {
+  if (track === 'general') {
+    return typeof value === 'string' && (GENERAL_PAY_TABLES as readonly string[]).includes(value);
+  }
+  return value === null;
+}
+
+/**
+ * 저장본의 계급 검사(형식만). 키가 있어야 하고, 값은 계급 키 형식의 문자열 또는 null.
+ * 직종과 짝짓지 않는다 — 직종에 사다리가 있는지는 규정 데이터가 정하므로, 데이터가 늘어도
+ * 멀쩡한 저장본을 거부하지 않게. 하나만 예외: 일반직의 계급 키는 '1'~'9'(코드 상수)다.
+ */
+function rankFits(track: TrackId | null, value: unknown): boolean {
+  if (!isRankKeyOrNull(value)) return false;
+  if (track === 'general' && typeof value === 'string') return GENERAL_RANKS.includes(value);
+  return true;
 }
 
 const ISO_INSTANT_RE = /^(\d{4})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -69,10 +104,25 @@ export function isIsoInstant(value: unknown): value is string {
   return year >= 1950 && year <= 2150 && Number.isFinite(Date.parse(value));
 }
 
-export interface ProfileContext {
+/** 내 정보 검사가 규정 데이터에 묻는 것(입력 폼·파일 불러오기에서만 쓴다) */
+export interface CareerLookup {
+  /** 그 직종·봉급표·계급의 최고호봉. 봉급표가 없으면(준비 중) null — 이때는 LIMITS.maxStepAny 까지 받는다 */
+  maxStep: (sel: CareerPick) => number | null;
+  /** 오류 문구에 쓰는 이름('7급', '경위'). 계급 이름이 없으면 봉급표 이름('교원 봉급표') */
+  rankLabel: (sel: CareerPick) => string;
+  /** 그 해 규칙의 사다리에서 고를 수 있는 계급 키(낮은 계급부터). 사다리가 없으면 [] */
+  selectableRanks: (track: TrackId, payTable: PayTableId | null) => readonly RankKey[];
+}
+
+/** 직종·봉급표·계급 선택(규정 쪽 CareerSel 과 같은 모양) */
+export interface CareerPick {
+  track: TrackId;
+  payTable: PayTableId | null;
+  rank: RankKey | null;
+}
+
+export interface ProfileContext extends CareerLookup {
   today: Ymd;
-  /** 직급별 최고호봉 */
-  maxStep: (grade: Grade) => number;
   /**
    * 입력 폼에서만 쓰는 추가 검사. 저장된 값에는 쓰지 않는다(시간이 지나면 승급일은 과거가 된다).
    * - future: 다음 승급일은 오늘보다 뒤여야 한다
@@ -81,7 +131,8 @@ export interface ProfileContext {
   raiseDateRule?: 'future' | 'reached';
   /**
    * true 면 이 브라우저에 저장돼 있던 값을 읽는 중이다. 형식·순서만 보고, "오늘"에 따라
-   * 달라지는 검사(오늘보다 뒤인 날짜, 너무 먼 승급일, 최고호봉)는 하지 않는다.
+   * 달라지는 검사(오늘보다 뒤인 날짜, 너무 먼 승급일, 최고호봉)와 규정 데이터에 기대는 검사
+   * (사다리에서 고를 수 있는 계급인지)는 하지 않는다.
    * (PC 시계를 고치거나 규정 데이터가 바뀌어도 멀쩡한 저장본을 손상으로 보지 않게)
    */
   stored?: boolean;
@@ -91,13 +142,16 @@ export type ProfileField =
   | 'nickname'
   | 'birthDate'
   | 'hireDate'
-  | 'grade'
-  | 'gradeDate'
+  | 'track'
+  | 'payTable'
+  | 'rank'
+  | 'rankDate'
   | 'step'
   | 'nextStepDate'
   | 'stepAsOf'
   | 'longServiceDate'
-  | 'seniorDate';
+  | 'seniorDate'
+  | 'rankLimitDate';
 
 export type ProfileErrors = Partial<Record<ProfileField, string>>;
 
@@ -128,21 +182,45 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
     errors.hireDate = '임용일이 생년월일에 비해 너무 일러요.';
   }
 
-  const grade = raw.grade;
-  if (!isGrade(grade)) errors.grade = '직급을 골라 주세요.';
+  const track = isTrackId(raw.track) ? raw.track : null;
+  if (!track) errors.track = '직종을 골라 주세요.';
+  const payTable = raw.payTable;
+  const payTableOk = track !== null && payTableFits(track, payTable);
+  if (track && !payTableOk) errors.payTable = '봉급표를 다시 골라 주세요.';
 
-  const gradeDate = raw.gradeDate;
-  if (!isValidYmd(gradeDate)) errors.gradeDate = '현 직급 임용일을 넣어 주세요.';
-  else if (semantic && gradeDate > today)
-    errors.gradeDate = '현 직급 임용일은 오늘이거나 오늘보다 앞이어야 해요.';
-  else if (isValidYmd(hire) && gradeDate < hire)
-    errors.gradeDate = '현 직급 임용일이 최초 임용일보다 앞이에요.';
+  const rank = raw.rank;
+  // 키가 없으면(undefined) 거부한다. v3 의 손상된 grade 는 변환이 rank 를 만들지 않아 여기서 걸린다.
+  const rankOk = 'rank' in raw && rankFits(track, rank);
+  if (!rankOk) errors.rank = '직급을 골라 주세요.';
+  // 입력 폼·파일: 그 해 규칙의 사다리에서 고를 수 있는 계급이어야 한다(사다리가 없으면 null)
+  const choices = semantic && track && payTableOk ? ctx.selectableRanks(track, payTable) : null;
+  if (choices && rankOk) {
+    const fits = choices.length === 0 ? rank === null : choices.includes(rank as RankKey);
+    if (!fits) errors.rank = '이 계급은 고를 수 없어요.';
+  }
+  const sel: CareerPick | null =
+    track && payTableOk && rankOk && !errors.rank
+      ? { track, payTable, rank: rank as RankKey | null }
+      : null;
+
+  const rankDate = raw.rankDate;
+  if (!isValidYmd(rankDate)) errors.rankDate = '현 직급 임용일을 넣어 주세요.';
+  else if (semantic && rankDate > today)
+    errors.rankDate = '현 직급 임용일은 오늘이거나 오늘보다 앞이어야 해요.';
+  else if (isValidYmd(hire) && rankDate < hire)
+    errors.rankDate = '현 직급 임용일이 최초 임용일보다 앞이에요.';
+  // 승진할 계급이 없는 직종(교원은 계급 하나, 그 밖의 특정직 등은 사다리 없음)은 현 직급 임용일을
+  // 따로 받지 않는다(폼이 임용일로 맞춰 넣는다)
+  else if (choices && choices.length <= 1 && isValidYmd(hire) && rankDate !== hire)
+    errors.rankDate = '이 직종은 현 직급 임용일이 최초 임용일과 같아야 해요.';
 
   const step = raw.step;
-  if (typeof step !== 'number' || !Number.isInteger(step) || step < 1 || step > 99)
+  if (typeof step !== 'number' || !Number.isInteger(step) || step < 1 || step > LIMITS.maxStepAny)
     errors.step = '호봉을 넣어 주세요.';
-  else if (semantic && isGrade(grade) && step > ctx.maxStep(grade)) {
-    errors.step = `${grade}급은 ${ctx.maxStep(grade)}호봉까지 있어요.`;
+  else if (semantic && sel) {
+    const max = ctx.maxStep(sel);
+    if (max !== null && step > max)
+      errors.step = `${josa(ctx.rankLabel(sel), '은', '는')} ${max}호봉까지 있어요.`;
   }
 
   const next = raw.nextStepDate;
@@ -175,9 +253,14 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
       const v = overrides[key];
       if (v === null || v === undefined || v === '') continue;
       if (!isValidYmd(v)) errors[key] = '날짜를 다시 확인해 주세요.';
-      else if (isValidYmd(gradeDate) && v < gradeDate)
+      else if (isValidYmd(rankDate) && v < rankDate)
         errors[key] = '현 직급 임용일보다 뒤여야 해요.';
     }
+    // 계급정년 날짜(직접 고침)는 형식만 본다. 승진 뒤처럼 현 직급 임용일보다 이른 값이 남아 있어도,
+    // 계급정년이 없는 계급에 있어도 지우거나 거부하지 않고 보존한다(설계 §6.3, 계산에 쓰는 것은 #20 묶음 3).
+    const limit = overrides.rankLimitDate;
+    if (limit !== null && limit !== undefined && limit !== '' && !isValidYmd(limit))
+      errors.rankLimitDate = '날짜를 다시 확인해 주세요.';
   }
   return errors;
 }
@@ -189,8 +272,10 @@ export function toProfile(raw: Dict): Profile {
     nickname: cleanText(raw.nickname, LIMITS.nicknameMax),
     birthDate: raw.birthDate as Ymd,
     hireDate: raw.hireDate as Ymd,
-    grade: raw.grade as Grade,
-    gradeDate: raw.gradeDate as Ymd,
+    track: raw.track as TrackId,
+    payTable: raw.payTable as GeneralPayTableId | null,
+    rank: raw.rank as RankKey | null,
+    rankDate: raw.rankDate as Ymd,
     step: raw.step as number,
     nextStepDate: raw.nextStepDate as Ymd,
     // 없으면 "다음 승급일 직전 한 해만 이 호봉"으로 보는 것과 같은 값을 넣는다.
@@ -202,6 +287,7 @@ export function toProfile(raw: Dict): Profile {
     overrides: {
       longServiceDate: pick(overrides.longServiceDate),
       seniorDate: pick(overrides.seniorDate),
+      rankLimitDate: pick(overrides.rankLimitDate),
     },
   };
 }
@@ -251,7 +337,8 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
     typeof card.showSalary !== 'boolean' ||
     typeof card.showRetirement !== 'boolean' ||
     typeof card.showTenure !== 'boolean' ||
-    typeof card.showBadges !== 'boolean'
+    typeof card.showBadges !== 'boolean' ||
+    typeof card.showRank !== 'boolean'
   ) {
     errors.push('설정: 카드 설정 값이 틀렸어요.');
   } else {
@@ -261,6 +348,7 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
       showRetirement: card.showRetirement,
       showTenure: card.showTenure,
       showBadges: card.showBadges,
+      showRank: card.showRank,
     };
   }
   if (errors.length > before || !cardOut) return null;
@@ -404,18 +492,23 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     !Array.isArray(ch.seenForms) ||
     ch.seenForms.length > 50 ||
     !ch.seenForms.every((f: unknown) => typeof f === 'string' && ID_RE.test(f)) ||
-    !isGrade(ch.lastGrade) ||
+    // 마지막으로 본 계급: 키가 있어야 하고 형식만 본다(직종과 짝짓지 않는다)
+    !('lastRank' in ch) ||
+    !isRankKeyOrNull(ch.lastRank) ||
     typeof ch.lastStep !== 'number' ||
     !Number.isInteger(ch.lastStep) ||
     ch.lastStep < 1 ||
-    ch.lastStep > 99
+    ch.lastStep > LIMITS.maxStepAny ||
+    // 모르는 형태 id 도 지우지 않는다(그릴 때 무시)
+    !(ch.lastForm === null || (typeof ch.lastForm === 'string' && ID_RE.test(ch.lastForm)))
   ) {
     errors.push('캐릭터 상태의 형식이 틀렸어요.');
   } else {
     character = {
       seenForms: [...new Set(ch.seenForms as string[])],
-      lastGrade: ch.lastGrade,
+      lastRank: ch.lastRank as RankKey | null,
       lastStep: ch.lastStep,
+      lastForm: ch.lastForm as string | null,
     };
   }
 

@@ -273,12 +273,12 @@
         </div>
         <div class="kv">
           <dt>직급·호봉</dt>
-          <dd>{profile.grade}급 {view.step}호봉</dd>
+          <dd>{profile.rank}급 {view.step}호봉</dd>
         </div>
-        {#if profile.gradeDate !== profile.hireDate}
+        {#if profile.rankDate !== profile.hireDate}
           <div class="kv">
             <dt>현 직급 임용일</dt>
-            <dd>{formatKorean(profile.gradeDate, false)}</dd>
+            <dd>{formatKorean(profile.rankDate, false)}</dd>
           </div>
         {/if}
         <div class="kv">

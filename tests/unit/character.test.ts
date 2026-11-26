@@ -16,7 +16,6 @@ import {
   SpriteFormatError,
   TRANSPARENT,
 } from '../../src/lib/character/sprite-format.ts';
-import type { Grade } from '../../src/lib/store/schema.ts';
 import { rulesFor } from '../../src/lib/rules/index.ts';
 
 describe('스프라이트 형식', () => {
@@ -97,12 +96,12 @@ describe('캐릭터 규칙 (data/character.json)', () => {
     for (let g = 1; g <= 9; g += 1) {
       expect(C.forms.filter((f) => f.grades.includes(g))).toHaveLength(1);
     }
-    expect(formFor(C, 9).id).toBe('egg');
-    expect(formFor(C, 8).id).toBe('chick');
-    expect(formFor(C, 7).id).toBe('fledgling');
-    expect(formFor(C, 6).id).toBe('bird');
-    expect(formFor(C, 5).id).toBe('phoenix');
-    expect(formFor(C, 1).id).toBe('phoenix');
+    expect(formFor(C, '9').id).toBe('egg');
+    expect(formFor(C, '8').id).toBe('chick');
+    expect(formFor(C, '7').id).toBe('fledgling');
+    expect(formFor(C, '6').id).toBe('bird');
+    expect(formFor(C, '5').id).toBe('phoenix');
+    expect(formFor(C, '1').id).toBe('phoenix');
   });
   it('치환 색은 팔레트 범위 안이다', () => {
     for (const item of C.items) {
@@ -164,7 +163,7 @@ describe('캐릭터 규칙 (data/character.json)', () => {
 
 describe('모습 정하기', () => {
   it('근무 중: 그림자 + 호봉 소품', () => {
-    const look = resolveLook(C, 8 as Grade, 5, 'work');
+    const look = resolveLook(C, '8', 5, 'work');
     expect(look.form.id).toBe('chick');
     expect(look.eyes).toBe('eyes-open');
     expect(look.canBlink).toBe(true);
@@ -176,7 +175,7 @@ describe('모습 정하기', () => {
     ]);
   });
   it('연가 중: 업무 소품을 내려놓고 휴가 복장', () => {
-    const look = resolveLook(C, 7 as Grade, 20, 'vacation');
+    const look = resolveLook(C, '7', 20, 'vacation');
     expect(look.parts.map((p) => p.sprite)).toEqual([
       'shadow',
       'item-sunglasses',
@@ -187,27 +186,23 @@ describe('모습 정하기', () => {
     expect(look.moodLabel).toBe('연가 중');
   });
   it('지친 모습·월급날·축하', () => {
-    expect(resolveLook(C, 9 as Grade, 1, 'tired').parts.map((p) => p.sprite)).toEqual([
+    expect(resolveLook(C, '9', 1, 'tired').parts.map((p) => p.sprite)).toEqual([
       'shadow',
       'item-lanyard',
       'fx-sweat',
     ]);
-    expect(resolveLook(C, 9 as Grade, 1, 'tired').eyes).toBe('eyes-tired');
-    expect(resolveLook(C, 9 as Grade, 1, 'payday').parts.at(-1)).toEqual({
+    expect(resolveLook(C, '9', 1, 'tired').eyes).toBe('eyes-tired');
+    expect(resolveLook(C, '9', 1, 'payday').parts.at(-1)).toEqual({
       sprite: 'fx-coin',
       animated: true,
     });
-    const party = resolveLook(C, 6 as Grade, 22, 'celebrate');
+    const party = resolveLook(C, '6', 22, 'celebrate');
     expect(party.parts.map((p) => p.sprite)).toContain('item-partyhat');
     expect(party.parts.map((p) => p.sprite)).not.toContain('item-crest-gold');
   });
   it('높은 호봉의 반짝이', () => {
-    expect(resolveLook(C, 6 as Grade, 28, 'work').parts.map((p) => p.sprite)).toContain(
-      'fx-sparkle',
-    );
-    expect(resolveLook(C, 6 as Grade, 27, 'work').parts.map((p) => p.sprite)).not.toContain(
-      'fx-sparkle',
-    );
+    expect(resolveLook(C, '6', 28, 'work').parts.map((p) => p.sprite)).toContain('fx-sparkle');
+    expect(resolveLook(C, '6', 27, 'work').parts.map((p) => p.sprite)).not.toContain('fx-sparkle');
   });
 
   const base: MoodInput = {
@@ -246,7 +241,7 @@ describe('직종별 진화(#20, data/character.json evolution)', () => {
   const R = rulesFor(2026);
   const formIds = new Set(C.forms.map((f) => f.id));
   const order = C.forms.map((f) => f.id);
-  const generalForm = (grade: number) => formFor(C, grade as Grade).id;
+  const generalForm = (level: number) => formFor(C, String(level)).id;
 
   it('일반직 사다리가 아닌 모든 사다리의 모든 계급이 형태 하나에 매핑된다(교원은 재직 연수)', () => {
     for (const [id, ladder] of Object.entries(R.tracks.ladders)) {

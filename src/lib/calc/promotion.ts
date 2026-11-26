@@ -2,8 +2,15 @@
 import { addDays, onOrNextDayOfMonth, periodCompleteDate, yearOf, type Ymd } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
 import { floorRate } from './money.ts';
-import { gradeKey, maxStepOf, monthlySalary, salaryOn, type PayProfile } from './salary.ts';
-import type { PromotionRules, PromotionStepRules } from '../rules/types.ts';
+import {
+  gradeKey,
+  gradeOf,
+  maxStepOf,
+  monthlySalary,
+  salaryOn,
+  type PayProfile,
+} from './salary.ts';
+import type { PromotionRules, PromotionStepRules, RankKey } from '../rules/types.ts';
 import type { Grade, Profile } from '../store/schema.ts';
 
 export function higherGrade(grade: Grade): Grade | null {
@@ -11,9 +18,13 @@ export function higherGrade(grade: Grade): Grade | null {
 }
 
 /** 승진소요최저연수를 채우는 날. 규정에 없는 직급이면 null */
-export function minServiceDate(rules: PromotionRules, grade: Grade, gradeDate: Ymd): Ymd | null {
-  const months = rules.minService.monthsByGrade[gradeKey(grade)];
-  return months === undefined ? null : periodCompleteDate(gradeDate, months);
+export function minServiceDate(
+  rules: PromotionRules,
+  rank: RankKey | null,
+  rankDate: Ymd,
+): Ymd | null {
+  const months = rules.minService.monthsByGrade[gradeKey(rank)];
+  return months === undefined ? null : periodCompleteDate(rankDate, months);
 }
 
 export interface LongServiceInfo {
@@ -34,9 +45,9 @@ export interface LongServiceInfo {
 
 export function longServiceInfo(
   rules: PromotionRules,
-  profile: Pick<Profile, 'grade' | 'gradeDate' | 'overrides'>,
+  profile: Pick<Profile, 'rank' | 'rankDate' | 'overrides'>,
 ): LongServiceInfo {
-  const months = rules.longService.monthsByGrade[gradeKey(profile.grade)];
+  const months = rules.longService.monthsByGrade[gradeKey(profile.rank)];
   if (months === undefined) {
     return {
       applicable: false,
@@ -49,10 +60,10 @@ export function longServiceInfo(
       quotaNote: null,
     };
   }
-  const autoDate = periodCompleteDate(profile.gradeDate, months);
+  const autoDate = periodCompleteDate(profile.rankDate, months);
   const override = profile.overrides.longServiceDate;
   const date = override ?? autoDate;
-  const targetGrade = higherGrade(profile.grade);
+  const targetGrade = higherGrade(gradeOf(profile.rank));
   return {
     applicable: true,
     targetGrade,
@@ -84,9 +95,9 @@ export interface SeniorInfo {
 
 export function seniorTreatmentInfo(
   rules: PromotionRules,
-  profile: Pick<Profile, 'grade' | 'gradeDate' | 'overrides'>,
+  profile: Pick<Profile, 'rank' | 'rankDate' | 'overrides'>,
 ): SeniorInfo {
-  const months = rules.seniorTreatment.monthsByGrade[gradeKey(profile.grade)];
+  const months = rules.seniorTreatment.monthsByGrade[gradeKey(profile.rank)];
   if (months === undefined) {
     return {
       applicable: false,
@@ -97,7 +108,7 @@ export function seniorTreatmentInfo(
       overridden: false,
     };
   }
-  const qualifyDate = periodCompleteDate(profile.gradeDate, months);
+  const qualifyDate = periodCompleteDate(profile.rankDate, months);
   const autoDate = onOrNextDayOfMonth(qualifyDate, rules.seniorTreatment.appointDayOfMonth);
   const override = profile.overrides.seniorDate;
   return {
@@ -142,15 +153,17 @@ export function promotionPreview(
   profile: PayProfile,
   date: Ymd,
 ): PromotionPreview | null {
-  const toGrade = higherGrade(profile.grade);
+  const fromGrade = gradeOf(profile.rank);
+  const toGrade = higherGrade(fromGrade);
   if (toGrade === null) return null;
+  const toRank = String(toGrade);
   const r = rules(yearOf(date));
   const before = salaryOn(rules, profile, date);
-  const toStep = promotedStep(r.promotionStep, before.step, maxStepOf(r.salary, toGrade));
-  const toAmount = monthlySalary(r.salary, toGrade, toStep);
+  const toStep = promotedStep(r.promotionStep, before.step, maxStepOf(r.salary, toRank));
+  const toAmount = monthlySalary(r.salary, toRank, toStep);
   return {
     date,
-    fromGrade: profile.grade,
+    fromGrade,
     toGrade,
     fromStep: before.step,
     toStep,

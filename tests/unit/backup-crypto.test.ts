@@ -5,9 +5,10 @@
  * - 왕복, 파일마다 새 salt·IV, 틀린 암호·손상, 형식·반복 횟수 범위 검사, base64, NFC
  * - 푼 평문은 지금의 parseBackup 검증을 그대로 지난다
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { maxStepOf } from '../../src/lib/calc/salary.ts';
-import { rulesFor } from '../../src/lib/rules/index.ts';
+import { careerLookup, rulesFor } from '../../src/lib/rules/index.ts';
 import {
   backupFileName,
   makeEnvelope,
@@ -30,14 +31,14 @@ import {
   toBase64,
 } from '../../src/lib/store/crypto.ts';
 import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
-import type { Grade, UserData } from '../../src/lib/store/schema.ts';
+import { SCHEMA_VERSION, type UserData } from '../../src/lib/store/schema.ts';
 
 const TODAY = '2026-11-25';
 const NOW = '2026-11-25T01:00:00.000Z';
 const R = rulesFor(2026);
 const ctx: ParseContext = {
   today: TODAY,
-  maxStep: (grade: Grade) => maxStepOf(R.salary, grade),
+  ...careerLookup(R),
   defaultSettings: defaultSettings(R),
   nowIso: NOW,
 };
@@ -49,12 +50,14 @@ function sampleData(): UserData {
       nickname: '백업이',
       birthDate: '1995-05-20',
       hireDate: '2020-01-01',
-      grade: 8,
-      gradeDate: '2024-07-01',
+      track: 'general',
+      payTable: 'table3',
+      rank: '8',
+      rankDate: '2024-07-01',
       step: 6,
       nextStepDate: '2027-01-01',
       stepAsOf: TODAY,
-      overrides: { longServiceDate: null, seniorDate: null },
+      overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
     },
     defaultSettings(R),
     NOW,
@@ -122,6 +125,29 @@ describe('암호 걸기 → 풀기', () => {
     const direct = parseBackup(text, ctx);
     expect(direct).toMatchObject({ ok: false, code: 'encrypted' });
     if (!direct.ok) expect(direct.reason).toContain('암호가 걸린 백업');
+  });
+
+  it('예전(v3) 앱이 암호를 건 백업도 풀린 뒤 같은 변환을 거쳐 v4 로 열린다', async () => {
+    const v3 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v3.json'), 'utf8');
+    const opened = await decryptBackup(await locked(PASSWORD, v3), PASSWORD);
+    expect(opened).toEqual({ ok: true, plain: v3 });
+    if (!opened.ok) return;
+    const parsed = parseBackup(opened.plain, ctx);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.fromVersion).toBe(3);
+    expect(parsed.migrated).toBe(true);
+    // 평문 v3 파일을 불러온 것과 같다
+    expect(parsed.data).toEqual((parseBackup(v3, ctx) as { data: UserData }).data);
+    expect(parsed.data.profile).toMatchObject({
+      track: 'general',
+      payTable: 'table3',
+      rank: '7',
+      rankDate: '2021-07-01',
+    });
+    expect(serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW))).toContain(
+      `"schemaVersion": ${SCHEMA_VERSION}`,
+    );
   });
 
   it('같은 평문·암호라도 파일마다 salt·IV·암호문이 모두 다르다(salt 16바이트, IV 12바이트)', async () => {

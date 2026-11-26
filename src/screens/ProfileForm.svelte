@@ -11,8 +11,9 @@
   import { dateReachedStep, nextRaiseDate, stepOn } from '../lib/calc/step.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
   import { formatLongDate } from '../lib/app/format.ts';
-  import { rulesFor } from '../lib/rules/index.ts';
-  import { GRADES, LIMITS, type Grade, type Profile } from '../lib/store/schema.ts';
+  import { careerLookup, rulesFor } from '../lib/rules/index.ts';
+  import type { RankKey } from '../lib/rules/types.ts';
+  import { GENERAL_RANKS, LIMITS, type Profile } from '../lib/store/schema.ts';
   import { checkProfile, toProfile, type ProfileErrors } from '../lib/store/validate.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
@@ -46,7 +47,7 @@
   const start = untrack(() => {
     if (!initial) return null;
     const r = rulesFor(yearOf(clock.today));
-    const max = maxStepOf(r.salary, initial.grade);
+    const max = maxStepOf(r.salary, initial.rank);
     const period = r.stepRaise.periodMonths;
     const stepNow = stepOn(initial, clock.today, max, period);
     const next = nextRaiseDate(initial, clock.today, max, period);
@@ -56,9 +57,12 @@
   let nickname = $state(untrack(() => initial?.nickname ?? ''));
   let birthDate = $state<Ymd | ''>(untrack(() => initial?.birthDate ?? ''));
   let hireDate = $state<Ymd | ''>(untrack(() => initial?.hireDate ?? ''));
-  let grade = $state<Grade>(untrack(() => initial?.grade ?? 9));
-  let promoted = $state(untrack(() => (initial ? initial.gradeDate !== initial.hireDate : false)));
-  let gradeDate = $state<Ymd | ''>(untrack(() => initial?.gradeDate ?? ''));
+  // 직종·봉급표 칸은 아직 없다(#20 묶음 4). 고칠 때는 저장된 값을 그대로 두고, 새로 만들 때는 일반직 별표 3
+  const track = untrack(() => initial?.track ?? 'general');
+  const payTable = untrack(() => (initial ? initial.payTable : 'table3'));
+  let rank = $state<RankKey>(untrack(() => initial?.rank ?? '9'));
+  let promoted = $state(untrack(() => (initial ? initial.rankDate !== initial.hireDate : false)));
+  let rankDate = $state<Ymd | ''>(untrack(() => initial?.rankDate ?? ''));
   let step = $state(untrack(() => start?.stepNow ?? 1));
   let nextStepDate = $state<Ymd | ''>(untrack(() => start?.date ?? ''));
   let longServiceDate = $state<Ymd | ''>(untrack(() => initial?.overrides.longServiceDate ?? ''));
@@ -72,7 +76,7 @@
   let tried = $state(false);
   let formEl = $state<HTMLFormElement>();
 
-  const maxStep = $derived(maxStepOf(rules.salary, grade));
+  const maxStep = $derived(maxStepOf(rules.salary, rank));
   $effect(() => {
     if (step > maxStep) step = maxStep;
   });
@@ -83,16 +87,23 @@
     nickname,
     birthDate,
     hireDate,
-    grade,
-    gradeDate: promoted ? gradeDate : hireDate,
+    track,
+    payTable,
+    rank,
+    rankDate: promoted ? rankDate : hireDate,
     step,
     nextStepDate,
-    overrides: { longServiceDate: longServiceDate || null, seniorDate: seniorDate || null },
+    overrides: {
+      longServiceDate: longServiceDate || null,
+      seniorDate: seniorDate || null,
+      // 화면 칸이 아직 없다. 직접 고쳐 둔 값은 지우지 않는다
+      rankLimitDate: initial?.overrides.rankLimitDate ?? null,
+    },
   });
   const errors = $derived<ProfileErrors>(
     checkProfile(draft, {
       today,
-      maxStep: (g) => maxStepOf(rules.salary, g),
+      ...careerLookup(rules),
       raiseDateRule: atMax ? 'reached' : 'future',
     }),
   );
@@ -100,7 +111,7 @@
   const dateProblems = $state<Record<string, string>>({
     birthDate: '',
     hireDate: '',
-    gradeDate: '',
+    rankDate: '',
     nextStepDate: '',
     longServiceDate: '',
     seniorDate: '',
@@ -112,15 +123,30 @@
    */
   const visibleErrors = $derived.by<ProfileErrors>(() => {
     const out: ProfileErrors = { ...errors };
-    if (!promoted) delete out.gradeDate;
+    if (!promoted) delete out.rankDate;
     for (const [key, text] of Object.entries(dateProblems)) {
       if (!text) continue;
-      if (key === 'gradeDate' && !promoted) continue;
+      if (key === 'rankDate' && !promoted) continue;
       out[key as keyof ProfileErrors] = text;
     }
     return out;
   });
   const errorCount = $derived(Object.keys(visibleErrors).length);
+  /**
+   * 이 화면에 칸이 없는 값(직종·봉급표·계급정년 날짜, 칸은 #20 묶음 4)의 오류. 칸 아래에 안내를 붙일 수 없으므로
+   * 따로 모아 보인다(저장 버튼이 아무 말 없이 막히지 않게).
+   */
+  const HIDDEN_FIELDS: Partial<Record<keyof ProfileErrors, string>> = {
+    track: '직종',
+    payTable: '봉급표',
+    rankLimitDate: '계급정년 날짜',
+  };
+  const hiddenErrors = $derived(
+    Object.entries(visibleErrors).flatMap(([key, text]) => {
+      const label = HIDDEN_FIELDS[key as keyof ProfileErrors];
+      return label && text ? [`${label}: ${text}`] : [];
+    }),
+  );
   const shown = $derived<ProfileErrors>(tried ? visibleErrors : {});
 
   /**
@@ -164,7 +190,7 @@
     if (
       initial &&
       start &&
-      grade === initial.grade &&
+      rank === initial.rank &&
       step === start.stepNow &&
       nextStepDate === start.date
     ) {
@@ -226,19 +252,19 @@
 
   <div class="grid2">
     <div class="field">
-      <label for="pf-grade">현재 직급</label>
+      <label for="pf-rank">현재 직급</label>
       <select
-        id="pf-grade"
+        id="pf-rank"
         class="input"
-        bind:value={grade}
-        aria-invalid={shown.grade ? 'true' : undefined}
-        aria-describedby={shown.grade ? 'pf-grade-error' : undefined}
+        bind:value={rank}
+        aria-invalid={shown.rank ? 'true' : undefined}
+        aria-describedby={shown.rank ? 'pf-rank-error' : undefined}
       >
-        {#each GRADES as g (g)}
-          <option value={g}>{g}급</option>
+        {#each GENERAL_RANKS as r (r)}
+          <option value={r}>{r}급</option>
         {/each}
       </select>
-      {#if shown.grade}<span class="error cap" id="pf-grade-error">{shown.grade}</span>{/if}
+      {#if shown.rank}<span class="error cap" id="pf-rank-error">{shown.rank}</span>{/if}
     </div>
     <Stepper
       id="pf-step"
@@ -259,15 +285,15 @@
     </label>
     {#if promoted}
       <DateInput
-        id="pf-grade-date"
-        bind:problem={dateProblems.gradeDate}
+        id="pf-rank-date"
+        bind:problem={dateProblems.rankDate}
         label="현 직급 임용일(승진일)"
-        bind:value={gradeDate}
+        bind:value={rankDate}
         min={hireDate || undefined}
         max={today}
         required
         hint="근속승진·대우공무원 기간의 기준이에요."
-        error={shown.gradeDate}
+        error={shown.rankDate}
       />
     {/if}
   </div>
@@ -353,10 +379,21 @@
     {/if}
   </div>
 
-  {#if tried && errorCount > 0}
+  {#if tried && errorCount > hiddenErrors.length}
     <p class="note warn" role="alert">
-      고칠 곳이 {errorCount}군데 있어요. 각 칸 아래의 안내를 확인해 주세요.
+      고칠 곳이 {errorCount - hiddenErrors.length}군데 있어요. 각 칸 아래의 안내를 확인해 주세요.
     </p>
+  {/if}
+  {#if tried && hiddenErrors.length > 0}
+    <div class="note warn stack" role="alert" id="pf-hidden-errors">
+      <p>
+        저장된 값 중 이 화면에서 고칠 수 없는 칸이 있어 저장하지 못했어요. 설정에서 데이터를
+        내려받아 보관해 두세요.
+      </p>
+      <ul class="cap">
+        {#each hiddenErrors as text (text)}<li>{text}</li>{/each}
+      </ul>
+    </div>
   {/if}
 
   <div class="btn-row end">

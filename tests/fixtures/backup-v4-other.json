@@ -1,0 +1,93 @@
+{
+  "app": "hobong",
+  "schemaVersion": 4,
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-11-25T00:00:00.000Z",
+  "data": {
+    "profile": {
+      "nickname": "최특정",
+      "birthDate": "1990-03-08",
+      "hireDate": "2015-03-02",
+      "track": "otherSpecial",
+      "payTable": null,
+      "rank": null,
+      "rankDate": "2015-03-02",
+      "step": 9,
+      "nextStepDate": "2027-03-01",
+      "stepAsOf": "2026-11-20",
+      "overrides": {
+        "longServiceDate": null,
+        "seniorDate": null,
+        "rankLimitDate": null
+      }
+    },
+    "settings": {
+      "payday": 20,
+      "work": {
+        "start": "08:30",
+        "end": "17:30",
+        "lunchStart": "11:30",
+        "lunchEnd": "12:30"
+      },
+      "theme": "auto",
+      "reduceMotion": true,
+      "hideAmounts": false,
+      "tabTitle": "countdown",
+      "card": {
+        "ratio": "portrait",
+        "showSalary": true,
+        "showRetirement": false,
+        "showTenure": true,
+        "showBadges": true,
+        "showRank": false
+      }
+    },
+    "leave": {
+      "records": [
+        {
+          "id": "r1",
+          "date": "2026-02-13",
+          "hours": 8,
+          "kind": "day",
+          "memo": "설 연휴 앞"
+        },
+        {
+          "id": "r2",
+          "date": "2026-06-05",
+          "hours": 4,
+          "kind": "pm",
+          "memo": ""
+        },
+        {
+          "id": "r3",
+          "date": "2026-09-22",
+          "hours": 2,
+          "kind": "hours",
+          "memo": "은행"
+        }
+      ],
+      "grantOverrideHours": {}
+    },
+    "achievements": {
+      "hire": {
+        "at": "2015-03-02"
+      }
+    },
+    "character": {
+      "seenForms": ["egg"],
+      "lastRank": null,
+      "lastStep": 9,
+      "lastForm": null
+    },
+    "visits": {
+      "days": ["2026-11-18", "2026-11-19", "2026-11-20"],
+      "lastVisit": "2026-11-19"
+    },
+    "meta": {
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-11-20T08:10:00.000Z",
+      "lastBackupAt": "2026-10-01T00:00:00.000Z",
+      "changesSinceBackup": 4
+    }
+  }
+}

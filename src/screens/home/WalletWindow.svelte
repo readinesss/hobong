@@ -15,7 +15,7 @@
     <div class="stack">
       <span class="muted">월 봉급</span>
       <p class="big"><Money value={salary.amount} /></p>
-      <p class="cap muted">{salary.grade}급 {salary.step}호봉 · 공무원보수규정 별표 3</p>
+      <p class="cap muted">{salary.rank}급 {salary.step}호봉 · 공무원보수규정 별표 3</p>
       {#if view.salaryPending}
         <p class="note warn">
           {view.rules.year}년 봉급표가 아직 반영되지 않아 {salary.tableYear}년 표로 계산했어요. 새

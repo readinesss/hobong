@@ -15,7 +15,7 @@ import type { CardRatio } from '../store/schema.ts';
 
 export interface CardModel {
   nickname: string;
-  grade: number;
+  rank: string;
   step: number;
   maxStep: number;
   formName: string;
@@ -326,7 +326,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     // 두 자리 호봉("14호봉")은 큰 글자로는 오른쪽 칸을 넘친다. 넘치면 두 줄 모두 한 단계 작게 쓴다.
     const stepText = `${model.step}호봉`;
     const big: 24 | 30 = widthOf(ctx, stepText, 30) <= cw ? 30 : 24;
-    text(ctx, `${model.grade}급`, cx, cy, big, INK);
+    text(ctx, `${model.rank}급`, cx, cy, big, INK);
     cy += big + 4;
     text(ctx, stepText, cx, cy, big, INK);
     cy += big + 8;
@@ -351,7 +351,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
     const chipW = chip(ctx, model.formName, left, y);
     text(ctx, fit(ctx, model.nickname, 15, inner - chipW - 4), left + chipW + 4, y + 1, 15, INK);
     y += 26;
-    text(ctx, `${model.grade}급 ${model.step}호봉`, left, y, 30, INK);
+    text(ctx, `${model.rank}급 ${model.step}호봉`, left, y, 30, INK);
     // 아래 점 막대의 이름표(정사각형의 '깃 14/31'과 같다)
     text(ctx, `깃 ${model.step}/${model.maxStep}`, right, y + 14, 12, MUTED, 'right');
     y += 36;
@@ -414,7 +414,7 @@ export function drawCard(ctx: Ctx, model: CardModel, ratio: CardRatio, scale: nu
 export function textCard(model: CardModel, cells = 10): string {
   const lines = [
     `[${model.siteName}] ${model.nickname} · ${model.formName}`,
-    `${model.grade}급 ${model.step}호봉`,
+    `${model.rank}급 ${model.step}호봉`,
   ];
   if (model.raise) {
     const filled = Math.round(Math.min(1, Math.max(0, model.raise.ratio)) * cells);

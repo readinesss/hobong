@@ -61,12 +61,12 @@
 
   const model = $derived<CardModel>({
     nickname: view.profile.nickname,
-    grade: view.profile.grade,
+    rank: view.profile.rank ?? '',
     step: view.step,
     maxStep: view.maxStep,
     formName: view.look.form.name,
     // 카드에는 언제 찍어도 같은 근무 중 모습을 담는다(기분·시간대에 따라 달라지지 않게).
-    look: resolveLook(characterRules, view.profile.grade, view.step, 'work'),
+    look: resolveLook(characterRules, view.profile.rank, view.step, 'work'),
     line: view.line,
     dateText: formatKorean(view.today, false),
     raise:
@@ -119,9 +119,9 @@
     nickname: view.profile.nickname,
     year: recap.year,
     periodText: recapPeriodText(recap),
-    look: resolveLook(characterRules, view.profile.grade, view.step, 'work'),
+    look: resolveLook(characterRules, view.profile.rank, view.step, 'work'),
     formName: view.look.form.name,
-    grade: view.profile.grade,
+    rank: view.profile.rank ?? '',
     step: view.step,
     stepText: recapStepText(recap),
     facts: recapFacts(recap, { workdays: recapWorkdaysOn }),
@@ -226,7 +226,7 @@
       ? `올해 결산 카드 미리보기. ${[
           recapPreviewModel.nickname,
           `${recapPreviewModel.year}년 ${recapPreviewModel.periodText}`,
-          `${recapPreviewModel.grade}급 ${recapPreviewModel.step}호봉`,
+          `${recapPreviewModel.rank}급 ${recapPreviewModel.step}호봉`,
           ...(recapPreviewModel.stepText ? [`승급 ${recapPreviewModel.stepText}`] : []),
           ...recapPreviewModel.facts.map((f) => `${f.label} ${f.value}`),
           ...(recapPreviewModel.salary !== null && !recapOmitted.salary
@@ -234,7 +234,7 @@
             : []),
           ...(recapPreviewModel.grid !== null && !recapOmitted.calendar ? ['1년 달력'] : []),
         ].join(', ')}`
-      : `호봉이 카드 미리보기. ${[model.nickname, `${model.grade}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`
+      : `호봉이 카드 미리보기. ${[model.nickname, `${model.rank}급 ${model.step}호봉`, model.formName, ...drawnFacts].join(', ')}`
     ).replaceAll(MASKED_WON, '금액 가림'),
   );
   const fileName = $derived(

@@ -123,9 +123,9 @@
   // 승급 연출
   $effect(() => {
     if (!app.data) return;
-    const grade = view.profile.grade;
+    const rank = view.profile.rank;
     const step = view.step;
-    untrack(() => app.checkGrowth(grade, step));
+    untrack(() => app.checkGrowth(rank, step));
   });
 
   // 도감 등록

@@ -120,8 +120,10 @@ test.describe('첫 화면과 입력 폼', () => {
       nickname: '김주무관',
       birthDate: '1996-04-12',
       hireDate: '2024-03-04',
-      gradeDate: '2024-03-04',
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rankDate: '2024-03-04',
+      rank: '9',
       step: 3,
       nextStepDate: '2027-03-01',
     });

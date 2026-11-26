@@ -48,7 +48,11 @@ export interface SeedProfile {
   stepAsOf?: string;
 }
 
-/** 현재 형식(v2)의 저장본을 만든다 */
+/**
+ * v3 형식의 저장본을 만든다. 앱이 열 때 v4 로 바꾸므로(직종·봉급표·계급 키) 예전 사용자의 회귀 경로를
+ * 함께 지난다(#20 설계서 §8.2). 넣는 값은 v3 이름(grade·gradeDate)을 쓰고, 저장된 값을 읽어 비교할 때는
+ * v4 이름(rank·rankDate)을 쓴다.
+ */
 export function makeSeed(profile: SeedProfile = {}, extra: Record<string, unknown> = {}): string {
   const p = {
     nickname: '김주무관',
@@ -160,4 +164,50 @@ export function collectErrors(page: Page): string[] {
   });
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   return errors;
+}
+
+export interface SeedProfileV4 extends Omit<SeedProfile, 'grade' | 'gradeDate'> {
+  track?: string;
+  payTable?: string | null;
+  rank?: string | null;
+  rankDate?: string;
+}
+
+/** 지금 형식(v4)의 저장본을 만든다. makeSeed 의 v3 저장본을 앱이 바꾼 결과와 같은 모양이다 */
+export function makeSeedV4(
+  profile: SeedProfileV4 = {},
+  extra: Record<string, unknown> = {},
+): string {
+  const p = {
+    nickname: '김주무관',
+    birthDate: '1996-04-12',
+    hireDate: '2022-09-01',
+    track: 'general',
+    payTable: 'table3',
+    rank: '9',
+    rankDate: profile.hireDate ?? '2022-09-01',
+    step: 5,
+    nextStepDate: '2027-01-01',
+    stepAsOf: '2026-11-24',
+    ...profile,
+  };
+  const v3 = JSON.parse(makeSeed()) as {
+    data: Record<string, unknown> & {
+      settings: Record<string, unknown> & { card: Record<string, unknown> };
+    };
+  };
+  const data = {
+    ...v3.data,
+    profile: { ...p, overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null } },
+    settings: { ...v3.data.settings, card: { ...v3.data.settings.card, showRank: true } },
+    character: { seenForms: [], lastRank: p.rank, lastStep: p.step, lastForm: null },
+    ...extra,
+  };
+  return JSON.stringify({
+    app: 'hobong',
+    schemaVersion: 4,
+    appVersion: '0.1.0',
+    exportedAt: '2026-11-24T00:00:00.000Z',
+    data,
+  });
 }

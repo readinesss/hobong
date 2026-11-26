@@ -7,8 +7,22 @@
  *   (예전 hobong.html 사본이나 열어 둔 옛 탭이 새 데이터를 치워 버리지 않게).
  * - 읽지 못한 데이터는 따로 옮겨 두고, 옮기는 데 성공했을 때만 원래 자리를 비운다.
  */
+import { calculableHere } from '../calc/salary.ts';
 import { makeEnvelope, parseBackup, serializeBackup, type ParseContext } from './backup.ts';
 import type { UserData } from './schema.ts';
+
+/**
+ * 저장 형식은 같아도(v4) 이 버전이 아직 계산하지 못하는 직종·봉급표·계급(일반직 별표 3 의 1~9급 밖)의 데이터.
+ * 같은 저장소를 쓰는 더 새 사본이 쓴 것이므로 '더 새 버전의 데이터'와 똑같이 다룬다: 열지 않고, 옮기지도
+ * 덮어쓰지도 않는다(부록 C). #20 묶음 3(직종별 계산)에서 없앤다.
+ */
+export const NOT_CALCULABLE_REASON =
+  '이 버전의 호봉이 아직 계산하지 못하는 직종·계급의 데이터예요. 새 버전의 호봉으로 열어 주세요.';
+
+/** 이 버전이 계산할 수 있는 데이터인지(calculableHere) */
+export function isCalculableData(data: UserData): boolean {
+  return calculableHere(data.profile);
+}
 
 export interface KeyValueStore {
   getItem(key: string): string | null;
@@ -141,6 +155,7 @@ export function loadData(
   }
   const parsed = parseBackup(raw, ctx);
   if (parsed.ok) {
+    if (!isCalculableData(parsed.data)) return { status: 'newer', reason: NOT_CALCULABLE_REASON };
     return { status: 'ok', data: parsed.data, migrated: parsed.migrated, restored: false };
   }
   if (parsed.code === 'newer') return { status: 'newer', reason: parsed.reason };
@@ -160,7 +175,8 @@ function restoreCorrupt(store: KeyValueStore, ctx: ParseContext): LoadResult | n
     const raw = read(store, key);
     if (raw === null) continue;
     const parsed = parseBackup(raw, ctx);
-    if (!parsed.ok) continue;
+    // 이 버전이 계산하지 못하는 데이터는 되살리지 않고 그 자리에 둔다(새 버전이 되살린다)
+    if (!parsed.ok || !isCalculableData(parsed.data)) continue;
     if (!write(store, KEYS.data, raw)) return null;
     remove(store, key);
     return { status: 'ok', data: parsed.data, migrated: parsed.migrated, restored: true };
@@ -182,7 +198,8 @@ export function isNewerData(store: KeyValueStore, ctx: ParseContext): boolean {
   const raw = read(store, KEYS.data);
   if (raw === null || raw.trim() === '') return false;
   const parsed = parseBackup(raw, ctx);
-  return !parsed.ok && parsed.code === 'newer';
+  if (parsed.ok) return !isCalculableData(parsed.data);
+  return parsed.code === 'newer';
 }
 
 export interface UndoSnapshot {
@@ -205,7 +222,10 @@ export function loadUndo(store: KeyValueStore, ctx: ParseContext): UndoSnapshot 
   const raw = read(store, KEYS.undo);
   if (raw === null) return null;
   const parsed = parseBackup(raw, ctx);
-  return parsed.ok ? { data: parsed.data, savedAt: parsed.exportedAt } : null;
+  // 이 버전이 계산하지 못하는 보관본은 없는 것으로 본다(되돌리면 화면이 열리지 않는다). 지우지는 않는다
+  return parsed.ok && isCalculableData(parsed.data)
+    ? { data: parsed.data, savedAt: parsed.exportedAt }
+    : null;
 }
 
 export function clearUndo(store: KeyValueStore): void {

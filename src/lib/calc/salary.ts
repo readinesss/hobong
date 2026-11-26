@@ -11,27 +11,68 @@ import {
 } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
 import { nextRaiseDate, raiseDate, raiseIndexOn, stepOn, type StepAnchor } from './step.ts';
-import type { GradeKey, Rules, SalaryRules } from '../rules/types.ts';
-import type { Grade } from '../store/schema.ts';
+import type { GradeKey, PayTableId, RankKey, Rules, SalaryRules, TrackId } from '../rules/types.ts';
+import { GENERAL_RANKS, type Grade } from '../store/schema.ts';
 
-export function gradeKey(grade: Grade): GradeKey {
-  return String(grade) as GradeKey;
+/**
+ * 일반직 계급 키('1'~'9')를 별표 3 의 열 키로. 계산은 아직 기본 구역(별표 3)만 쓰므로 일반직 계급만 받는다
+ * (직종별 계산은 resolveCareer 의 봉급표로 바뀐다 — #20 묶음 3). 그 밖의 값이면 예외.
+ */
+export function gradeKey(rank: RankKey | null): GradeKey {
+  if (rank === null || !GENERAL_RANKS.includes(rank))
+    throw new Error(`일반직 계급이 아니라 별표 3 으로 계산할 수 없습니다: ${String(rank)}`);
+  return rank as GradeKey;
 }
 
-export function maxStepOf(salary: SalaryRules, grade: Grade): number {
-  return salary.table[gradeKey(grade)].length;
+/**
+ * 이 버전의 계산이 받는 선택인지: 일반직·별표 3·1~9급만. 저장 형식(v4)은 그 밖의 직종·봉급표·계급(null 포함)도
+ * 받지만, 직종별 계산(#20 묶음 3)이 들어오기 전에는 그런 값을 별표 3 으로 계산하면 틀린 숫자가 되거나 예외가 난다.
+ * 그래서 저장본·되돌리기 보관본·파일 불러오기의 입구(storage.ts·app.inspect)에서 이 검사로 막고,
+ * 계산 입구(salaryOn)에서도 한 번 더 확인한다. 묶음 3 에서 resolveCareer 로 바꾸며 없앤다.
+ */
+export function calculableHere(sel: {
+  track: TrackId;
+  payTable: PayTableId | null;
+  rank: RankKey | null;
+}): boolean {
+  return (
+    sel.track === 'general' &&
+    sel.payTable === 'table3' &&
+    sel.rank !== null &&
+    GENERAL_RANKS.includes(sel.rank)
+  );
+}
+
+/**
+ * 계산 입구에서 부른다. 직종·봉급표를 보지 않는 gradeKey 가 외무 직무등급('1'~'6')이나
+ * 일반직 별표 4·8 을 별표 3 으로 조용히 계산하지 않게, 틀린 숫자 대신 예외를 던진다.
+ */
+export function assertCalculable(sel: Parameters<typeof calculableHere>[0]): void {
+  if (!calculableHere(sel))
+    throw new Error(
+      `이 버전은 일반직 별표 3 만 계산합니다: ${sel.track}/${String(sel.payTable)}/${String(sel.rank)}`,
+    );
+}
+
+/** 일반직 계급 키의 직급 수(7급 → 7). 한 직급 위·시보 대상(6급 이하) 같은 비교에 쓴다 */
+export function gradeOf(rank: RankKey | null): Grade {
+  return Number(gradeKey(rank)) as Grade;
+}
+
+export function maxStepOf(salary: SalaryRules, rank: RankKey | null): number {
+  return salary.table[gradeKey(rank)].length;
 }
 
 /** 봉급표의 월 봉급. 호봉이 표 범위를 벗어나면 가장 가까운 값을 쓴다 */
-export function monthlySalary(salary: SalaryRules, grade: Grade, step: number): number {
-  const row = salary.table[gradeKey(grade)];
+export function monthlySalary(salary: SalaryRules, rank: RankKey | null, step: number): number {
+  const row = salary.table[gradeKey(rank)];
   const index = Math.min(row.length, Math.max(1, Math.floor(step))) - 1;
   return row[index] as number;
 }
 
 export interface SalaryPoint {
   date: Ymd;
-  grade: Grade;
+  rank: RankKey;
   step: number;
   amount: number;
   /** 금액을 가져온 봉급표의 연도 */
@@ -42,20 +83,24 @@ export interface SalaryPoint {
 }
 
 export interface PayProfile extends StepAnchor {
-  grade: Grade;
+  /** 계산할 수 있는 선택인지 확인하는 데만 쓴다(calculableHere) */
+  track: TrackId;
+  payTable: PayTableId | null;
+  rank: RankKey | null;
   hireDate: Ymd;
 }
 
 /** date 시점의 호봉과 봉급(그 해 규정 기준) */
 export function salaryOn(rules: RulesProvider, profile: PayProfile, date: Ymd): SalaryPoint {
+  assertCalculable(profile);
   const r = rules(yearOf(date));
-  const max = maxStepOf(r.salary, profile.grade);
+  const max = maxStepOf(r.salary, profile.rank);
   const step = stepOn(profile, date, max, r.stepRaise.periodMonths);
   return {
     date,
-    grade: profile.grade,
+    rank: gradeKey(profile.rank),
     step,
-    amount: monthlySalary(r.salary, profile.grade, step),
+    amount: monthlySalary(r.salary, profile.rank, step),
     tableYear: r.meta.sectionYear.salary,
     confirmed: r.meta.sectionYear.salary === r.year,
     atMaxStep: step >= max,
@@ -84,15 +129,15 @@ export function nextStepRaise(
   const date = nextRaiseDate(
     profile,
     today,
-    maxStepOf(r.salary, profile.grade),
+    maxStepOf(r.salary, profile.rank),
     r.stepRaise.periodMonths,
   );
   if (!date) return null;
   const after = salaryOn(rules, profile, date);
   // 같은 봉급표 안에서의 차이를 보여준다(연도가 바뀌어도 인상률은 알 수 없으므로).
   const sameTable = rules(now.tableYear).salary;
-  const fromAmount = monthlySalary(sameTable, profile.grade, now.step);
-  const toAmount = monthlySalary(sameTable, profile.grade, after.step);
+  const fromAmount = monthlySalary(sameTable, profile.rank, now.step);
+  const toAmount = monthlySalary(sameTable, profile.rank, after.step);
   return {
     date,
     fromStep: now.step,
@@ -122,7 +167,7 @@ function sumSalary(
   to: Ymd,
 ): number {
   if (to < from) return 0;
-  const max = maxStepOf(table, profile.grade);
+  const max = maxStepOf(table, profile.rank);
   let total = 0;
   // 승급 구간 [raiseDate(k), raiseDate(k+1)) 을 차례로 돌며, 구간 안에서는 달 단위로 일할계산한다.
   const lastK = raiseIndexOn(profile, to, periodMonths);
@@ -131,7 +176,7 @@ function sumSalary(
     const segEnd = minYmd(addDays(raiseDate(profile, k + 1, periodMonths), -1), to);
     if (segEnd < segStart) continue;
     const step = Math.min(max, Math.max(1, profile.step + k + 1));
-    total += monthlySalary(table, profile.grade, step) * monthFraction(segStart, segEnd);
+    total += monthlySalary(table, profile.rank, step) * monthFraction(segStart, segEnd);
   }
   return total;
 }

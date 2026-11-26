@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fillDate, makeSeed, openApp, storedData, tick } from './helpers.ts';
+import { fillDate, makeSeed, makeSeedV4, openApp, storedData, tick } from './helpers.ts';
 
 test.describe('승급과 시간의 흐름', () => {
   test('승급일이 지나면 호봉이 오르고 승급 연출이 한 번 나온다', async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe('승급과 시간의 흐름', () => {
     // 저장된 입력값은 그대로이고(파생 값은 저장하지 않는다) 연출을 본 기록만 남는다
     const data = await storedData(page);
     expect(data?.profile).toMatchObject({ step: 5, nextStepDate: '2027-01-01' });
-    expect(data?.character).toMatchObject({ lastGrade: 9, lastStep: 6 });
+    expect(data?.character).toMatchObject({ lastRank: '9', lastStep: 6 });
 
     await page.reload();
     await tick(page);
@@ -88,6 +88,31 @@ test.describe('승급과 시간의 흐름', () => {
     await tick(page);
     const after = (await storedData(page))?.profile;
     expect(after).toEqual({ ...before, nickname: '새이름' });
+  });
+
+  test('계급정년 날짜(화면에 칸 없음)가 승진일보다 일러도 내 정보를 고쳐 저장할 수 있고, 그 값은 남는다', async ({
+    page,
+  }) => {
+    const seed = JSON.parse(
+      makeSeedV4({ hireDate: '2015-03-02', rank: '7', rankDate: '2021-07-01', step: 9 }),
+    );
+    seed.data.profile.overrides.rankLimitDate = '2024-01-01';
+    await openApp(page, { seed: JSON.stringify(seed), hash: 'settings' });
+    for (let i = 0; i < 3 && (await page.getByRole('dialog').count()) > 0; i += 1) {
+      await page.getByRole('dialog').getByRole('button').last().click();
+      await tick(page);
+    }
+    // 저장본은 손상으로 옮겨지지 않았다
+    expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt'))).toBeNull();
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+    const form = page.getByRole('dialog');
+    await fillDate(page, '현 직급 임용일(승진일)', '2025-07-01');
+    await form.getByRole('button', { name: '저장' }).click();
+    await tick(page);
+    await expect(form).toHaveCount(0);
+    const after = (await storedData(page))?.profile;
+    expect(after?.rankDate).toBe('2025-07-01');
+    expect(after?.overrides.rankLimitDate).toBe('2024-01-01');
   });
 
   test('최고호봉이면 다음 승급일 대신 최고호봉이 된 날을 묻는다', async ({ page }) => {

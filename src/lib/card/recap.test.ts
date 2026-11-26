@@ -32,12 +32,14 @@ const profile: Profile = {
   nickname: '김주무관',
   birthDate: '1996-04-12',
   hireDate: '2022-09-01',
-  grade: 9,
-  gradeDate: '2022-09-01',
+  track: 'general',
+  payTable: 'table3',
+  rank: '9',
+  rankDate: '2022-09-01',
   step: 5,
   nextStepDate: '2027-01-01',
   stepAsOf: '2026-11-24',
-  overrides: { longServiceDate: null, seniorDate: null },
+  overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
 };
 
 function input(over: Partial<RecapInput> = {}): RecapInput {
@@ -45,7 +47,7 @@ function input(over: Partial<RecapInput> = {}): RecapInput {
     today: '2026-11-25',
     profile,
     retireDate: '2056-12-31',
-    maxStep: maxStepOf(rulesFor(2026).salary, 9),
+    maxStep: maxStepOf(rulesFor(2026).salary, '9'),
     periodMonths: 12,
     cal,
     rules: rulesFor,
@@ -63,9 +65,9 @@ function model(over: Partial<RecapInput> = {}, extra: Partial<RecapCardModel> = 
     nickname: profile.nickname,
     year: recap.year,
     periodText: recapPeriodText(recap),
-    look: resolveLook(characterRules, 9, 5, 'work'),
+    look: resolveLook(characterRules, '9', 5, 'work'),
     formName: '아기 봉황',
-    grade: 9,
+    rank: '9',
     step: recap.stepTo,
     stepText: recapStepText(recap),
     facts: recapFacts(recap),
@@ -213,7 +215,7 @@ describe('결산 카드 그리기', () => {
   for (const ratio of ['square', 'portrait'] as const) {
     it(`${ratio}: 빈칸 없이 모든 날을 그리고, 올해 임용일 앞뒤 칸이 똑같다`, () => {
       const over = {
-        profile: { ...profile, hireDate: '2026-03-16', gradeDate: '2026-03-16', step: 1 },
+        profile: { ...profile, hireDate: '2026-03-16', rankDate: '2026-03-16', step: 1 },
         visits: [],
         records: [],
       };

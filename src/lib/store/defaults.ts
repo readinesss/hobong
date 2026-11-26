@@ -22,6 +22,8 @@ export function defaultSettings(rules: Pick<Rules, 'payday' | 'workHours'>): Set
       showRetirement: false,
       showTenure: true,
       showBadges: true,
+      // 일반직 사다리(1~9급) 기본. 직종을 고르면(묶음 4) 그 직종에 맞춘다(경찰·소방·우정·외무는 끔)
+      showRank: true,
     },
   };
 }
@@ -37,7 +39,8 @@ export function newUserData(
     settings,
     leave: { records: [], grantOverrideHours: {} },
     achievements: {},
-    character: { seenForms: [], lastGrade: profile.grade, lastStep: profile.step },
+    // lastForm 은 형태 변화 감지(교원 등)가 들어올 때 첫 저장의 현재 형태로 채운다. 그 전에는 비워 둔다
+    character: { seenForms: [], lastRank: profile.rank, lastStep: profile.step, lastForm: null },
     visits: { days: [today], lastVisit: null },
     meta: { createdAt: nowIso, updatedAt: nowIso, lastBackupAt: null, changesSinceBackup: 0 },
   };

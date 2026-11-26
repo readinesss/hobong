@@ -43,6 +43,7 @@ export {
   rankSlug,
   selectableRanks,
   defaultSel,
+  careerLookup,
   type CareerSel,
   type CareerRules,
   type PayInfo,

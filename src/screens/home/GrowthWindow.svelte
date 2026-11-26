@@ -2,11 +2,14 @@
   import { formatDday } from '../../lib/app/format.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean, type Ymd } from '../../lib/calc/date.ts';
+  import { gradeOf } from '../../lib/calc/salary.ts';
   import Icon from '../../lib/ui/Icon.svelte';
   import Money from '../../lib/ui/Money.svelte';
   import Win from '../../lib/ui/Win.svelte';
 
   const DOT = ' · ';
+  /** 일반직 직급 수(7급 → 7). 한 직급 위를 말할 때 쓴다 */
+  const level = $derived(gradeOf(view.profile.rank));
   const reached = (date: Ymd) => date <= view.today;
   const yearsOf = (months: number | null) => {
     if (months === null) return '';
@@ -36,12 +39,12 @@
       {:else if view.noRaiseReason === 'retire'}
         <p class="cap muted">정년퇴직일 전에 남은 정기승급이 없어요.</p>
       {:else}
-        <p class="cap muted">{view.profile.grade}급의 최고호봉({view.maxStep}호봉)이에요.</p>
+        <p class="cap muted">{view.profile.rank}급의 최고호봉({view.maxStep}호봉)이에요.</p>
       {/if}
     </li>
 
     <!-- 정년퇴직 뒤에는 승진·대우공무원 요건이 뜻이 없으니 보여 주지 않는다 -->
-    {#if !view.retired && view.minService && view.profile.grade > 1}
+    {#if !view.retired && view.minService && level > 1}
       <li>
         <div class="head">
           <span class="row"><Icon name="icon-check" /> 승진소요최저연수</span>
@@ -50,11 +53,8 @@
           </strong>
         </div>
         <p class="cap muted">
-          {formatKorean(view.minService)} · {view.profile.grade}급으로
-          {yearsOf(
-            view.rules.promotion.minService.monthsByGrade[String(view.profile.grade) as '9'] ??
-              null,
-          )} 재직
+          {formatKorean(view.minService)} · {view.profile.rank}급으로
+          {yearsOf(view.rules.promotion.minService.monthsByGrade[view.profile.rank ?? ''] ?? null)} 재직
         </p>
       </li>
     {/if}
@@ -62,7 +62,7 @@
     {#if !view.retired && view.senior.applicable && view.senior.date}
       <li>
         <div class="head">
-          <span class="row"><Icon name="icon-medal" /> {view.profile.grade - 1}급 대우공무원</span>
+          <span class="row"><Icon name="icon-medal" /> {level - 1}급 대우공무원</span>
           <strong class="num">
             {reached(view.senior.date) ? '요건 충족' : formatDday(view.today, view.senior.date)}
           </strong>
@@ -95,7 +95,7 @@
         <p class="cap muted">
           {formatKorean(view.longService.date)}{view.longService.overridden
             ? ' (직접 입력)'
-            : ` · ${view.profile.grade}급으로 ${yearsOf(view.longService.requiredMonths)} 재직`}
+            : ` · ${view.profile.rank}급으로 ${yearsOf(view.longService.requiredMonths)} 재직`}
         </p>
         {#if view.promotion}
           <p class="cap muted">

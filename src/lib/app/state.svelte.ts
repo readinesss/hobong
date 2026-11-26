@@ -6,7 +6,8 @@ import { addDays, diffDays, todayYmd, yearOf, type Ymd } from '../calc/date.ts';
 import { Calendar } from '../calc/calendar.ts';
 import { maxStepOf } from '../calc/salary.ts';
 import { stepOn } from '../calc/step.ts';
-import { rulesFor } from '../rules/index.ts';
+import { careerLookup, rulesFor } from '../rules/index.ts';
+import type { RankKey } from '../rules/types.ts';
 import {
   makeEnvelope,
   parseBackup,
@@ -15,23 +16,18 @@ import {
   type ParseResult,
 } from '../store/backup.ts';
 import { defaultSettings, newUserData } from '../store/defaults.ts';
-import type {
-  Grade,
-  LeaveKind,
-  LeaveRecord,
-  Profile,
-  Settings,
-  UserData,
-} from '../store/schema.ts';
+import type { LeaveKind, LeaveRecord, Profile, Settings, UserData } from '../store/schema.ts';
 import {
   clearAll,
   clearCorrupt,
   clearUndo,
   hasCorrupt,
+  isCalculableData,
   isNewerData,
   KEYS,
   loadData,
   loadUndo,
+  NOT_CALCULABLE_REASON,
   openStore,
   readCorrupt,
   saveData,
@@ -65,9 +61,9 @@ export interface WelcomeBack {
 
 export interface Celebration {
   kind: 'step' | 'hatch';
-  fromGrade: Grade;
+  fromRank: RankKey | null;
   fromStep: number;
-  toGrade: Grade;
+  toRank: RankKey | null;
   toStep: number;
 }
 
@@ -127,7 +123,7 @@ class AppStore {
     const rules = rulesFor(yearOf(today));
     return {
       today,
-      maxStep: (grade: Grade) => maxStepOf(rules.salary, grade),
+      ...careerLookup(rules),
       defaultSettings: defaultSettings(rules),
       nowIso: now.toISOString(),
       stored,
@@ -321,14 +317,14 @@ class AppStore {
       now.toISOString(),
       today,
     );
-    data.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.grade));
+    data.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.rank));
     this.data = data;
     this.#persist();
     this.celebration = {
       kind: 'hatch',
-      fromGrade: profile.grade,
+      fromRank: profile.rank,
       fromStep: data.character.lastStep,
-      toGrade: profile.grade,
+      toRank: profile.rank,
       toStep: data.character.lastStep,
     };
   }
@@ -339,38 +335,38 @@ class AppStore {
     this.commit((d) => {
       d.profile = profile;
       // 직접 고친 값이 연출을 일으키지 않게 기준을 맞춘다.
-      d.character.lastGrade = profile.grade;
-      d.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.grade));
+      d.character.lastRank = profile.rank;
+      d.character.lastStep = stepOn(profile, today, maxStepOf(rules.salary, profile.rank));
     });
   }
 
   /** 승급·승진 연출을 본 것으로 기록한다 */
-  acknowledgeGrowth(grade: Grade, step: number): void {
+  acknowledgeGrowth(rank: RankKey | null, step: number): void {
     this.celebration = null;
     if (!this.data) return;
-    if (this.data.character.lastGrade === grade && this.data.character.lastStep === step) return;
+    if (this.data.character.lastRank === rank && this.data.character.lastStep === step) return;
     this.commit((d) => {
-      d.character.lastGrade = grade;
+      d.character.lastRank = rank;
       d.character.lastStep = step;
     }, false);
   }
 
   /** 오늘 기준 호봉이 마지막으로 본 호봉보다 올랐으면 연출을 준비한다 */
-  checkGrowth(grade: Grade, step: number): void {
+  checkGrowth(rank: RankKey | null, step: number): void {
     const data = this.data;
     if (!data || this.celebration) return;
-    const { lastGrade, lastStep } = data.character;
-    if (grade === lastGrade && step > lastStep) {
+    const { lastRank, lastStep } = data.character;
+    if (rank === lastRank && step > lastStep) {
       this.celebration = {
         kind: 'step',
-        fromGrade: lastGrade,
+        fromRank: lastRank,
         fromStep: lastStep,
-        toGrade: grade,
+        toRank: rank,
         toStep: step,
       };
-    } else if (grade !== lastGrade || step !== lastStep) {
+    } else if (rank !== lastRank || step !== lastStep) {
       // 직급이 바뀌었거나 호봉이 내려간 경우(직접 수정)는 조용히 맞춘다.
-      this.acknowledgeGrowth(grade, step);
+      this.acknowledgeGrowth(rank, step);
     }
   }
 
@@ -526,7 +522,11 @@ class AppStore {
 
   /** 파일 내용을 검사만 한다(아직 아무것도 바꾸지 않는다) */
   inspect(text: string): ParseResult {
-    return parseBackup(text, this.context());
+    const result = parseBackup(text, this.context());
+    // 이 버전이 아직 계산하지 못하는 직종·계급의 파일은 받지 않는다(받으면 화면이 열리지 않거나 틀린 숫자가 나온다)
+    if (result.ok && !isCalculableData(result.data))
+      return { ok: false, reason: NOT_CALCULABLE_REASON, details: [], code: 'newer' };
+    return result;
   }
 
   /**
@@ -537,7 +537,7 @@ class AppStore {
     incoming: UserData,
     exportedAt: string | null = null,
   ): 'imported' | 'replaced' | 'failed' {
-    if (!this.#store || !this.canWrite) return 'failed';
+    if (!this.#store || !this.canWrite || !isCalculableData(incoming)) return 'failed';
     const nowIso = new Date().toISOString();
     const replacing = this.data !== null;
     if (this.data) {

@@ -82,12 +82,14 @@ function profile(over: Partial<Profile> = {}): Profile {
     nickname: '호봉이',
     birthDate: '1995-05-20',
     hireDate: '2020-01-01',
-    grade: 9,
-    gradeDate: '2020-01-01',
+    track: 'general',
+    payTable: 'table3',
+    rank: '9',
+    rankDate: '2020-01-01',
     step: 7,
     nextStepDate: '2027-01-01',
     stepAsOf: '2026-11-25',
-    overrides: { longServiceDate: null, seniorDate: null },
+    overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
     ...over,
   };
 }
@@ -235,21 +237,28 @@ describe('호봉 추이 (보수규정 제13조)', () => {
 
 describe('봉급 (보수규정 별표 3)', () => {
   it('봉급표 조회', () => {
-    expect(monthlySalary(R.salary, 9, 1)).toBe(2_133_000);
-    expect(monthlySalary(R.salary, 9, 31)).toBe(3_731_100);
-    expect(monthlySalary(R.salary, 7, 12)).toBe(3_331_900);
-    expect(monthlySalary(R.salary, 6, 32)).toBe(4_967_800);
-    expect(monthlySalary(R.salary, 1, 23)).toBe(8_001_400);
-    expect(maxStepOf(R.salary, 9)).toBe(31);
-    expect(maxStepOf(R.salary, 6)).toBe(32);
-    expect(maxStepOf(R.salary, 1)).toBe(23);
+    expect(monthlySalary(R.salary, '9', 1)).toBe(2_133_000);
+    expect(monthlySalary(R.salary, '9', 31)).toBe(3_731_100);
+    expect(monthlySalary(R.salary, '7', 12)).toBe(3_331_900);
+    expect(monthlySalary(R.salary, '6', 32)).toBe(4_967_800);
+    expect(monthlySalary(R.salary, '1', 23)).toBe(8_001_400);
+    expect(maxStepOf(R.salary, '9')).toBe(31);
+    expect(maxStepOf(R.salary, '6')).toBe(32);
+    expect(maxStepOf(R.salary, '1')).toBe(23);
   });
   it('표 범위를 벗어난 호봉은 가장 가까운 값', () => {
-    expect(monthlySalary(R.salary, 9, 0)).toBe(2_133_000);
-    expect(monthlySalary(R.salary, 9, 99)).toBe(3_731_100);
+    expect(monthlySalary(R.salary, '9', 0)).toBe(2_133_000);
+    expect(monthlySalary(R.salary, '9', 99)).toBe(3_731_100);
   });
 
-  const pay: PayProfile = { grade: 9, hireDate: '2024-01-01', step: 3, nextStepDate: '2027-01-01' };
+  const pay: PayProfile = {
+    track: 'general',
+    payTable: 'table3',
+    rank: '9',
+    hireDate: '2024-01-01',
+    step: 3,
+    nextStepDate: '2027-01-01',
+  };
   it('날짜별 호봉과 봉급', () => {
     const now = salaryOn(rulesFor, pay, '2026-11-25');
     expect(now).toMatchObject({ step: 3, amount: 2_168_000, tableYear: 2026, confirmed: true });
@@ -268,7 +277,9 @@ describe('봉급 (보수규정 별표 3)', () => {
       confirmed: false,
     });
     const top: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '1995-01-01',
       step: 31,
       nextStepDate: '2027-01-01',
@@ -284,14 +295,18 @@ describe('봉급 (보수규정 별표 3)', () => {
   });
   it('지금까지 번 봉급(추정)', () => {
     const fresh: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2026-01-01',
       step: 1,
       nextStepDate: '2027-01-01',
     };
     expect(cumulativeSalary(rulesFor, fresh, '2026-03-31').total).toBe(3 * 2_133_000);
     const mid: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2026-03-16',
       step: 1,
       nextStepDate: '2027-03-01',
@@ -300,7 +315,9 @@ describe('봉급 (보수규정 별표 3)', () => {
       Math.floor((2_133_000 * 16) / 31),
     );
     const raised: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2025-01-01',
       step: 2,
       nextStepDate: '2027-01-01',
@@ -314,7 +331,9 @@ describe('봉급 (보수규정 별표 3)', () => {
   });
   it('올해 임용자의 올해 번 봉급은 임용일부터 센다', () => {
     const mid: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2026-03-16',
       step: 1,
       nextStepDate: '2027-03-01',
@@ -500,14 +519,14 @@ describe('연가 (복무규정 제15조~제17조)', () => {
 describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
   const P = R.promotion;
   it('승진소요최저연수', () => {
-    expect(minServiceDate(P, 9, '2024-03-01')).toBe('2025-03-01');
-    expect(minServiceDate(P, 7, '2024-03-01')).toBe('2025-03-01');
-    expect(minServiceDate(P, 6, '2024-03-01')).toBe('2026-03-01');
-    expect(minServiceDate(P, 5, '2024-03-01')).toBe('2027-03-01');
-    expect(minServiceDate(P, 3, '2024-03-01')).toBeNull();
+    expect(minServiceDate(P, '9', '2024-03-01')).toBe('2025-03-01');
+    expect(minServiceDate(P, '7', '2024-03-01')).toBe('2025-03-01');
+    expect(minServiceDate(P, '6', '2024-03-01')).toBe('2026-03-01');
+    expect(minServiceDate(P, '5', '2024-03-01')).toBe('2027-03-01');
+    expect(minServiceDate(P, '3', '2024-03-01')).toBeNull();
   });
   it('근속승진 기간: 9급 5년 6개월, 8급 7년, 7급 11년', () => {
-    const nine = longServiceInfo(P, profile({ grade: 9, gradeDate: '2021-04-15' }));
+    const nine = longServiceInfo(P, profile({ rank: '9', rankDate: '2021-04-15' }));
     expect(nine).toMatchObject({
       applicable: true,
       targetGrade: 8,
@@ -518,47 +537,49 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
       reviewFrom: '2026-10-10',
       quotaNote: null,
     });
-    expect(longServiceInfo(P, profile({ grade: 8, gradeDate: '2020-01-01' })).date).toBe(
+    expect(longServiceInfo(P, profile({ rank: '8', rankDate: '2020-01-01' })).date).toBe(
       '2027-01-01',
     );
-    const seven = longServiceInfo(P, profile({ grade: 7, gradeDate: '2016-07-01' }));
+    const seven = longServiceInfo(P, profile({ rank: '7', rankDate: '2016-07-01' }));
     expect(seven.date).toBe('2027-07-01');
     expect(seven.quotaNote).toContain('50%');
-    expect(longServiceInfo(P, profile({ grade: 6 })).applicable).toBe(false);
+    expect(longServiceInfo(P, profile({ rank: '6' })).applicable).toBe(false);
   });
   it('직접 입력한 날짜가 우선한다', () => {
     const info = longServiceInfo(
       P,
       profile({
-        grade: 9,
-        gradeDate: '2021-04-15',
-        overrides: { longServiceDate: '2027-04-15', seniorDate: null },
+        rank: '9',
+        rankDate: '2021-04-15',
+        overrides: { longServiceDate: '2027-04-15', seniorDate: null, rankLimitDate: null },
       }),
     );
     expect(info).toMatchObject({ autoDate: '2026-10-15', date: '2027-04-15', overridden: true });
   });
   it('대우공무원: 9~6급 4년, 5·4급 7년, 다음 달 1일 발령', () => {
-    expect(seniorTreatmentInfo(P, profile({ grade: 9, gradeDate: '2022-11-15' }))).toMatchObject({
+    expect(seniorTreatmentInfo(P, profile({ rank: '9', rankDate: '2022-11-15' }))).toMatchObject({
       applicable: true,
       requiredMonths: 48,
       qualifyDate: '2026-11-15',
       autoDate: '2026-12-01',
       date: '2026-12-01',
     });
-    expect(seniorTreatmentInfo(P, profile({ grade: 6, gradeDate: '2022-12-01' })).date).toBe(
+    expect(seniorTreatmentInfo(P, profile({ rank: '6', rankDate: '2022-12-01' })).date).toBe(
       '2026-12-01',
     );
-    expect(seniorTreatmentInfo(P, profile({ grade: 5, gradeDate: '2020-01-02' })).date).toBe(
+    expect(seniorTreatmentInfo(P, profile({ rank: '5', rankDate: '2020-01-02' })).date).toBe(
       '2027-02-01',
     );
-    expect(seniorTreatmentInfo(P, profile({ grade: 3 })).applicable).toBe(false);
+    expect(seniorTreatmentInfo(P, profile({ rank: '3' })).applicable).toBe(false);
   });
   it('승진 후 호봉(별표 28)과 봉급 미리보기', () => {
     expect(promotedStep(R.promotionStep, 1)).toBe(1);
     expect(promotedStep(R.promotionStep, 2)).toBe(1);
     expect(promotedStep(R.promotionStep, 12)).toBe(11);
     const pay: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2020-01-01',
       step: 6,
       nextStepDate: '2027-01-01',
@@ -574,11 +595,13 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
       diff: 67_100,
       confirmed: true,
     });
-    expect(promotionPreview(rulesFor, { ...pay, grade: 1 }, '2026-11-25')).toBeNull();
+    expect(promotionPreview(rulesFor, { ...pay, rank: '1' }, '2026-11-25')).toBeNull();
   });
   it('대우공무원수당: 4.1%, 승진 시 봉급과의 차액을 넘지 않는다', () => {
     const pay: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2020-01-01',
       step: 6,
       nextStepDate: '2027-01-01',
@@ -586,7 +609,9 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
     // 2,264,600 × 4.1% = 92,848 이지만 8급 5호봉과의 차액 67,100원이 한도
     expect(seniorAllowance(rulesFor, pay, '2026-11-25')).toBe(67_100);
     const six: PayProfile = {
-      grade: 6,
+      track: 'general',
+      payTable: 'table3',
+      rank: '6',
       hireDate: '2005-01-01',
       step: 20,
       nextStepDate: '2027-01-01',
@@ -780,7 +805,9 @@ describe('보너스 (수당규정 제7조·별표 2, 제18조의3)', () => {
   });
   it('정근수당 금액과 지급일', () => {
     const pay: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2020-01-01',
       step: 7,
       nextStepDate: '2027-01-01',
@@ -804,7 +831,9 @@ describe('보너스 (수당규정 제7조·별표 2, 제18조의3)', () => {
   });
   it('신규 임용자는 근무한 개월 수만큼', () => {
     const pay: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2026-09-01',
       step: 1,
       nextStepDate: '2027-09-01',
@@ -813,7 +842,9 @@ describe('보너스 (수당규정 제7조·별표 2, 제18조의3)', () => {
     expect(jan).toMatchObject({ rate: 0.1, years: 0, proration: { months: 4, of: 6 } });
     expect(jan?.amount).toBe(Math.floor((2_133_000 * 0.1 * 4) / 6));
     const late: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2026-12-20',
       step: 1,
       nextStepDate: '2027-12-01',
@@ -825,7 +856,9 @@ describe('보너스 (수당규정 제7조·별표 2, 제18조의3)', () => {
   });
   it('다가오는 보너스는 날짜순', () => {
     const pay: PayProfile = {
-      grade: 9,
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
       hireDate: '2020-01-01',
       step: 7,
       nextStepDate: '2027-01-01',
@@ -848,7 +881,7 @@ describe('보너스 (수당규정 제7조·별표 2, 제18조의3)', () => {
 describe('일정(퀘스트 로그)', () => {
   const p = profile({
     hireDate: '2024-03-04',
-    gradeDate: '2024-03-04',
+    rankDate: '2024-03-04',
     birthDate: '1998-07-01',
     step: 3,
     nextStepDate: '2027-03-01',
@@ -887,7 +920,7 @@ describe('일정(퀘스트 로그)', () => {
     expect(past).not.toContain('days-1000');
   });
   it('5급 이상은 시보 해제 일정을 넣지 않는다', () => {
-    const five = buildMilestones(rulesFor, profile({ grade: 5 }), '2026-11-25');
+    const five = buildMilestones(rulesFor, profile({ rank: '5' }), '2026-11-25');
     expect(five.some((m) => m.id === 'probation')).toBe(false);
     expect(five.some((m) => m.id.startsWith('long-service-'))).toBe(false);
     expect(five.some((m) => m.id === 'senior-5')).toBe(true);
@@ -953,7 +986,7 @@ describe('검토에서 나온 경계 사례', () => {
 
   it('정근수당: 근무연수 7년(35%)에서도 1원이 빠지지 않는다', () => {
     // 2019-03-01 임용 → 2027-01-01 현재 근무연수 7년
-    const p = profile({ hireDate: '2019-03-01', gradeDate: '2019-03-01', step: 10 });
+    const p = profile({ hireDate: '2019-03-01', rankDate: '2019-03-01', step: 10 });
     const bonus = diligenceBonus(rulesFor, cal, p, 25, 2027, 1);
     expect(bonus).toMatchObject({ rate: 0.35, years: 7, step: 11, baseSalary: 2_624_400 });
     expect(bonus?.amount).toBe(918_540);
@@ -969,7 +1002,7 @@ describe('검토에서 나온 경계 사례', () => {
     expect(diligenceQualifies(d, '2027-01-01', '2027-01-01')).toBe(false);
     const late = profile({
       hireDate: '2026-12-05',
-      gradeDate: '2026-12-05',
+      rankDate: '2026-12-05',
       step: 1,
       nextStepDate: '2028-01-01',
       stepAsOf: '2026-12-05',
@@ -977,7 +1010,7 @@ describe('검토에서 나온 경계 사례', () => {
     expect(diligenceBonus(rulesFor, cal, late, 25, 2027, 1)).toBeNull();
     const onTime = profile({
       hireDate: '2026-12-01',
-      gradeDate: '2026-12-01',
+      rankDate: '2026-12-01',
       step: 1,
       nextStepDate: '2027-12-01',
       stepAsOf: '2026-12-01',
@@ -991,7 +1024,7 @@ describe('검토에서 나온 경계 사례', () => {
 
   it('정년퇴직일 뒤가 기준일인 보너스는 없다', () => {
     // 1966-11-30생 → 2026-12-31 정년퇴직
-    const p = profile({ birthDate: '1966-11-30', hireDate: '1993-03-02', gradeDate: '1993-03-02' });
+    const p = profile({ birthDate: '1966-11-30', hireDate: '1993-03-02', rankDate: '1993-03-02' });
     const retire = retirementInfo(R.retirement, p.birthDate).retireDate;
     expect(retire).toBe('2026-12-31');
     expect(upcomingBonuses(rulesFor, cal, p, 25, '2026-11-25', 3).length).toBeGreaterThan(0);
@@ -1070,14 +1103,14 @@ describe('검토에서 나온 경계 사례', () => {
     it('일정과 배지에도 같은 날짜가 쓰인다', () => {
       const old = buildMilestones(
         rulesFor,
-        profile({ birthDate: '1968-03-01', hireDate: '1990-03-01', gradeDate: '1990-03-01' }),
+        profile({ birthDate: '1968-03-01', hireDate: '1990-03-01', rankDate: '1990-03-01' }),
         '2026-11-25',
       );
       const ids = old.filter((m) => m.id.startsWith('long-leave')).map((m) => [m.id, m.date]);
       expect(ids).toEqual([['long-leave-20', '2025-07-22']]);
       const graced = buildMilestones(
         rulesFor,
-        profile({ birthDate: '1990-03-01', hireDate: '2016-09-01', gradeDate: '2016-09-01' }),
+        profile({ birthDate: '1990-03-01', hireDate: '2016-09-01', rankDate: '2016-09-01' }),
         '2026-11-25',
       ).find((m) => m.id === 'long-leave-5');
       expect(graced?.date).toBe('2026-06-23');

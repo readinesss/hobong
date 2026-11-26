@@ -20,8 +20,8 @@
   let phase = $state(0);
   const LAST = 8;
 
-  const before = $derived(resolveLook(characterRules, event.fromGrade, event.fromStep, 'work'));
-  const after = $derived(resolveLook(characterRules, event.toGrade, event.toStep, 'celebrate'));
+  const before = $derived(resolveLook(characterRules, event.fromRank, event.fromStep, 'work'));
+  const after = $derived(resolveLook(characterRules, event.toRank, event.toStep, 'celebrate'));
   const unlocked = $derived(
     unlockList(characterRules).filter((u) => u.step > event.fromStep && u.step <= event.toStep),
   );
@@ -43,7 +43,7 @@
   });
 
   function close() {
-    app.acknowledgeGrowth(event.toGrade, event.toStep);
+    app.acknowledgeGrowth(event.toRank, event.toStep);
   }
 
   const title = $derived(event.kind === 'hatch' ? '호봉이가 깨어났어요' : '승급했어요');
@@ -90,7 +90,7 @@
           <p>{welcomeLine(view.profile.nickname)}</p>
           <p class="cap muted">{after.form.blurb}</p>
         {:else}
-          <p class="mid">{event.toGrade}급 {event.toStep}호봉</p>
+          <p class="mid">{event.toRank}급 {event.toStep}호봉</p>
           <p>
             {event.fromStep}호봉에서 {event.toStep}호봉으로 올랐어요. 깃이 {grown === 1
               ? '하나'

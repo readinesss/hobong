@@ -414,3 +414,25 @@ export function defaultSel(rules: Rules, track: TrackId): CareerSel {
   const first = selectableRanks(rules, track, payTable)[0];
   return { track, payTable, rank: first ? first.key : null };
 }
+
+/**
+ * 내 정보 검사(store/validate.ts 의 CareerLookup)에 넘기는 규정 조회. 그 해 규칙의 사다리·봉급표로 답한다.
+ * 입력 폼·파일 불러오기에서만 쓰인다(저장본 검사는 규정 데이터에 기대지 않는다).
+ */
+export function careerLookup(rules: Rules): {
+  maxStep: (sel: CareerSel) => number | null;
+  rankLabel: (sel: CareerSel) => string;
+  selectableRanks: (track: TrackId, payTable: PayTableId | null) => readonly RankKey[];
+} {
+  return {
+    maxStep: (sel) => {
+      const pay = resolveCareer(rules, sel).pay;
+      return isAvailable(pay) ? pay.row.length : null;
+    },
+    rankLabel: (sel) => {
+      const c = resolveCareer(rules, sel);
+      return rankLabel(c) || `${c.track.label} 봉급표`;
+    },
+    selectableRanks: (track, payTable) => selectableRanks(rules, track, payTable).map((r) => r.key),
+  };
+}

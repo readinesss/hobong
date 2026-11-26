@@ -2,7 +2,15 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { fixture, makeSeed, openApp, storedData, tick } from './helpers.ts';
+import {
+  collectErrors,
+  fixture,
+  makeSeed,
+  makeSeedV4,
+  openApp,
+  storedData,
+  tick,
+} from './helpers.ts';
 
 const SEED = makeSeed(
   { nickname: '백업이', hireDate: '2020-01-01', grade: 8, gradeDate: '2024-07-01', step: 6 },
@@ -51,7 +59,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     const file = await download(page);
     expect(file.name).toBe('hobong-backup-20261125.json');
     const envelope = JSON.parse(file.text);
-    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 3, appVersion: '0.1.0' });
+    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 4, appVersion: '0.1.0' });
     expect(typeof envelope.exportedAt).toBe('string');
     await expect(page.getByText('급여·인사 정보가 들어 있으니')).toBeVisible();
     // 브라우저는 저장이 끝났는지 알려 주지 않으므로 단정하지 않고 확인을 부탁한다
@@ -160,6 +168,66 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt'))).toBeNull();
   });
 
+  // #20 묶음 3(직종별 계산) 전까지: 저장 형식(v4)은 같아도 이 버전이 계산하지 못하는 직종·계급의 데이터는
+  // 더 새 버전의 데이터처럼 다룬다(화면이 멈추거나 별표 3 으로 틀린 숫자를 보이지 않게)
+  test('이 버전이 아직 계산하지 못하는 직종의 v4 저장본은 열지 않고 그대로 둔다', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    const seeds = [
+      fixture('backup-v4-police.json'),
+      fixture('backup-v4-other.json'),
+      makeSeedV4({ rank: null }),
+      makeSeedV4({ track: 'foreign', payTable: null, rank: '1' }),
+    ];
+    for (const seed of seeds) {
+      await openApp(page, { seed });
+      await expect(page.locator('#welcome-newer')).toContainText('더 새 버전의 호봉');
+      await expect(page.getByRole('button', { name: '새로 시작' })).toHaveCount(0);
+      expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(seed);
+      expect(await page.evaluate(() => localStorage.getItem('hobong.corrupt'))).toBeNull();
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('이 버전이 아직 계산하지 못하는 직종의 v4 파일은 불러오지 않는다', async ({ page }) => {
+    await openApp(page, { seed: SEED, hash: 'settings' });
+    await tick(page, 6000);
+    const before = await storedData(page);
+    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    const dialog = page.getByRole('dialog');
+    for (const [name, text] of [
+      ['police.json', fixture('backup-v4-police.json')],
+      ['teacher.json', fixture('backup-v4-teacher.json')],
+      ['other.json', fixture('backup-v4-other.json')],
+      ['foreign.json', makeSeedV4({ track: 'foreign', payTable: null, rank: '1' })],
+      ['table8.json', makeSeedV4({ payTable: 'table8', rank: '7' })],
+    ] as const) {
+      await importFile(page, tempFile(name, text));
+      await expect(dialog.getByRole('alert'), name).toContainText('아직 계산하지 못하는 직종');
+      await expect(dialog.getByRole('button', { name: /불러오기$/ }), name).toHaveCount(0);
+    }
+    expect(await storedData(page)).toEqual(before);
+  });
+
+  test('다른 탭이 이 버전이 계산하지 못하는 직종으로 저장하면 이 탭은 더는 쓰지 않는다', async ({
+    page,
+    context,
+  }) => {
+    await openApp(page, { seed: SEED });
+    await tick(page, 3000);
+    const other = await context.newPage();
+    await other.goto(page.url());
+    const police = fixture('backup-v4-police.json');
+    await other.evaluate((value) => localStorage.setItem('hobong.data', value), police);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(police);
+    await page.getByRole('button', { name: '금액 가리기' }).click();
+    await tick(page);
+    await expect(page.locator('#notice-stale')).toContainText('새 버전');
+    expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(police);
+    await other.close();
+  });
+
   test('다른 탭이 더 새 버전으로 저장하면 이 탭은 더는 쓰지 않는다', async ({ page, context }) => {
     await openApp(page, { seed: SEED });
     await tick(page, 3000);
@@ -237,10 +305,46 @@ test.describe('데이터 내려받기·불러오기', () => {
     // v1의 다음 승급일(2026-09-01)이 지났으므로 오늘 기준으로는 5호봉이다
     await expect(page.locator('#status')).toContainText('9급 5호봉');
     const data = await storedData(page);
-    expect(data?.profile).toMatchObject({ nickname: '김주무관', gradeDate: '2022-09-01', step: 4 });
+    expect(data?.profile).toMatchObject({
+      nickname: '김주무관',
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
+      rankDate: '2022-09-01',
+      step: 4,
+    });
     expect(data?.leave.records).toHaveLength(3);
     expect(data?.leave.grantOverrideHours).toEqual({ '2026': 128 });
     expect(JSON.parse(fixture('backup-v1.json')).schemaVersion).toBe(1);
+  });
+
+  test('v3 저장본은 열 때 v4 로 바뀌고, 같은 내용의 v4 저장본과 똑같이 열린다', async ({
+    page,
+  }) => {
+    const v3 = { hireDate: '2020-01-01', step: 6 };
+    await openApp(page, { seed: makeSeed({ ...v3, grade: 8, gradeDate: '2024-07-01' }) });
+    await tick(page, 6000);
+    await expect(page.locator('#status')).toContainText('8급 6호봉');
+    const fromV3 = await storedData(page);
+    expect(fromV3?.profile).toMatchObject({
+      track: 'general',
+      payTable: 'table3',
+      rank: '8',
+      rankDate: '2024-07-01',
+      overrides: { rankLimitDate: null },
+    });
+    expect(fromV3?.profile).not.toHaveProperty('grade');
+    expect(fromV3?.character).toMatchObject({ lastRank: '8', lastForm: null });
+    expect(fromV3?.settings.card.showRank).toBe(true);
+    const version = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}').schemaVersion);
+    expect(await version()).toBe(4);
+
+    await openApp(page, { seed: makeSeedV4({ ...v3, rank: '8', rankDate: '2024-07-01' }) });
+    await tick(page, 6000);
+    await expect(page.locator('#status')).toContainText('8급 6호봉');
+    expect((await storedData(page))?.profile).toEqual(fromV3?.profile);
+    expect((await storedData(page))?.character).toEqual(fromV3?.character);
   });
 
   test('기존 데이터가 있으면 확인을 받고, 덮어쓴 뒤에도 되돌릴 수 있다', async ({ page }) => {

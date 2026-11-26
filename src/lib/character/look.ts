@@ -2,7 +2,8 @@
  * 직급·호봉·기분 → 어떤 부품을 겹쳐 그릴지 정한다(순수 함수).
  * 규칙은 data/character.json 에 있다.
  */
-import type { Grade } from '../store/schema.ts';
+import { gradeOf } from '../calc/salary.ts';
+import type { RankKey } from '../rules/types.ts';
 
 export type MoodId =
   'work' | 'lunch' | 'off' | 'sleep' | 'vacation' | 'tired' | 'payday' | 'celebrate';
@@ -99,9 +100,11 @@ export interface Look {
   wearing: { id: string; name: string; tint: string | null }[];
 }
 
-export function formFor(rules: CharacterRules, grade: Grade): FormRule {
-  const form = rules.forms.find((f) => f.grades.includes(grade));
-  if (!form) throw new Error(`${grade}급에 해당하는 형태가 character.json에 없습니다`);
+/** 계급의 형태. 지금은 일반직 계급 키('1'~'9')만 받는다(character.json forms 의 grades 는 직급 수) */
+export function formFor(rules: CharacterRules, rank: RankKey | null): FormRule {
+  const level = gradeOf(rank);
+  const form = rules.forms.find((f) => f.grades.includes(level));
+  if (!form) throw new Error(`${level}급에 해당하는 형태가 character.json에 없습니다`);
   return form;
 }
 
@@ -129,8 +132,13 @@ export function tintAt(item: ItemRule, step: number): TintRule | null {
   return best;
 }
 
-export function resolveLook(rules: CharacterRules, grade: Grade, step: number, mood: MoodId): Look {
-  const form = formFor(rules, grade);
+export function resolveLook(
+  rules: CharacterRules,
+  rank: RankKey | null,
+  step: number,
+  mood: MoodId,
+): Look {
+  const form = formFor(rules, rank);
   const moodRule = rules.moods[mood];
   const hidden = new Set(moodRule.hide);
   const parts: LookPart[] = [{ sprite: rules.shadow }];

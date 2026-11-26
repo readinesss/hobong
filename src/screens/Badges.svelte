@@ -4,7 +4,6 @@
   import { formatKorean } from '../lib/calc/date.ts';
   import { resolveLook, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
-  import type { Grade } from '../lib/store/schema.ts';
   import type { AchievementView } from '../lib/achievements.ts';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
@@ -19,12 +18,12 @@
   const silhouette = $derived(theme.dark ? 13 : 15);
   const forms = $derived(
     characterRules.forms.map((form, index) => {
-      const grade = form.grades[0] as Grade;
+      const level = form.grades[0] ?? 9;
       // 직급은 내려가지 않으니, 지금보다 아래 직급의 모습은 지나온 것으로 친다(높은 직급으로 시작한 사람도)
       const passed = index < currentIndex;
       const known = seen.has(form.id) || form.id === currentForm || passed;
       const gradeLabel =
-        form.grades.length === 1 ? `${grade}급` : `${Math.max(...form.grades)}급 이상`;
+        form.grades.length === 1 ? `${level}급` : `${Math.max(...form.grades)}급 이상`;
       return {
         form,
         known,
@@ -32,7 +31,7 @@
         passed,
         gradeLabel,
         // 도감에는 소품 없이 기본 모습만 싣는다.
-        look: resolveLook(characterRules, grade, 0, 'work'),
+        look: resolveLook(characterRules, String(level), 0, 'work'),
       };
     }),
   );

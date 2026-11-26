@@ -21,18 +21,20 @@ import { maxStepOf, yearToDateSalary } from './salary.ts';
 import { stepOn } from './step.ts';
 
 const cal = new Calendar(rulesFor);
-const MAX9 = maxStepOf(rulesFor(2026).salary, 9);
+const MAX9 = maxStepOf(rulesFor(2026).salary, '9');
 
 const profile: Profile = {
   nickname: '호봉이',
   birthDate: '1996-04-12',
   hireDate: '2022-09-01',
-  grade: 9,
-  gradeDate: '2022-09-01',
+  track: 'general',
+  payTable: 'table3',
+  rank: '9',
+  rankDate: '2022-09-01',
   step: 5,
   nextStepDate: '2027-01-01',
   stepAsOf: '2026-11-24',
-  overrides: { longServiceDate: null, seniorDate: null },
+  overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
 };
 
 let seq = 0;
@@ -128,7 +130,7 @@ describe('yearRecap', () => {
     const hired: Profile = {
       ...profile,
       hireDate: '2026-03-04',
-      gradeDate: '2026-03-04',
+      rankDate: '2026-03-04',
       step: 1,
       nextStepDate: '2027-03-01',
       stepAsOf: '2026-03-04',

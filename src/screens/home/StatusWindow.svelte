@@ -47,7 +47,7 @@
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
         </p>
-        <p class="big level">{view.profile.grade}급 {view.step}호봉</p>
+        <p class="big level">{view.profile.rank}급 {view.step}호봉</p>
         <p class="cap muted">{look.form.blurb}</p>
       </div>
 

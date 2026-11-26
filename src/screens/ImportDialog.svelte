@@ -201,7 +201,7 @@
         </div>
         <div class="kv">
           <dt>직급·호봉</dt>
-          <dd>{ok.data.profile.grade}급 {ok.data.profile.step}호봉</dd>
+          <dd>{ok.data.profile.rank}급 {ok.data.profile.step}호봉</dd>
         </div>
         <div class="kv">
           <dt>연가 기록</dt>

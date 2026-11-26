@@ -54,7 +54,7 @@ import { earnings, secondOfDay, todayStatus, toSchedule, type TodayStatus } from
 import { decideMood, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
-import { hasHolidayData, isSalaryConfirmed, rulesFor } from '../rules/index.ts';
+import { careerLookup, hasHolidayData, isSalaryConfirmed, rulesFor } from '../rules/index.ts';
 import type { UserData } from '../store/schema.ts';
 import { checkProfile } from '../store/validate.ts';
 
@@ -75,7 +75,7 @@ class View {
   holidayDataMissing = $derived(!hasHolidayData(this.rules));
 
   profile = $derived(this.data.profile);
-  maxStep = $derived(maxStepOf(this.rules.salary, this.profile.grade));
+  maxStep = $derived(maxStepOf(this.rules.salary, this.profile.rank));
   /**
    * 저장된 내 정보 중 지금 기준으로 맞지 않는 값(PC 시계가 뒤로 갔거나 규정이 바뀐 경우).
    * 저장본은 그대로 열고, 화면에서 확인을 부탁한다.
@@ -84,7 +84,7 @@ class View {
     Object.values(
       checkProfile(this.profile, {
         today: this.today,
-        maxStep: (grade) => maxStepOf(this.rules.salary, grade),
+        ...careerLookup(this.rules),
       }),
     ),
   );
@@ -152,7 +152,7 @@ class View {
   longService = $derived(longServiceInfo(this.rules.promotion, this.profile));
   senior = $derived(seniorTreatmentInfo(this.rules.promotion, this.profile));
   minService = $derived(
-    minServiceDate(this.rules.promotion, this.profile.grade, this.profile.gradeDate),
+    minServiceDate(this.rules.promotion, this.profile.rank, this.profile.rankDate),
   );
   /** 근속승진 요건일(이미 지났으면 오늘)에 승진한다면 */
   promotion = $derived.by(() => {
@@ -350,7 +350,7 @@ class View {
       hasLeaveLeft: this.leave.remainingHours > 0,
     });
   });
-  look = $derived(resolveLook(characterRules, this.profile.grade, this.step, this.mood));
+  look = $derived(resolveLook(characterRules, this.profile.rank, this.step, this.mood));
   line = $derived.by(() => {
     void clock.minute;
     const now = untrack(() => clock.now);

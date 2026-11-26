@@ -31,12 +31,14 @@ const profile: Profile = {
   nickname: '호봉이',
   birthDate: '1995-05-20',
   hireDate: '2022-09-01',
-  grade: 9,
-  gradeDate: '2022-09-01',
+  track: 'general',
+  payTable: 'table3',
+  rank: '9',
+  rankDate: '2022-09-01',
   step: 5,
   nextStepDate: '2027-01-01',
   stepAsOf: '2026-11-25',
-  overrides: { longServiceDate: null, seniorDate: null },
+  overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
 };
 
 describe('표기 통일', () => {

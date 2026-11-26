@@ -16,7 +16,7 @@ import type { RulesProvider } from './calendar.ts';
 import { tierDays } from './leave.ts';
 import { longServiceInfo, minServiceDate, seniorTreatmentInfo } from './promotion.ts';
 import { retirementInfo } from './retirement.ts';
-import { gradeKey, maxStepOf } from './salary.ts';
+import { assertCalculable, gradeKey, gradeOf, maxStepOf } from './salary.ts';
 import { nextRaiseDate, stepOn } from './step.ts';
 import type { LongLeaveTier } from '../rules/types.ts';
 import type { Profile } from '../store/schema.ts';
@@ -159,8 +159,11 @@ function percent(rate: number): string {
 
 /** 임용일부터 정년퇴직일까지의 모든 일정(날짜순) */
 export function buildMilestones(rules: RulesProvider, profile: Profile, today: Ymd): Milestone[] {
+  assertCalculable(profile);
   const r = rules(yearOf(today));
-  const { hireDate, gradeDate, grade } = profile;
+  const { hireDate, rankDate, rank } = profile;
+  /** 일반직 직급 수(7급 → 7). 한 직급 위·시보 대상 비교에 쓴다 */
+  const level = gradeOf(rank);
   const retire = retirementInfo(r.retirement, profile.birthDate).retireDate;
   const out: Milestone[] = [];
   const push = (m: Milestone) => {
@@ -179,8 +182,8 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
 
   // 시보 해제: 6급 이하로 재직 중이면 임용 당시에도 6급 이하였으므로 6개월로 본다.
   // 5급 이상은 임용 당시 계급을 알 수 없어 넣지 않는다.
-  const probationMonths = r.probation.monthsByGrade[gradeKey(grade)];
-  if (probationMonths !== undefined && grade >= 6) {
+  const probationMonths = r.probation.monthsByGrade[gradeKey(rank)];
+  if (probationMonths !== undefined && level >= 6) {
     push({
       id: 'probation',
       date: periodCompleteDate(hireDate, probationMonths),
@@ -246,14 +249,14 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   }
 
   // 현 직급 기준 일정
-  const minDate = minServiceDate(r.promotion, grade, gradeDate);
-  const minMonths = r.promotion.minService.monthsByGrade[gradeKey(grade)];
-  if (minDate && minMonths !== undefined && grade > 1) {
+  const minDate = minServiceDate(r.promotion, rank, rankDate);
+  const minMonths = r.promotion.minService.monthsByGrade[gradeKey(rank)];
+  if (minDate && minMonths !== undefined && level > 1) {
     push({
-      id: `min-service-${grade}`,
+      id: `min-service-${level}`,
       date: minDate,
       title: '승진소요최저연수 충족',
-      detail: `${grade}급으로 ${yearsLabel(minMonths)} 재직. ${grade - 1}급 승진 심사 대상이 될 수 있는 최소 기간을 채워요.`,
+      detail: `${level}급으로 ${yearsLabel(minMonths)} 재직. ${level - 1}급 승진 심사 대상이 될 수 있는 최소 기간을 채워요.`,
       icon: 'icon-stairs',
       kind: 'promotion',
       badge: false,
@@ -262,12 +265,12 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   const senior = seniorTreatmentInfo(r.promotion, profile);
   if (senior.applicable && senior.date && senior.requiredMonths !== null) {
     push({
-      id: `senior-${grade}`,
+      id: `senior-${level}`,
       date: senior.date,
-      title: `${grade - 1}급 대우공무원 요건`,
+      title: `${level - 1}급 대우공무원 요건`,
       detail: senior.overridden
         ? '직접 입력한 선발 예정일.'
-        : `${grade}급으로 ${yearsLabel(senior.requiredMonths)} 근무. 요건을 채운 뒤 처음 오는 1일에 선발될 수 있다(근무실적 요건 별도).`,
+        : `${level}급으로 ${yearsLabel(senior.requiredMonths)} 근무. 요건을 채운 뒤 처음 오는 1일에 선발될 수 있다(근무실적 요건 별도).`,
       icon: 'icon-medal',
       kind: 'promotion',
       badge: false,
@@ -276,12 +279,12 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   const longService = longServiceInfo(r.promotion, profile);
   if (longService.applicable && longService.date && longService.requiredMonths !== null) {
     push({
-      id: `long-service-${grade}`,
+      id: `long-service-${level}`,
       date: longService.date,
-      title: `${grade - 1}급 근속승진 요건`,
+      title: `${level - 1}급 근속승진 요건`,
       detail: longService.overridden
         ? '직접 입력한 요건 충족일.'
-        : `${grade}급으로 ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(승진후보자명부 등재 등 요건 별도).`,
+        : `${level}급으로 ${yearsLabel(longService.requiredMonths)} 재직. 근속승진 기간을 채워요(승진후보자명부 등재 등 요건 별도).`,
       icon: 'icon-stairs',
       kind: 'promotion',
       badge: false,
@@ -289,7 +292,7 @@ export function buildMilestones(rules: RulesProvider, profile: Profile, today: Y
   }
 
   // 다음 정기승급
-  const maxStep = maxStepOf(r.salary, grade);
+  const maxStep = maxStepOf(r.salary, rank);
   const nextRaise = nextRaiseDate(profile, today, maxStep, r.stepRaise.periodMonths);
   if (nextRaise) {
     const to = stepOn(profile, nextRaise, maxStep, r.stepRaise.periodMonths);

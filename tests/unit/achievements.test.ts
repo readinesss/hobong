@@ -36,12 +36,14 @@ function makeData(): UserData {
       nickname: '호봉이',
       birthDate: '1995-05-20',
       hireDate: '2020-01-01',
-      grade: 9,
-      gradeDate: '2020-01-01',
+      track: 'general',
+      payTable: 'table3',
+      rank: '9',
+      rankDate: '2020-01-01',
       step: 7,
       nextStepDate: '2027-01-01',
       stepAsOf: '2026-11-25',
-      overrides: { longServiceDate: null, seniorDate: null },
+      overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
     },
     { ...defaultSettings(R), payday: 25 },
     '2026-11-25T00:00:00.000Z',
@@ -54,7 +56,7 @@ function inputOf(data: UserData, today = TODAY): AchievementInput {
     today,
     data,
     milestones: buildMilestones(rulesFor, data.profile, today),
-    currentStep: stepOn(data.profile, today, maxStepOf(R.salary, data.profile.grade)),
+    currentStep: stepOn(data.profile, today, maxStepOf(R.salary, data.profile.rank)),
     anchor: data.profile,
     leave: summarizeLeave(R.leave, data.profile.hireDate, data.leave, today),
     cal,
@@ -105,7 +107,7 @@ describe('업적', () => {
     data.profile = {
       ...data.profile,
       hireDate: '2026-03-02',
-      gradeDate: '2026-03-02',
+      rankDate: '2026-03-02',
       step: 7,
       nextStepDate: '2027-03-01',
       stepAsOf: TODAY,
@@ -115,7 +117,7 @@ describe('업적', () => {
   });
   it('장기재직휴가 배지의 이름은 규정 데이터의 일수에서 온다', () => {
     const data = makeData();
-    data.profile = { ...data.profile, hireDate: '2016-09-01', gradeDate: '2016-09-01' };
+    data.profile = { ...data.profile, hireDate: '2016-09-01', rankDate: '2016-09-01' };
     const views = achievementViews(inputOf(data), evaluateAchievements(inputOf(data)));
     const days = R.leave.longService.tiers[0]?.days;
     expect(views.find((v) => v.id === 'long-leave-5')?.title).toBe(`장기재직휴가 ${days}일`);

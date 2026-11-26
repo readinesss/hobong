@@ -38,7 +38,12 @@ const DATES = ['2026-11-26', '2027-01-01', '2027-07-01'] as const;
 const PAYDAY: Record<string, number> = { 'g1-top': 20, 'g4-mid': 10 };
 const paydayOf = (id: string) => PAYDAY[id] ?? 25;
 
-const base = { nickname: '호봉이', overrides: { longServiceDate: null, seniorDate: null } };
+const base = {
+  nickname: '호봉이',
+  track: 'general',
+  payTable: 'table3',
+  overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+} as const;
 
 /** 일반직 시드: 9급 신규, 7급 중간(승진 이력 있음/없음), 6급 근속승진 대상 밖, 5급 최고호봉 근처, 날짜 직접 입력,
  * 4급(승진소요최저연수 36개월의 마지막 직급·월급날 10일), 3급(다음 직급은 있으나 승진소요최저연수 값 없음),
@@ -48,8 +53,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '2001-03-14',
     hireDate: '2026-03-02',
-    grade: 9,
-    gradeDate: '2026-03-02',
+    rank: '9',
+    rankDate: '2026-03-02',
     step: 1,
     nextStepDate: '2027-03-01',
     stepAsOf: '2026-03-02',
@@ -58,8 +63,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1990-08-31',
     hireDate: '2021-07-15',
-    grade: 9,
-    gradeDate: '2021-07-15',
+    rank: '9',
+    rankDate: '2021-07-15',
     step: 6,
     nextStepDate: '2027-07-01',
     stepAsOf: '2026-11-26',
@@ -68,8 +73,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1988-02-29',
     hireDate: '2013-01-02',
-    grade: 7,
-    gradeDate: '2019-12-31',
+    rank: '7',
+    rankDate: '2019-12-31',
     step: 12,
     nextStepDate: '2027-01-01',
     stepAsOf: '2026-11-26',
@@ -78,8 +83,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1993-11-05',
     hireDate: '2018-09-03',
-    grade: 7,
-    gradeDate: '2018-09-03',
+    rank: '7',
+    rankDate: '2018-09-03',
     step: 9,
     nextStepDate: '2027-09-01',
     stepAsOf: '2026-11-26',
@@ -88,30 +93,30 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1979-05-20',
     hireDate: '2005-04-01',
-    grade: 6,
-    gradeDate: '2022-01-01',
+    rank: '6',
+    rankDate: '2022-01-01',
     step: 19,
     nextStepDate: '2027-04-01',
     stepAsOf: '2026-11-26',
-    overrides: { longServiceDate: '2030-01-01', seniorDate: '2026-12-01' },
+    overrides: { longServiceDate: '2030-01-01', seniorDate: '2026-12-01', rankLimitDate: null },
   },
   'g8-overrides': {
     ...base,
     birthDate: '1985-01-10',
     hireDate: '2015-06-01',
-    grade: 8,
-    gradeDate: '2019-06-01',
+    rank: '8',
+    rankDate: '2019-06-01',
     step: 10,
     nextStepDate: '2027-06-01',
     stepAsOf: '2026-11-26',
-    overrides: { longServiceDate: '2026-12-10', seniorDate: null },
+    overrides: { longServiceDate: '2026-12-10', seniorDate: null, rankLimitDate: null },
   },
   'g5-near-max': {
     ...base,
     birthDate: '1967-07-01',
     hireDate: '1994-03-01',
-    grade: 5,
-    gradeDate: '2016-07-01',
+    rank: '5',
+    rankDate: '2016-07-01',
     step: 29,
     nextStepDate: '2027-03-01',
     stepAsOf: '2026-11-26',
@@ -120,8 +125,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1975-12-03',
     hireDate: '2001-02-01',
-    grade: 4,
-    gradeDate: '2021-07-01',
+    rank: '4',
+    rankDate: '2021-07-01',
     step: 20,
     nextStepDate: '2027-02-01',
     stepAsOf: '2026-11-26',
@@ -130,8 +135,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1972-06-30',
     hireDate: '1998-09-01',
-    grade: 3,
-    gradeDate: '2023-07-01',
+    rank: '3',
+    rankDate: '2023-07-01',
     step: 18,
     nextStepDate: '2027-09-01',
     stepAsOf: '2026-11-26',
@@ -140,8 +145,8 @@ const SEEDS: Record<string, Profile> = {
     ...base,
     birthDate: '1968-10-15',
     hireDate: '1995-03-01',
-    grade: 1,
-    gradeDate: '2024-01-01',
+    rank: '1',
+    rankDate: '2024-01-01',
     step: 21,
     nextStepDate: '2027-03-01',
     stepAsOf: '2026-11-26',
@@ -150,6 +155,12 @@ const SEEDS: Record<string, Profile> = {
 
 const rules = (year: number) => rulesFor(year);
 const cal = new Calendar(rules);
+
+/** 묶음 0 에서 뜬 기대값의 모양으로: 봉급 시점의 계급 키('7')를 그때의 직급 수(grade: 7)로 */
+function legacyPoint<T extends { rank: string }>(point: T) {
+  const { rank, ...rest } = point;
+  return { ...rest, grade: Number(rank) };
+}
 
 /** 지금 코드의 서명으로 부른 결과. 서명이 바뀌면 이 함수 안에서만 맞춘다 */
 function snapshot(id: string, p: Profile) {
@@ -161,7 +172,7 @@ function snapshot(id: string, p: Profile) {
       return [
         date,
         {
-          salaryOn: salaryOn(rules, p, date),
+          salaryOn: legacyPoint(salaryOn(rules, p, date)),
           nextStepRaise: nextStepRaise(rules, p, date),
           cumulativeSalary: cumulativeSalary(rules, p, date),
           yearToDateSalary: yearToDateSalary(rules, p, date),
@@ -183,7 +194,7 @@ function snapshot(id: string, p: Profile) {
   );
   return {
     retirementInfo: retire,
-    minServiceDate: minServiceDate(r.promotion, p.grade, p.gradeDate),
+    minServiceDate: minServiceDate(r.promotion, p.rank, p.rankDate),
     longServiceInfo: longServiceInfo(r.promotion, p),
     seniorTreatmentInfo: seniorTreatmentInfo(r.promotion, p),
     byDate,
