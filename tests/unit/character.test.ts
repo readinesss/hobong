@@ -17,6 +17,7 @@ import {
   TRANSPARENT,
 } from '../../src/lib/character/sprite-format.ts';
 import type { Grade } from '../../src/lib/store/schema.ts';
+import { rulesFor } from '../../src/lib/rules/index.ts';
 
 describe('스프라이트 형식', () => {
   const text = `
@@ -238,5 +239,84 @@ describe('모습 정하기', () => {
     expect(decideMood(C, { ...base, celebrating: true, leaveHoursToday: 8, isPayday: true })).toBe(
       'celebrate',
     );
+  });
+});
+
+describe('직종별 진화(#20, data/character.json evolution)', () => {
+  const R = rulesFor(2026);
+  const formIds = new Set(C.forms.map((f) => f.id));
+  const order = C.forms.map((f) => f.id);
+  const generalForm = (grade: number) => formFor(C, grade as Grade).id;
+
+  it('일반직 사다리가 아닌 모든 사다리의 모든 계급이 형태 하나에 매핑된다(교원은 재직 연수)', () => {
+    for (const [id, ladder] of Object.entries(R.tracks.ladders)) {
+      if (id === 'general' || id === 'teacher') {
+        expect(C.evolution.byRank[id], id).toBeUndefined();
+        continue;
+      }
+      const map = C.evolution.byRank[id] ?? {};
+      expect(Object.keys(map).sort(), id).toEqual(ladder.ranks.map((r) => r.key).sort());
+      for (const form of Object.values(map)) expect(formIds.has(form), `${id}: ${form}`).toBe(true);
+      // 높은 계급일수록 형태가 같거나 더 자란다
+      const steps = ladder.ranks.map((r) => order.indexOf(map[r.key] as string));
+      for (let i = 1; i < steps.length; i += 1)
+        expect(steps[i], `${id} ${ladder.ranks[i]?.key}`).toBeGreaterThanOrEqual(
+          steps[i - 1] as number,
+        );
+    }
+    // 일반직 사다리의 모든 계급은 기존 forms[].grades 로 매핑된다
+    for (const r of R.tracks.ladders.general.ranks)
+      expect(formIds.has(generalForm(Number(r.key)))).toBe(true);
+  });
+
+  it('evolution.note 는 화면용이라 법적 표현이 없고, 매핑 근거는 basis 에 있다', () => {
+    expect(C.evolution.note).not.toMatch(/상당|별표|제\d+조|임용령|규정/);
+    expect(C.evolution.basis).toContain('제3조제5항');
+    expect(C.evolution.basis).toContain('별표 15');
+  });
+
+  it('재직 연수 단계는 0년부터 오름차순이고 형태 순서를 따른다', () => {
+    const t = C.evolution.byTenure;
+    expect(t[0]?.fromYears).toBe(0);
+    for (let i = 1; i < t.length; i += 1) {
+      expect(t[i]?.fromYears).toBeGreaterThan(t[i - 1]?.fromYears as number);
+      expect(order.indexOf(t[i]?.form as string)).toBeGreaterThan(
+        order.indexOf(t[i - 1]?.form as string),
+      );
+    }
+    for (const step of t) expect(formIds.has(step.form)).toBe(true);
+    expect(t.map((s) => s.fromYears)).toEqual([0, 2, 5, 10, 20]);
+  });
+
+  it('우정N급은 공무원임용령 제3조제5항의 상당 계급과 같은 몸통이다(T5 확인)', () => {
+    const equiv: Record<string, number> = {
+      '1': 5,
+      '2': 5,
+      '3': 6,
+      '4': 6,
+      '5': 6,
+      '6': 6,
+      '7': 7,
+      '8': 8,
+      '9': 9,
+    };
+    for (const [g, e] of Object.entries(equiv)) {
+      expect(C.evolution.byRank.postal?.[g], `우정${g}급`).toBe(generalForm(e));
+    }
+  });
+
+  it('경찰·소방은 같은 봉급표 열(별표 10)의 짝과 같은 몸통이다', () => {
+    const police = R.tracks.ladders.police.ranks;
+    const fire = R.tracks.ladders.fire.ranks;
+    police.forEach((p, i) => {
+      expect(C.evolution.byRank.fire?.[fire[i]?.key as string]).toBe(
+        C.evolution.byRank.police?.[p.key],
+      );
+    });
+    // 직급보조비 표(별표 15)의 같은 행: 순경·경장 = 8·9급, 경사 = 7급, 경위·경감 = 6급, 경정 = 5급
+    expect(C.evolution.byRank.police?.['경사']).toBe(generalForm(7));
+    expect(C.evolution.byRank.police?.['경위']).toBe(generalForm(6));
+    expect(C.evolution.byRank.police?.['경감']).toBe(generalForm(6));
+    expect(C.evolution.byRank.police?.['경정']).toBe(generalForm(5));
   });
 });

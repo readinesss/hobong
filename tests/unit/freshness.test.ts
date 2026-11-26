@@ -29,9 +29,12 @@ describe('규정 데이터 점검', () => {
 
   it('해가 바뀌었는데 봉급표가 확정 전이면 알린다', () => {
     const found = checkFreshness(registry, '2027-01-04');
-    expect(ids(found)).toEqual(['pending-2027-salary']);
+    expect(ids(found)).toEqual(['pending-2027-salary', 'pending-2027-payTables']);
     expect(found[0]).toMatchObject({ level: 'action', year: 2027 });
     expect(found[0]?.title).toContain('봉급표');
+    // 직종별 봉급표(별표 4·8·10·11)도 확정 전임을 따로 알린다
+    expect(found[1]).toMatchObject({ level: 'action', year: 2027 });
+    expect(found[1]?.title).toContain('별표 4·8·10·11');
   });
 
   it('그 해 파일이 없으면 이전 연도로 계산 중임을 알린다', () => {

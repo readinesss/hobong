@@ -15,6 +15,23 @@
     { "id": "bird", "name": "날봉이", "grades": [6], "body": "body-bird", "blurb": "날개에 힘이 붙었다. 뒤따르는 새들을 챙길 줄 안다." },
     { "id": "phoenix", "name": "봉황", "grades": [5, 4, 3, 2, 1], "body": "body-phoenix", "blurb": "오색 깃이 다 자랐다." }
   ],
+  "evolution": {
+    "note": "직급(계급)이 있으면 사다리로, 없으면 재직 연수로 자라요. 평가가 아니라 함께 지낸 시간의 표시예요.",
+    "basis": "화면에 쓰지 않는 매핑 근거(개발용). 법령 값이 아니라 캐릭터 규칙이에요. 일반직은 위 forms 의 grades 를 그대로 써요. 우정직은 공무원임용령 제3조제5항의 상당 계급(우정1·2급은 5급, 우정3~6급은 6급), 경찰·소방은 직급보조비 표(공무원수당 등에 관한 규정 별표 15)의 같은 행을 따라 일반직과 같은 몸통이 되게 했어요. 외무 N등급은 봉급표 열(별표 3)과 같은 몸통이에요.",
+    "byRank": {
+      "postal": { "9": "egg", "8": "chick", "7": "fledgling", "6": "bird", "5": "bird", "4": "bird", "3": "bird", "2": "phoenix", "1": "phoenix" },
+      "police": { "순경": "egg", "경장": "chick", "경사": "fledgling", "경위": "bird", "경감": "bird", "경정": "phoenix", "총경": "phoenix", "경무관": "phoenix", "치안감": "phoenix", "치안정감": "phoenix", "치안총감": "phoenix" },
+      "fire": { "소방사": "egg", "소방교": "chick", "소방장": "fledgling", "소방위": "bird", "소방경": "bird", "소방령": "phoenix", "소방정": "phoenix", "소방준감": "phoenix", "소방감": "phoenix", "소방정감": "phoenix", "소방총감": "phoenix" },
+      "foreign": { "1": "egg", "2": "chick", "3": "fledgling", "4": "bird", "5": "phoenix", "6": "phoenix" }
+    },
+    "byTenure": [
+      { "fromYears": 0, "form": "egg", "label": "첫해" },
+      { "fromYears": 2, "form": "chick", "label": "2년" },
+      { "fromYears": 5, "form": "fledgling", "label": "5년" },
+      { "fromYears": 10, "form": "bird", "label": "10년" },
+      { "fromYears": 20, "form": "phoenix", "label": "20년" }
+    ]
+  },
   "items": [
     {
       "id": "lanyard", "name": "공무원증", "sprite": "item-lanyard", "slot": "neck", "minStep": 1,

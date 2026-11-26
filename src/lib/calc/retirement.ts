@@ -1,5 +1,12 @@
 /** 정년퇴직일 계산 (국가공무원법 제74조) */
-import { diffDays, formatYmd, parseYmd, periodCompleteDate, type Ymd } from './date.ts';
+import {
+  daysInMonth,
+  diffDays,
+  formatYmd,
+  parseYmd,
+  periodCompleteDate,
+  type Ymd,
+} from './date.ts';
 import type { RetirementRules } from '../rules/types.ts';
 
 export interface RetirementInfo {
@@ -16,7 +23,11 @@ export function retirementInfo(rules: RetirementRules, birthDate: Ymd): Retireme
   const { y, m } = parseYmd(reachDate);
   const period = rules.periods.find((p) => m >= p.fromMonth && m <= p.toMonth);
   if (!period) throw new Error(`정년 규정에 ${m}월에 해당하는 구간이 없습니다`);
-  return { reachDate, retireDate: formatYmd({ y, m: period.retireMonth, d: period.retireDay }) };
+  // 교원(교육공무원법 제47조제2항): 9~12월이면 다음 해 2월 말일
+  const year = y + (period.yearOffset ?? 0);
+  const day =
+    period.retireDay === 'last' ? daysInMonth(year, period.retireMonth) : period.retireDay;
+  return { reachDate, retireDate: formatYmd({ y: year, m: period.retireMonth, d: day }) };
 }
 
 export interface CareerProgress {

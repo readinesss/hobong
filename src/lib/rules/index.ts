@@ -29,4 +29,21 @@ export function ruleYears(): number[] {
 }
 
 export * from './types.ts';
-export { isSalaryConfirmed, hasHolidayData, resolveRules, buildRegistry } from './resolve.ts';
+export {
+  isSalaryConfirmed,
+  isPayTableConfirmed,
+  hasHolidayData,
+  resolveRules,
+  buildRegistry,
+} from './resolve.ts';
+export {
+  resolveCareer,
+  rankLabel,
+  rankStepLabel,
+  rankSlug,
+  selectableRanks,
+  defaultSel,
+  type CareerSel,
+  type CareerRules,
+  type PayInfo,
+} from './career.ts';

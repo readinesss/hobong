@@ -26,9 +26,9 @@ export interface LongServiceInfo {
   /** 화면에 쓰는 날짜(직접 입력값 우선) */
   date: Ymd | null;
   overridden: boolean;
-  /** 요건 충족 5일 전부터 심사 가능 */
+  /** 요건 충족 5일 전부터 심사 가능(그런 규정이 없으면 null) */
   reviewFrom: Ymd | null;
-  /** 6급으로의 근속승진 인원 제한 안내 */
+  /** 인원 제한이 걸리는 목표 직급(일반직 6급)으로의 근속승진 안내 */
   quotaNote: string | null;
 }
 
@@ -60,8 +60,14 @@ export function longServiceInfo(
     autoDate,
     date,
     overridden: override !== null,
-    reviewFrom: addDays(date, -rules.longService.reviewLeadDays),
-    quotaNote: targetGrade === 6 ? rules.longService.quotaNote : null,
+    reviewFrom:
+      rules.longService.reviewLeadDays === null
+        ? null
+        : addDays(date, -rules.longService.reviewLeadDays),
+    quotaNote:
+      targetGrade !== null && String(targetGrade) === rules.longService.quotaTo
+        ? rules.longService.quotaNote
+        : null,
   };
 }
 

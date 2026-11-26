@@ -5,6 +5,47 @@
 
 export type GradeKey = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
 
+/** 직종(닫힌 목록). 저장 형식 검증이 규정 데이터에 기대지 않도록 코드에 둔다 */
+export type TrackId =
+  | 'general'
+  | 'police'
+  | 'coastGuard'
+  | 'fire'
+  | 'teacher'
+  | 'foreign'
+  | 'militaryCivil'
+  | 'otherSpecial';
+export const TRACK_IDS: readonly TrackId[] = [
+  'general',
+  'police',
+  'coastGuard',
+  'fire',
+  'teacher',
+  'foreign',
+  'militaryCivil',
+  'otherSpecial',
+];
+/** 봉급표(공무원보수규정 별표). table3 은 기본 구역 salary 에 있다 */
+export type PayTableId = 'table3' | 'table4' | 'table8' | 'table10' | 'table11';
+export const PAY_TABLE_IDS: readonly PayTableId[] = [
+  'table3',
+  'table4',
+  'table8',
+  'table10',
+  'table11',
+];
+/** 기본 구역(salary)이 아닌, payTables 구역에 있는 봉급표 */
+export type ExtraPayTableId = Exclude<PayTableId, 'table3'>;
+export const EXTRA_PAY_TABLE_IDS: readonly ExtraPayTableId[] = [
+  'table4',
+  'table8',
+  'table10',
+  'table11',
+];
+export type LadderId = 'general' | 'postal' | 'police' | 'fire' | 'teacher' | 'foreign';
+/** 계급 사다리 안의 계급 키. 일반직 '9'~'1', 경찰 '순경' 등 */
+export type RankKey = string;
+
 /** 항목마다 붙는 근거 */
 export interface SourceRef {
   /** laws 레지스트리의 키 */
@@ -30,15 +71,28 @@ export interface LawInfo {
   url: string;
 }
 
+/** 정년에 이른 달 → 퇴직일 */
+export interface RetirementPeriod {
+  fromMonth: number;
+  toMonth: number;
+  retireMonth: number;
+  /** 'last' = 그 달 말일(교원 2월 말일) */
+  retireDay: number | 'last';
+  /** 정년에 이른 해 기준 몇 해 뒤인지(교원 9~12월 → 다음 해 2월). 없으면 0 */
+  yearOffset?: 0 | 1;
+}
+
 export interface RetirementRules {
   age: number;
-  /** 정년에 이른 달 → 퇴직일 */
-  periods: { fromMonth: number; toMonth: number; retireMonth: number; retireDay: number }[];
+  periods: RetirementPeriod[];
+  /** 계급정년(경찰·소방). 현 계급 임용일부터 N년 */
+  rankLimit?: { yearsByRank: Partial<Record<RankKey, number>>; source: SourceRef };
   source: SourceRef;
 }
 
+/** monthsByGrade 의 키는 계급 사다리의 계급 키(일반직 '9'~'1', 경찰 '순경' 등) */
 export interface ProbationRules {
-  monthsByGrade: Partial<Record<GradeKey, number>>;
+  monthsByGrade: Partial<Record<RankKey, number>>;
   source: SourceRef;
 }
 
@@ -114,19 +168,28 @@ export interface LeaveRules {
   longService: { tiers: LongLeaveTier[]; source: SourceRef };
 }
 
+/** monthsByGrade 의 키는 계급 사다리의 계급 키(일반직 '9'~'1', 경찰 '순경' 등) */
 export interface PromotionRules {
-  minService: { monthsByGrade: Partial<Record<GradeKey, number>>; source: SourceRef };
+  minService: { monthsByGrade: Partial<Record<RankKey, number>>; source: SourceRef };
   longService: {
-    monthsByGrade: Partial<Record<GradeKey, number>>;
-    reviewLeadDays: number;
+    monthsByGrade: Partial<Record<RankKey, number>>;
+    /** null 이면 '기간 도달 전 심사' 규정이 없다(경찰) */
+    reviewLeadDays: number | null;
+    /** 인원 제한이 걸리는 목표 계급(일반직 '6', 경찰 '경감', 소방 '소방경') */
+    quotaTo: RankKey | null;
     quotaNote: string;
     source: SourceRef;
   };
   seniorTreatment: {
-    monthsByGrade: Partial<Record<GradeKey, number>>;
+    monthsByGrade: Partial<Record<RankKey, number>>;
     appointDayOfMonth: number;
     source: SourceRef;
   };
+}
+
+export interface PositionAllowanceRules {
+  amountByGrade: Partial<Record<RankKey, number>>;
+  source: SourceRef;
 }
 
 export interface AllowanceRules {
@@ -148,7 +211,7 @@ export interface AllowanceRules {
   };
   holidayBonus: { rate: number; basisTags: string[]; source: SourceRef };
   meal: { amount: number; source: SourceRef };
-  position: { amountByGrade: Partial<Record<GradeKey, number>>; source: SourceRef };
+  position: PositionAllowanceRules;
 }
 
 export interface Holiday {
@@ -164,8 +227,143 @@ export interface HolidayRules {
   source: SourceRef;
 }
 
-/** 연도 파일에 들어갈 수 있는 규정 항목 */
-export interface RuleSections {
+/** 공무원보수규정 별표 4·8·10·11 봉급표 하나 */
+export interface PayTableRules {
+  /** '별표 10' */
+  annex: string;
+  title: string;
+  /** 원문 열 순서 */
+  columns: { key: string; label: string }[];
+  /** 열 키 → 호봉(1부터)별 월 봉급 */
+  table: Record<string, number[]>;
+  source: SourceRef;
+}
+export interface PayTablesSection {
+  items: Partial<Record<ExtraPayTableId, PayTableRules>>;
+}
+
+export interface LadderRank {
+  key: RankKey;
+  label: string;
+  /** 이 계급이 쓰는 봉급표 열의 키. null 이면 봉급표에 열이 없다 */
+  payColumn: string | null;
+  /** false 면 사용자가 고를 수 없다(봉급표 열 없음 등) */
+  selectable?: boolean;
+  /** true 면 화면에 계급 이름을 쓰지 않는다(교원) */
+  hideLabel?: boolean;
+  note?: string;
+}
+/** 계급 사다리: 낮은 계급 → 높은 계급 */
+export interface Ladder {
+  noun: '직급' | '계급' | '직무등급' | null;
+  ranks: LadderRank[];
+  source: SourceRef;
+}
+
+/** 꺼진 항목: pending(원문 미확인) · none(그 직종에 해당 없음) · external(조례 등 다른 규정) */
+export type UnavailableStatus = 'pending' | 'none' | 'external';
+export interface Unavailable {
+  status: UnavailableStatus;
+  reason: string;
+}
+export type Avail<T> = T | Unavailable;
+export function isAvailable<T extends object>(v: Avail<T>): v is T {
+  return !('status' in v && typeof (v as { status?: unknown }).status === 'string');
+}
+
+/** 직종별로 덮어쓰거나 끌 수 있는 규정 항목 */
+export type FeatureKey =
+  | 'stepRaise'
+  | 'promotionStep'
+  | 'retirement'
+  | 'probation'
+  | 'minService'
+  | 'longService'
+  | 'seniorTreatment'
+  | 'leaveAnnual'
+  | 'leaveAdvance'
+  | 'leaveCompensation'
+  | 'leaveLongService'
+  | 'diligence'
+  | 'holidayBonus'
+  | 'seniorAllowance'
+  | 'positionAllowance';
+export const FEATURE_KEYS: readonly FeatureKey[] = [
+  'stepRaise',
+  'promotionStep',
+  'retirement',
+  'probation',
+  'minService',
+  'longService',
+  'seniorTreatment',
+  'leaveAnnual',
+  'leaveAdvance',
+  'leaveCompensation',
+  'leaveLongService',
+  'diligence',
+  'holidayBonus',
+  'seniorAllowance',
+  'positionAllowance',
+];
+
+export interface DiligenceRules {
+  diligence: AllowanceRules['diligence'];
+  extra: AllowanceRules['diligenceExtra'];
+}
+
+export interface CareerOverrides {
+  ladder?: LadderId | null;
+  stepRaise?: Avail<StepRaiseRules>;
+  promotionStep?: Avail<PromotionStepRules>;
+  retirement?: Avail<RetirementRules>;
+  probation?: Avail<ProbationRules>;
+  minService?: Avail<PromotionRules['minService']>;
+  longService?: Avail<PromotionRules['longService']>;
+  seniorTreatment?: Avail<PromotionRules['seniorTreatment']>;
+  leaveAnnual?: Avail<LeaveRules['annual']>;
+  leaveAdvance?: Avail<LeaveRules['advance']>;
+  leaveCompensation?: Avail<LeaveRules['compensation']>;
+  leaveLongService?: Avail<LeaveRules['longService']>;
+  diligence?: Avail<DiligenceRules>;
+  holidayBonus?: Avail<AllowanceRules['holidayBonus']>;
+  seniorAllowance?: Avail<AllowanceRules['seniorTreatment']>;
+  positionAllowance?: Avail<PositionAllowanceRules>;
+}
+
+/** 연가 화면 문구(교원: 나이스, 저축·이월 없음). 없으면 기본(e-사람 등, 저축·이월 있음) */
+export interface LeaveScreenRules {
+  recordSystem: string;
+  savingCarryOver: boolean;
+  source: SourceRef;
+}
+
+export interface TrackRules extends CareerOverrides {
+  label: string;
+  /** 직종 고르기 옆 표시에만 쓴다. 계산은 항목별 해석 결과만 본다 */
+  status: 'ready' | 'partial' | 'pending';
+  scope: string;
+  /** 고를 수 있는 봉급표(일반직만 여럿). 첫째가 기본 */
+  payTables: PayTableId[];
+  source?: SourceRef;
+  payday: { defaultDay: number; note: string };
+  /** 덮어쓰지 않고 기본 구역(일반직 값)을 그대로 쓰는 근거 */
+  applies?: Partial<Record<FeatureKey, SourceRef>>;
+  byPayTable?: Partial<Record<PayTableId, CareerOverrides>>;
+  /** 명시하지 않은 항목이 자동으로 pending 이 될 때 보여 줄 사유 */
+  pendingReason?: string;
+  workHoursNote?: string;
+  leaveNote?: string;
+  leaveScreen?: LeaveScreenRules;
+  notes?: string[];
+}
+
+export interface TracksSection {
+  ladders: Record<LadderId, Ladder>;
+  items: Record<TrackId, TrackRules>;
+}
+
+/** 일반직 기본 구역(열한 개). 근거 법령 화면이 이 순서로 보여 준다 */
+export interface BaseRuleSections {
   retirement: RetirementRules;
   probation: ProbationRules;
   salary: SalaryRules;
@@ -179,7 +377,21 @@ export interface RuleSections {
   holidays: HolidayRules;
 }
 
-export type SectionKey = keyof RuleSections;
+/** 직종 확대 구역: 별표 4·8·10·11 봉급표, 직종별 규정·계급 사다리 */
+export interface CareerRuleSections {
+  payTables: PayTablesSection;
+  tracks: TracksSection;
+}
+
+/** 연도 파일에 들어갈 수 있는 규정 항목(열세 구역) */
+export interface RuleSections extends BaseRuleSections, CareerRuleSections {}
+
+/** 일반직 기본 구역의 키(열한 개) */
+export type SectionKey = keyof BaseRuleSections;
+/** 직종 확대 구역의 키 */
+export type CareerSectionKey = keyof CareerRuleSections;
+/** 모든 구역의 키(열세 개) */
+export type RuleSectionKey = SectionKey | CareerSectionKey;
 
 export const SECTION_KEYS: readonly SectionKey[] = [
   'retirement',
@@ -194,6 +406,12 @@ export const SECTION_KEYS: readonly SectionKey[] = [
   'allowances',
   'holidays',
 ];
+export const CAREER_SECTION_KEYS: readonly CareerSectionKey[] = ['payTables', 'tracks'];
+/** 어느 해든 extends 를 따라가 모두 있어야 하는 구역(열세 개) */
+export const RULE_SECTION_KEYS: readonly RuleSectionKey[] = [
+  ...SECTION_KEYS,
+  ...CAREER_SECTION_KEYS,
+];
 
 /** data/<연도>.json 원본 */
 export interface RulesFile extends Partial<RuleSections> {
@@ -207,7 +425,7 @@ export interface RulesFile extends Partial<RuleSections> {
   /** 원문 확인일 */
   verifiedAt: string;
   /** 아직 확정되지 않아 이전 연도 값을 쓰는 항목 */
-  pending?: SectionKey[];
+  pending?: RuleSectionKey[];
   notes?: string[];
   laws: Record<string, LawInfo>;
 }
@@ -220,7 +438,9 @@ export interface Rules extends RuleSections {
   laws: Record<string, LawInfo>;
   meta: {
     /** 각 항목이 실제로 어느 연도 파일에서 왔는지 */
-    sectionYear: Record<SectionKey, number>;
+    sectionYear: Record<RuleSectionKey, number>;
+    /** 봉급표마다 실제로 어느 연도 파일에서 왔는지(table3 은 sectionYear.salary) */
+    payTableYear: Record<PayTableId, number>;
     /** 해당 연도 파일이 없어 이전 연도 파일을 통째로 쓰는 중인지 */
     fallback: boolean;
     /** 해당 연도 파일이 있다면 그 상태 */

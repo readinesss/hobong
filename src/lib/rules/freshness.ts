@@ -7,7 +7,7 @@
  */
 import { diffDays, parseYmd, type Ymd } from '../calc/date.ts';
 import { availableYears, type RulesRegistry } from './resolve.ts';
-import type { SectionKey } from './types.ts';
+import type { RuleSectionKey } from './types.ts';
 
 export interface FreshnessFinding {
   /** 같은 건으로 알림을 두 번 만들지 않기 위한 식별자 */
@@ -25,7 +25,7 @@ export const NEXT_YEAR_HOLIDAYS_FROM_MONTH = 7;
 /** 원문을 마지막으로 확인한 뒤 이만큼 지나면 다시 확인하도록 알린다. */
 export const REVERIFY_AFTER_DAYS = 183;
 
-const SECTION_LABEL: Record<SectionKey, string> = {
+const SECTION_LABEL: Record<RuleSectionKey, string> = {
   retirement: '정년',
   probation: '시보 기간',
   salary: '봉급표',
@@ -37,9 +37,11 @@ const SECTION_LABEL: Record<SectionKey, string> = {
   promotion: '승진·근속승진·대우공무원',
   allowances: '수당',
   holidays: '공휴일',
+  payTables: '봉급표(별표 4·8·10·11)',
+  tracks: '직종별 규정·계급',
 };
 
-export function sectionLabel(key: SectionKey): string {
+export function sectionLabel(key: RuleSectionKey): string {
   return SECTION_LABEL[key];
 }
 

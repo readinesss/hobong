@@ -49,6 +49,18 @@ export interface MoodRule {
   hide: string[];
 }
 
+/** 직종별 진화 규칙(#20). 일반직 사다리는 forms[].grades 를 그대로 쓴다 */
+export interface EvolutionRules {
+  /** 화면에 쓸 수 있는 설명. 법적 표현('상당'·조문 번호)을 넣지 않는다(#20 설계 §3.7) */
+  note: string;
+  /** 매핑 근거(개발용). 화면에 쓰지 않는다 */
+  basis: string;
+  /** 사다리(일반직 제외) → 계급 키 → 형태 id */
+  byRank: Partial<Record<string, Record<string, string>>>;
+  /** 사다리가 없거나(교원·준비 중 직종) byRank 에 없는 사다리: 재직 연수(fromYears 이상)로 */
+  byTenure: { fromYears: number; form: string; label: string }[];
+}
+
 export interface CharacterRules {
   schema: 1;
   canvas: { w: number; h: number };
@@ -56,6 +68,7 @@ export interface CharacterRules {
   paletteName: string;
   notes?: string[];
   forms: FormRule[];
+  evolution: EvolutionRules;
   items: ItemRule[];
   effects: EffectRule[];
   shadow: string;

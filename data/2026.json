@@ -60,6 +60,72 @@
       "promulgation": "대통령령 제36290호, 2026. 4. 30., 일부개정",
       "url": "https://www.law.go.kr/법령/관공서의공휴일에관한규정"
     },
+    "policeAct": {
+      "name": "경찰공무원법",
+      "effective": "2025-01-07",
+      "promulgation": "법률 제20646호, 2025. 1. 7., 일부개정",
+      "url": "https://www.law.go.kr/법령/경찰공무원법"
+    },
+    "policePromotion": {
+      "name": "경찰공무원 승진임용 규정",
+      "effective": "2026-11-10",
+      "promulgation": "대통령령 제36803호, 2026. 11. 10., 일부개정",
+      "url": "https://www.law.go.kr/법령/경찰공무원승진임용규정"
+    },
+    "policePromotionRule": {
+      "name": "경찰공무원 승진임용 규정 시행규칙",
+      "effective": "2026-07-01",
+      "promulgation": "행정안전부령 제456호, 2024. 1. 19., 일부개정",
+      "url": "https://www.law.go.kr/법령/경찰공무원승진임용규정시행규칙"
+    },
+    "policeAppointment": {
+      "name": "경찰공무원 임용령",
+      "effective": "2026-09-01",
+      "promulgation": "대통령령 제36634호, 2026. 9. 1., 일부개정",
+      "url": "https://www.law.go.kr/법령/경찰공무원임용령"
+    },
+    "policeService": {
+      "name": "경찰공무원 복무규정",
+      "effective": "2021-01-05",
+      "promulgation": "대통령령 제31380호, 2021. 1. 5., 타법개정",
+      "url": "https://www.law.go.kr/법령/경찰공무원복무규정"
+    },
+    "fireAct": {
+      "name": "소방공무원법",
+      "effective": "2024-08-14",
+      "promulgation": "법률 제20411호, 2024. 3. 26., 일부개정",
+      "url": "https://www.law.go.kr/법령/소방공무원법"
+    },
+    "firePromotion": {
+      "name": "소방공무원 승진임용 규정",
+      "effective": "2026-07-01",
+      "promulgation": "대통령령 제36432호, 2026. 6. 23., 타법개정",
+      "url": "https://www.law.go.kr/법령/소방공무원승진임용규정"
+    },
+    "firePromotionRule": {
+      "name": "소방공무원 승진임용 규정 시행규칙",
+      "effective": "2026-07-01",
+      "promulgation": "행정안전부령 제628호, 2026. 7. 1., 타법개정",
+      "url": "https://www.law.go.kr/법령/소방공무원승진임용규정시행규칙"
+    },
+    "fireService": {
+      "name": "소방공무원 복무규정",
+      "effective": "2026-10-02",
+      "promulgation": "대통령령 제36728호, 2026. 9. 29., 타법개정",
+      "url": "https://www.law.go.kr/법령/소방공무원복무규정"
+    },
+    "educationAct": {
+      "name": "교육공무원법",
+      "effective": "2026-11-20",
+      "promulgation": "법률 제21656호, 2026. 5. 19., 일부개정",
+      "url": "https://www.law.go.kr/법령/교육공무원법"
+    },
+    "teacherLeave": {
+      "name": "교원휴가에 관한 예규",
+      "effective": "2026-02-27",
+      "promulgation": "교육부예규 제104호, 2026. 2. 27., 일부개정",
+      "url": "https://www.law.go.kr/행정규칙/교원휴가에관한예규"
+    },
     "kasi": {
       "name": "한국천문연구원 달력자료",
       "effective": "2026-01-01",
@@ -258,6 +324,7 @@
     "longService": {
       "monthsByGrade": { "9": 66, "8": 84, "7": 132 },
       "reviewLeadDays": 5,
+      "quotaTo": "6",
       "quotaNote": "6급으로의 근속승진은 해마다 근속승진 후보자의 50% 범위에서만 임용한다(재난·민원 경력자 제외).",
       "source": {
         "law": "appointment",
@@ -368,6 +435,758 @@
         "revised": "2026-09-29",
         "snapshot": "allowance-reg-table15-position.txt",
         "note": "직급보조비(월). 이 서비스의 금액 계산에는 아직 반영하지 않아요(실수령액은 추정하지 않아요)."
+      }
+    }
+  },
+  "payTables": {
+    "items": {
+      "table4": {
+        "annex": "별표 4",
+        "title": "공안업무 등에 종사하는 공무원의 봉급표",
+        "columns": [
+          {"key": "1", "label": "1급"},
+          {"key": "2", "label": "2급"},
+          {"key": "3", "label": "3급"},
+          {"key": "4", "label": "4급"},
+          {"key": "5", "label": "5급"},
+          {"key": "6", "label": "6급"},
+          {"key": "7", "label": "7급"},
+          {"key": "8", "label": "8급"},
+          {"key": "9", "label": "9급"}
+        ],
+        "table": {
+          "1": [4905100, 5068300, 5235600, 5406700, 5582000, 5759400, 5939400, 6120900, 6305100, 6490300, 6675000, 6866100, 7058200, 7250800, 7419100, 7568600, 7701100, 7819100, 7924800, 8019600, 8106800, 8184600, 8250400],
+          "2": [4563500, 4719000, 4876600, 5035600, 5197000, 5358400, 5522100, 5685500, 5850100, 6014400, 6179600, 6350500, 6522400, 6678100, 6821500, 6952900, 7073900, 7184600, 7286800, 7380000, 7465300, 7543500, 7615000, 7673600, 7729500],
+          "3": [4167700, 4307600, 4451700, 4596800, 4744300, 4893200, 5044000, 5195000, 5347400, 5499600, 5652200, 5810200, 5957200, 6093600, 6219400, 6336500, 6445400, 6546700, 6640300, 6728100, 6809300, 6884500, 6953800, 7018800, 7071800, 7122700, 7169800],
+          "4": [3619000, 3751300, 3885800, 4023500, 4163000, 4304000, 4446100, 4588900, 4732300, 4875500, 5019900, 5155900, 5282900, 5401600, 5513300, 5618700, 5716500, 5807900, 5893300, 5973100, 6047600, 6117500, 6183200, 6245100, 6301600, 6349600, 6393700, 6436100],
+          "5": [3126100, 3243100, 3364700, 3491000, 3620600, 3752700, 3887000, 4022900, 4159300, 4296500, 4425000, 4548700, 4666100, 4775600, 4879100, 4976500, 5068100, 5154500, 5236000, 5312400, 5384200, 5451700, 5515300, 5574900, 5631200, 5684200, 5728100, 5770400, 5809200, 5846900],
+          "6": [2568400, 2679400, 2794000, 2911100, 3031800, 3155800, 3280100, 3404900, 3530100, 3647400, 3758800, 3868400, 3971500, 4068800, 4162400, 4250000, 4333800, 4412800, 4487900, 4558500, 4626200, 4690200, 4750100, 4807300, 4861500, 4912900, 4961600, 5002600, 5040800, 5078500, 5113500, 5146400],
+          "7": [2472100, 2493100, 2539000, 2610800, 2710600, 2826000, 2942100, 3059100, 3170300, 3276600, 3376800, 3475200, 3568600, 3657900, 3743200, 3823900, 3901400, 3975500, 4045300, 4111700, 4175200, 4235000, 4293000, 4347900, 4399900, 4449900, 4492000, 4531300, 4569300, 4605800, 4639900],
+          "8": [2215300, 2245500, 2290400, 2350700, 2427500, 2522200, 2628900, 2731700, 2829500, 2922200, 3012000, 3099500, 3183800, 3264300, 3341600, 3416300, 3486000, 3553600, 3618500, 3680400, 3739400, 3796100, 3850000, 3902200, 3951600, 3999600, 4039500, 4078000, 4114300, 4149600, 4183800],
+          "9": [2133000, 2148600, 2174000, 2209500, 2255500, 2312600, 2381600, 2463400, 2552800, 2638600, 2720500, 2802100, 2880000, 2955600, 3028100, 3098400, 3166800, 3230600, 3293300, 3353200, 3409400, 3463600, 3515100, 3564900, 3612000, 3654600, 3691600, 3727000, 3761200, 3794400, 3827000]
+        },
+        "source": {
+          "law": "pay",
+          "article": "제5조, 별표 1·별표 4",
+          "revised": "2026-01-02",
+          "snapshot": "pay-reg-table4-public-safety.txt",
+          "also": [{"law": "pay", "article": "별표 1", "snapshot": "pay-reg-table1-classification.txt"}],
+          "note": "적용 대상은 별표 1의 별표 4 행이에요. 4급 이상은 해당 업무에 '직접 종사'하는 경우만이에요. 월지급액(원)."
+        }
+      },
+      "table8": {
+        "annex": "별표 8",
+        "title": "일반직 우정직군 공무원의 봉급표",
+        "columns": [
+          {"key": "1", "label": "우정1급"},
+          {"key": "2", "label": "우정2급"},
+          {"key": "3", "label": "우정3급"},
+          {"key": "4", "label": "우정4급"},
+          {"key": "5", "label": "우정5급"},
+          {"key": "6", "label": "우정6급"},
+          {"key": "7", "label": "우정7급"},
+          {"key": "8", "label": "우정8급"},
+          {"key": "9", "label": "우정9급"}
+        ],
+        "table": {
+          "1": [3434000, 3564000, 3699200, 3840400, 3985900, 4134700, 4288400, 4443500, 4599500, 4756200, 4914100, 5063700, 5203300, 5333000, 5453400, 5565600, 5669300, 5765400, 5855100, 5938200, 6015800, 6086900, 6146100, 6201400],
+          "2": [3197100, 3322500, 3452400, 3587400, 3726500, 3868600, 4013000, 4160200, 4307700, 4456200, 4604200, 4737500, 4861700, 4979300, 5088500, 5192100, 5287800, 5378100, 5462300, 5541800, 5615000, 5684800, 5749800, 5804300, 5855300],
+          "3": [2978700, 3099600, 3223600, 3349300, 3477400, 3610100, 3743800, 3880800, 4018100, 4155300, 4292600, 4417700, 4533600, 4644500, 4747000, 4844600, 4936500, 5023500, 5105200, 5182000, 5254500, 5322400, 5387200, 5446900, 5497700, 5545600, 5591500],
+          "4": [2769500, 2887900, 3008500, 3132300, 3256300, 3381700, 3506500, 3632200, 3758600, 3885400, 4012900, 4135300, 4249600, 4357600, 4459500, 4556300, 4647300, 4733200, 4813600, 4890300, 4961900, 5029400, 5092800, 5153300, 5209600, 5256400, 5300800, 5343800, 5383100],
+          "5": [2570600, 2685200, 2803300, 2923900, 3048000, 3172200, 3296800, 3421600, 3547600, 3673700, 3791900, 3906500, 4015500, 4118600, 4216400, 4308700, 4396300, 4478500, 4556000, 4630300, 4700100, 4764900, 4826800, 4885800, 4941800, 4993500, 5037600, 5079400, 5118200, 5156000],
+          "6": [2389500, 2500700, 2615200, 2732400, 2853100, 2977100, 3101500, 3226200, 3351300, 3468700, 3580000, 3689600, 3792700, 3890000, 3983600, 4071300, 4154900, 4234100, 4309100, 4379600, 4447600, 4511500, 4571300, 4628500, 4682800, 4734100, 4782800, 4823700, 4861900, 4899800, 4934800, 4967800],
+          "7": [2317100, 2367900, 2423800, 2485200, 2567100, 2682600, 2798700, 2915800, 3027100, 3133300, 3233400, 3331900, 3425300, 3514500, 3599900, 3680600, 3758100, 3832100, 3902000, 3968400, 4031800, 4091600, 4149600, 4204500, 4256500, 4306500, 4348700, 4388000, 4426100, 4462400, 4496500],
+          "8": [2162100, 2195700, 2233800, 2276600, 2331700, 2412900, 2519600, 2622400, 2720300, 2813000, 2902700, 2990300, 3074500, 3155100, 3232400, 3307100, 3376800, 3444300, 3509300, 3571100, 3630200, 3686900, 3740800, 3792900, 3842300, 3890300, 3930200, 3968700, 4005100, 4040300, 4074600],
+          "9": [2133000, 2147600, 2168000, 2194000, 2226100, 2264600, 2309900, 2367500, 2456700, 2542700, 2624400, 2705900, 2783900, 2859800, 2932300, 3002300, 3070800, 3134500, 3197300, 3257000, 3313400, 3367600, 3419200, 3468800, 3516000, 3558700, 3595600, 3631000, 3665100, 3698400, 3731100]
+        },
+        "source": {
+          "law": "pay",
+          "article": "제5조, 별표 1·별표 8",
+          "revised": "2026-01-02",
+          "snapshot": "pay-reg-table8-postal.txt",
+          "note": "월지급액(원)."
+        }
+      },
+      "table10": {
+        "annex": "별표 10",
+        "title": "경찰공무원ㆍ소방공무원 및 의무경찰 등의 봉급표",
+        "columns": [
+          {"key": "치안정감·소방정감", "label": "치안정감·소방정감"},
+          {"key": "치안감·소방감", "label": "치안감·소방감"},
+          {"key": "경무관·소방준감", "label": "경무관·소방준감"},
+          {"key": "총경·소방정", "label": "총경·소방정"},
+          {"key": "경정·소방령", "label": "경정·소방령"},
+          {"key": "경감·소방경", "label": "경감·소방경"},
+          {"key": "경위·소방위", "label": "경위·소방위"},
+          {"key": "경사·소방장", "label": "경사·소방장"},
+          {"key": "경장·소방교", "label": "경장·소방교"},
+          {"key": "순경·소방사", "label": "순경·소방사"}
+        ],
+        "table": {
+          "치안정감·소방정감": [4905100, 5068300, 5235600, 5406700, 5582000, 5759400, 5939400, 6120900, 6305100, 6490300, 6675000, 6866100, 7058200, 7250800, 7419100, 7568600, 7701100, 7819100, 7924800, 8019600, 8106800, 8184600, 8250400],
+          "치안감·소방감": [4563500, 4719000, 4876600, 5035600, 5197000, 5358400, 5522100, 5685500, 5850100, 6014400, 6179600, 6350500, 6522400, 6678100, 6821500, 6952900, 7073900, 7184600, 7286800, 7380000, 7465300, 7543500, 7615000, 7673600, 7729500],
+          "경무관·소방준감": [4167700, 4307600, 4451700, 4596800, 4744300, 4893200, 5044000, 5195000, 5347400, 5499600, 5652200, 5810200, 5957200, 6093600, 6219400, 6336500, 6445400, 6546700, 6640300, 6728100, 6809300, 6884500, 6953800, 7018800, 7071800, 7122700, 7169800],
+          "총경·소방정": [3619000, 3751300, 3885800, 4023500, 4163000, 4304000, 4446100, 4588900, 4732300, 4875500, 5019900, 5155900, 5282900, 5401600, 5513300, 5618700, 5716500, 5807900, 5893300, 5973100, 6047600, 6117500, 6183200, 6245100, 6301600, 6349600, 6393700, 6436100],
+          "경정·소방령": [3126100, 3243100, 3364700, 3491000, 3620600, 3752700, 3887000, 4022900, 4159300, 4296500, 4425000, 4548700, 4666100, 4775600, 4879100, 4976500, 5068100, 5154500, 5236000, 5312400, 5384200, 5451700, 5515300, 5574900, 5631200, 5684200, 5728100, 5770400, 5809200, 5846900],
+          "경감·소방경": [2698600, 2814700, 2933000, 3054900, 3178700, 3305500, 3435100, 3565700, 3697600, 3820800, 3937600, 4051200, 4158400, 4261000, 4357000, 4449500, 4535400, 4618100, 4695400, 4768800, 4837900, 4904700, 4965900, 5025200, 5081100, 5134000, 5183300, 5225600, 5264800, 5303200, 5338600, 5372500],
+          "경위·소방위": [2507700, 2567700, 2640000, 2758200, 2879500, 3001800, 3125400, 3249000, 3373300, 3490700, 3600800, 3709400, 3812400, 3909100, 4002700, 4090100, 4173700, 4252700, 4327900, 4399300, 4467200, 4531200, 4592000, 4650300, 4705700, 4756500, 4800000, 4841900, 4881500, 4918600, 4954300],
+          "경사·소방장": [2472100, 2493100, 2539000, 2610800, 2710600, 2826000, 2942100, 3059100, 3170300, 3276600, 3376800, 3475200, 3568600, 3657900, 3743200, 3823900, 3901400, 3975500, 4045300, 4111700, 4175200, 4235000, 4293000, 4347900, 4399900, 4449900, 4492000, 4531300, 4569300, 4605800, 4639900],
+          "경장·소방교": [2215300, 2245500, 2290400, 2350700, 2427500, 2522200, 2628900, 2731700, 2829500, 2922200, 3012000, 3099500, 3183800, 3264300, 3341600, 3416300, 3486000, 3553600, 3618500, 3680400, 3739400, 3796100, 3850000, 3902200, 3951600, 3999600, 4039500, 4078000, 4114300, 4149600, 4183800],
+          "순경·소방사": [2133000, 2155600, 2187500, 2229200, 2281100, 2343900, 2418400, 2505600, 2595100, 2680900, 2762900, 2844100, 2922200, 2998100, 3070500, 3140600, 3209100, 3273000, 3335700, 3395400, 3451600, 3506000, 3557600, 3607200, 3654200, 3697100, 3733900, 3769300, 3803400, 3836800, 3869200]
+        },
+        "source": {
+          "law": "pay",
+          "article": "제5조, 별표 1·별표 10",
+          "revised": "2026-01-02",
+          "snapshot": "pay-reg-table10-police-fire.txt",
+          "note": "월지급액(원). 치안총감·소방총감 열은 없어요. 비고(경찰대학생·간부후보생·의무경찰 등)는 넣지 않았어요."
+        }
+      },
+      "table11": {
+        "annex": "별표 11",
+        "title": "유치원ㆍ초등학교ㆍ중학교ㆍ고등학교 교원 등의 봉급표",
+        "columns": [{"key": "봉급", "label": "봉급"}],
+        "table": {
+          "봉급": [2041500, 2103300, 2166000, 2228500, 2291500, 2354400, 2416600, 2478600, 2495600, 2516700, 2538300, 2585900, 2657500, 2773700, 2889700, 3006200, 3121000, 3241500, 3361200, 3481000, 3600700, 3733600, 3865300, 3997500, 4129400, 4261900, 4400100, 4538000, 4682100, 4826800, 4971100, 5115200, 5261600, 5407500, 5553600, 5699100, 5825700, 5952500, 6079500, 6205700]
+        },
+        "source": {
+          "law": "pay",
+          "article": "제5조, 별표 1·별표 11",
+          "revised": "2026-01-02",
+          "snapshot": "pay-reg-table11-teachers.txt",
+          "note": "월지급액(원). 기간제교원 봉급(비고)은 넣지 않았어요."
+        }
+      }
+    }
+  },
+  "tracks": {
+    "ladders": {
+      "general": {
+        "noun": "직급",
+        "ranks": [
+          {"key": "9", "label": "9급", "payColumn": "9"},
+          {"key": "8", "label": "8급", "payColumn": "8"},
+          {"key": "7", "label": "7급", "payColumn": "7"},
+          {"key": "6", "label": "6급", "payColumn": "6"},
+          {"key": "5", "label": "5급", "payColumn": "5"},
+          {"key": "4", "label": "4급", "payColumn": "4"},
+          {"key": "3", "label": "3급", "payColumn": "3"},
+          {"key": "2", "label": "2급", "payColumn": "2"},
+          {"key": "1", "label": "1급", "payColumn": "1"}
+        ],
+        "source": {"law": "pay", "article": "별표 3(계급 열)", "snapshot": "pay-reg-table3-salary.txt"}
+      },
+      "postal": {
+        "noun": "직급",
+        "ranks": [
+          {"key": "9", "label": "우정9급", "payColumn": "9"},
+          {"key": "8", "label": "우정8급", "payColumn": "8"},
+          {"key": "7", "label": "우정7급", "payColumn": "7"},
+          {"key": "6", "label": "우정6급", "payColumn": "6"},
+          {"key": "5", "label": "우정5급", "payColumn": "5"},
+          {"key": "4", "label": "우정4급", "payColumn": "4"},
+          {"key": "3", "label": "우정3급", "payColumn": "3"},
+          {"key": "2", "label": "우정2급", "payColumn": "2"},
+          {"key": "1", "label": "우정1급", "payColumn": "1"}
+        ],
+        "source": {
+          "law": "appointment",
+          "article": "제3조제4항, 별표 2",
+          "snapshot": "appointment-decree-table2-postal.txt",
+          "also": [{"law": "appointment", "article": "제3조제4항·제5항", "snapshot": "appointment-decree.txt"}]
+        }
+      },
+      "police": {
+        "noun": "계급",
+        "ranks": [
+          {"key": "순경", "label": "순경", "payColumn": "순경·소방사"},
+          {"key": "경장", "label": "경장", "payColumn": "경장·소방교"},
+          {"key": "경사", "label": "경사", "payColumn": "경사·소방장"},
+          {"key": "경위", "label": "경위", "payColumn": "경위·소방위"},
+          {"key": "경감", "label": "경감", "payColumn": "경감·소방경"},
+          {"key": "경정", "label": "경정", "payColumn": "경정·소방령"},
+          {"key": "총경", "label": "총경", "payColumn": "총경·소방정"},
+          {"key": "경무관", "label": "경무관", "payColumn": "경무관·소방준감"},
+          {"key": "치안감", "label": "치안감", "payColumn": "치안감·소방감"},
+          {"key": "치안정감", "label": "치안정감", "payColumn": "치안정감·소방정감"},
+          {"key": "치안총감", "label": "치안총감", "payColumn": null, "selectable": false, "note": "별표 10 봉급표에 이 계급의 열이 없어요."}
+        ],
+        "source": {"law": "policeAct", "article": "제3조", "snapshot": "police-officials-act.txt"}
+      },
+      "fire": {
+        "noun": "계급",
+        "ranks": [
+          {"key": "소방사", "label": "소방사", "payColumn": "순경·소방사"},
+          {"key": "소방교", "label": "소방교", "payColumn": "경장·소방교"},
+          {"key": "소방장", "label": "소방장", "payColumn": "경사·소방장"},
+          {"key": "소방위", "label": "소방위", "payColumn": "경위·소방위"},
+          {"key": "소방경", "label": "소방경", "payColumn": "경감·소방경"},
+          {"key": "소방령", "label": "소방령", "payColumn": "경정·소방령"},
+          {"key": "소방정", "label": "소방정", "payColumn": "총경·소방정"},
+          {"key": "소방준감", "label": "소방준감", "payColumn": "경무관·소방준감"},
+          {"key": "소방감", "label": "소방감", "payColumn": "치안감·소방감"},
+          {"key": "소방정감", "label": "소방정감", "payColumn": "치안정감·소방정감"},
+          {"key": "소방총감", "label": "소방총감", "payColumn": null, "selectable": false, "note": "별표 10 봉급표에 이 계급의 열이 없어요."}
+        ],
+        "source": {"law": "fireAct", "article": "제3조", "snapshot": "fire-officials-act.txt"}
+      },
+      "teacher": {
+        "noun": null,
+        "ranks": [{"key": "교원", "label": "교원", "payColumn": "봉급", "hideLabel": true}],
+        "source": {
+          "law": "pay",
+          "article": "별표 11",
+          "snapshot": "pay-reg-table11-teachers.txt",
+          "note": "교원 봉급표에는 직급이 없어 호봉만 있어요."
+        }
+      },
+      "foreign": {
+        "noun": "직무등급",
+        "ranks": [
+          {"key": "1", "label": "1등급", "payColumn": "9"},
+          {"key": "2", "label": "2등급", "payColumn": "8"},
+          {"key": "3", "label": "3등급", "payColumn": "7"},
+          {"key": "4", "label": "4등급", "payColumn": "6"},
+          {"key": "5", "label": "5등급", "payColumn": "5"},
+          {"key": "6", "label": "6등급", "payColumn": "4"}
+        ],
+        "source": {
+          "law": "pay",
+          "article": "별표 1·별표 3(계급ㆍ직무등급 열)",
+          "snapshot": "pay-reg-table3-salary.txt",
+          "also": [{"law": "pay", "article": "별표 1", "snapshot": "pay-reg-table1-classification.txt"}],
+          "note": "7등급 이상은 별표 3 대상이 아니라 넣지 않았어요."
+        }
+      }
+    },
+    "items": {
+      "general": {
+        "label": "일반직",
+        "status": "ready",
+        "scope": "국가직 일반직공무원. 공안업무 등(별표 4)·우정직군(별표 8)은 봉급표를 골라 주세요.",
+        "payTables": ["table3", "table4", "table8"],
+        "ladder": "general",
+        "source": {"law": "pay", "article": "별표 1", "snapshot": "pay-reg-table1-classification.txt"},
+        "payday": {"defaultDay": 25, "note": ""},
+        "byPayTable": {
+          "table4": {},
+          "table8": {
+            "ladder": "postal",
+            "minService": {
+              "monthsByGrade": {"9": 12, "8": 12, "7": 12, "6": 18, "5": 18, "4": 18, "3": 18, "2": 36},
+              "source": {
+                "law": "appointment",
+                "article": "제31조제1항제2호",
+                "revised": "2023-12-26",
+                "snapshot": "appointment-decree.txt",
+                "note": "우정직공무원의 승진소요최저연수. 휴직·직위해제·징계 기간 등은 원칙적으로 넣지 않아요(제2항)."
+              }
+            },
+            "seniorTreatment": {
+              "monthsByGrade": {"9": 48, "8": 48, "7": 48, "6": 48, "5": 48, "4": 48, "3": 48, "2": 48},
+              "appointDayOfMonth": 1,
+              "source": {
+                "law": "appointmentRule",
+                "article": "제19조제1항제2호, 제21조",
+                "snapshot": "appointment-rule.txt",
+                "note": "우정9급부터 우정2급까지 4년. 매월 말 5일 전까지 결정해 다음 달 1일 일괄 발령해요. 근무실적 요건과 1년 단축 사유는 반영하지 않아요."
+              }
+            },
+            "longService": {"status": "pending", "reason": "우정7~9급에 근속승진(공무원임용령 제35조의5)을 어떻게 적용하는지 원문으로 확인한 뒤 넣을게요."},
+            "probation": {
+              "status": "pending",
+              "reason": "국가공무원법 제29조제1항은 5급에 상당하는 공무원(우정1·2급)만 밝혀 두어, 우정3~9급의 시보 기간은 원문 글자로 확인한 뒤 넣을게요."
+            },
+            "positionAllowance": {
+              "amountByGrade": {
+                "9": 175000,
+                "8": 175000,
+                "7": 180000,
+                "6": 185000,
+                "5": 185000,
+                "4": 185000,
+                "3": 185000,
+                "2": 250000,
+                "1": 250000
+              },
+              "source": {
+                "law": "allowance",
+                "article": "제18조의6, 별표 15",
+                "revised": "2026-09-29",
+                "snapshot": "allowance-reg-table15-position.txt",
+                "also": [{"law": "appointment", "article": "제3조제5항", "snapshot": "appointment-decree.txt"}],
+                "note": "직급보조비(월). 별표 15에는 우정직이 따로 적혀 있지 않아, 'N급(상당)' 행을 공무원임용령 제3조제5항의 상당 계급(우정1·2급은 5급, 우정3~6급은 6급, 우정7·8·9급은 7·8·9급)으로 본 이 서비스의 해석이에요. 금액 계산에는 반영하지 않아요."
+              }
+            }
+          }
+        }
+      },
+      "police": {
+        "label": "경찰",
+        "status": "ready",
+        "scope": "경찰청 소속 경찰공무원. 해양경찰청 소속은 '해양경찰'을 골라 주세요.",
+        "payTables": ["table10"],
+        "ladder": "police",
+        "source": {
+          "law": "pay",
+          "article": "별표 1",
+          "snapshot": "pay-reg-table1-classification.txt",
+          "note": "경찰공무원은 별표 10 봉급표를 써요."
+        },
+        "payday": {"defaultDay": 25, "note": "별표 30에 경찰청이 따로 적혀 있지 않아 25일을 기본으로 뒀어요. 실제 월급날로 맞춰 주세요."},
+        "retirement": {
+          "age": 60,
+          "periods": [
+            {"fromMonth": 1, "toMonth": 6, "retireMonth": 6, "retireDay": 30},
+            {"fromMonth": 7, "toMonth": 12, "retireMonth": 12, "retireDay": 31}
+          ],
+          "rankLimit": {
+            "yearsByRank": {"경정": 14, "총경": 11, "경무관": 6, "치안감": 4},
+            "source": {
+              "law": "policeAct",
+              "article": "제30조제1항제2호·제5항",
+              "snapshot": "police-officials-act.txt",
+              "also": [
+                {"law": "policeAppointment", "article": "제8조, 제48조", "snapshot": "police-appointment-decree.txt"}
+              ],
+              "note": "현 계급 임용일부터 세요. 강등·재임용·자치경찰 경력 합산(제2항·제6항, 임용령 제8조)과 특수 부문·비상사태 연장(제3항·제4항)은 반영하지 않아요. 해당하면 '계급정년에 이르는 날'을 직접 넣어 주세요."
+            }
+          },
+          "source": {
+            "law": "policeAct",
+            "article": "제30조제1항제1호·제5항",
+            "snapshot": "police-officials-act.txt",
+            "note": "정년이 된 날이 1~6월이면 6월 30일, 7~12월이면 12월 31일에 당연퇴직해요. 연령정년과 계급정년 중 먼저 오는 날이에요."
+          }
+        },
+        "probation": {"status": "pending", "reason": "경찰공무원의 시보 조항은 아직 원문으로 확인하지 않았어요."},
+        "minService": {
+          "monthsByGrade": {"순경": 12, "경장": 12, "경사": 12, "경위": 12, "경감": 24, "경정": 24, "총경": 36},
+          "source": {
+            "law": "policePromotion",
+            "article": "제5조제1항",
+            "snapshot": "police-promotion-rule.txt",
+            "note": "승진소요 최저근무연수. 휴직·직위해제·징계 기간 등은 넣지 않아요(제2항). 경무관 이상은 규정이 없어요."
+          }
+        },
+        "longService": {
+          "monthsByGrade": {"순경": 48, "경장": 60, "경사": 78, "경위": 96},
+          "reviewLeadDays": null,
+          "quotaTo": "경감",
+          "quotaNote": "경감으로의 근속승진은 해마다 대상자의 50% 범위에서만 임용해요(재난·민원 경력 단축자는 넘을 수 있어요).",
+          "source": {
+            "law": "policeAct",
+            "article": "제16조제1항",
+            "snapshot": "police-officials-act.txt",
+            "also": [
+              {"law": "policePromotion", "article": "제26조제1항·제4항", "snapshot": "police-promotion-rule.txt"}
+            ],
+            "note": "근속승진임용을 '할 수 있다'는 규정이라 요건을 채운 날이 곧 승진일은 아니에요. 기간 단축(승진임용 규정 제26조제2항)은 반영하지 않아요."
+          }
+        },
+        "seniorTreatment": {
+          "monthsByGrade": {"순경": 48, "경장": 48, "경사": 48, "경위": 48, "경감": 48, "경정": 84, "총경": 84},
+          "appointDayOfMonth": 1,
+          "source": {
+            "law": "policePromotionRule",
+            "article": "제35조제1항, 제36조제1항",
+            "snapshot": "police-promotion-enforcement-rule.txt",
+            "also": [
+              {"law": "policePromotion", "article": "제43조제1항", "snapshot": "police-promotion-rule.txt"}
+            ],
+            "note": "승진소요 최저근무연수를 채운 총경 이하가 대상이에요. 근무실적 요건과 1년 단축(제35조제1항 단서)은 반영하지 않아요."
+          }
+        },
+        "positionAllowance": {
+          "amountByGrade": {
+            "순경": 175000,
+            "경장": 175000,
+            "경사": 180000,
+            "경위": 185000,
+            "경감": 185000,
+            "경정": 250000,
+            "총경": 400000,
+            "경무관": 500000,
+            "치안감": 650000,
+            "치안정감": 750000,
+            "치안총감": 950000
+          },
+          "source": {
+            "law": "allowance",
+            "article": "제18조의6, 별표 15",
+            "revised": "2026-09-29",
+            "snapshot": "allowance-reg-table15-full.txt",
+            "note": "직급보조비(월). 치안총감은 비고 제2호로 월 300,000원을 더해요. 금액 계산에는 반영하지 않아요."
+          }
+        },
+        "applies": {
+          "stepRaise": {"law": "pay", "article": "제13조제1항·제3항", "snapshot": "pay-reg-articles.txt"},
+          "promotionStep": {"law": "pay", "article": "제11조제1항·제2항, 별표 28 가목", "snapshot": "pay-reg-table28-promotion-step.txt"},
+          "leaveAnnual": {
+            "law": "policeService",
+            "article": "제20조",
+            "snapshot": "police-service-rule.txt",
+            "note": "복무규정에 없는 사항은 국가공무원 복무규정을 적용해요. 포상휴가(제18조)는 연가에 넣지 않아요."
+          },
+          "leaveAdvance": {"law": "policeService", "article": "제20조", "snapshot": "police-service-rule.txt"},
+          "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
+          "leaveLongService": {"law": "policeService", "article": "제20조", "snapshot": "police-service-rule.txt"},
+          "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
+          "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
+          "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
+        },
+        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "notes": []
+      },
+      "coastGuard": {
+        "label": "해양경찰",
+        "status": "partial",
+        "scope": "해양경찰청 소속 경찰공무원. 계급·봉급표·정년은 경찰과 같은 법(경찰공무원법)을 따르지만 승진임용 규정이 달라요.",
+        "payTables": ["table10"],
+        "ladder": "police",
+        "source": {
+          "law": "pay",
+          "article": "별표 1",
+          "snapshot": "pay-reg-table1-classification.txt",
+          "note": "경찰공무원은 별표 10 봉급표를 써요."
+        },
+        "payday": {"defaultDay": 25, "note": "별표 30에 해양경찰청이 따로 적혀 있지 않아 25일을 기본으로 뒀어요. 실제 월급날로 맞춰 주세요."},
+        "retirement": {
+          "age": 60,
+          "periods": [
+            {"fromMonth": 1, "toMonth": 6, "retireMonth": 6, "retireDay": 30},
+            {"fromMonth": 7, "toMonth": 12, "retireMonth": 12, "retireDay": 31}
+          ],
+          "rankLimit": {
+            "yearsByRank": {"경정": 14, "총경": 11, "경무관": 6, "치안감": 4},
+            "source": {
+              "law": "policeAct",
+              "article": "제30조제1항제2호·제5항",
+              "snapshot": "police-officials-act.txt",
+              "note": "현 계급 임용일부터 세요. 강등·자치경찰 경력 합산(제2항·제6항)과 특수 부문·비상사태 연장(제3항·제4항)은 반영하지 않아요. 해당하면 '계급정년에 이르는 날'을 직접 넣어 주세요."
+            }
+          },
+          "source": {
+            "law": "policeAct",
+            "article": "제30조제1항제1호·제5항",
+            "snapshot": "police-officials-act.txt",
+            "note": "정년이 된 날이 1~6월이면 6월 30일, 7~12월이면 12월 31일에 당연퇴직해요. 연령정년과 계급정년 중 먼저 오는 날이에요."
+          }
+        },
+        "longService": {
+          "monthsByGrade": {"순경": 48, "경장": 60, "경사": 78, "경위": 96},
+          "reviewLeadDays": null,
+          "quotaTo": null,
+          "quotaNote": "",
+          "source": {
+            "law": "policeAct",
+            "article": "제16조제1항",
+            "snapshot": "police-officials-act.txt",
+            "note": "근속승진임용을 '할 수 있다'는 규정이라 요건을 채운 날이 곧 승진일은 아니에요. 기간 계산·단축과 인원 제한은 해양경찰 규정을 확인하지 않아 반영하지 않아요."
+          }
+        },
+        "minService": {
+          "status": "pending",
+          "reason": "해양경찰은 「경찰공무원 승진임용 규정」의 적용 대상이 아니에요(제2조). 「해양경찰청 소속 경찰공무원 임용에 관한 규정」을 확인한 뒤 넣을게요."
+        },
+        "seniorTreatment": {
+          "status": "pending",
+          "reason": "해양경찰은 「경찰공무원 승진임용 규정」의 적용 대상이 아니에요(제2조). 「해양경찰청 소속 경찰공무원 임용에 관한 규정」을 확인한 뒤 넣을게요."
+        },
+        "seniorAllowance": {
+          "status": "pending",
+          "reason": "해양경찰은 「경찰공무원 승진임용 규정」의 적용 대상이 아니에요(제2조). 「해양경찰청 소속 경찰공무원 임용에 관한 규정」을 확인한 뒤 넣을게요."
+        },
+        "positionAllowance": {
+          "amountByGrade": {
+            "순경": 175000,
+            "경장": 175000,
+            "경사": 180000,
+            "경위": 185000,
+            "경감": 185000,
+            "경정": 250000,
+            "총경": 400000,
+            "경무관": 500000,
+            "치안감": 650000,
+            "치안정감": 750000,
+            "치안총감": 950000
+          },
+          "source": {
+            "law": "allowance",
+            "article": "제18조의6, 별표 15",
+            "revised": "2026-09-29",
+            "snapshot": "allowance-reg-table15-full.txt",
+            "note": "직급보조비(월). 치안총감은 비고 제2호로 월 300,000원을 더해요. 금액 계산에는 반영하지 않아요."
+          }
+        },
+        "applies": {
+          "stepRaise": {"law": "pay", "article": "제13조제1항·제3항", "snapshot": "pay-reg-articles.txt"},
+          "promotionStep": {"law": "pay", "article": "제11조제1항·제2항, 별표 28 가목", "snapshot": "pay-reg-table28-promotion-step.txt"},
+          "leaveAnnual": {
+            "law": "policeService",
+            "article": "제1조, 제20조",
+            "snapshot": "police-service-rule.txt",
+            "note": "경찰공무원 복무규정은 해양경찰청 소속 경찰공무원에게도 적용돼요. 이 영에 없는 사항은 국가공무원 복무규정을 적용해요. 포상휴가(제18조)는 연가에 넣지 않아요."
+          },
+          "leaveAdvance": {"law": "policeService", "article": "제1조, 제20조", "snapshot": "police-service-rule.txt"},
+          "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
+          "leaveLongService": {"law": "policeService", "article": "제1조, 제20조", "snapshot": "police-service-rule.txt"},
+          "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
+          "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
+        },
+        "pendingReason": "해양경찰청 소속 경찰공무원에게 적용되는 이 규정은 아직 원문으로 확인하지 않았어요.",
+        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "notes": []
+      },
+      "fire": {
+        "label": "소방",
+        "status": "ready",
+        "scope": "소방청과 시·도 소속 소방공무원.",
+        "payTables": ["table10"],
+        "ladder": "fire",
+        "source": {
+          "law": "pay",
+          "article": "별표 1",
+          "snapshot": "pay-reg-table1-classification.txt",
+          "note": "소방공무원은 별표 10 봉급표를 써요."
+        },
+        "payday": {
+          "defaultDay": 25,
+          "note": "별표 30에 소방청이 따로 적혀 있지 않아 25일을 기본으로 뒀어요. 시·도 소속이면 그 시·도의 지급일(예: 서울특별시 및 그 소속기관 20일)일 수 있어요. 실제 월급날로 맞춰 주세요."
+        },
+        "retirement": {
+          "age": 60,
+          "periods": [
+            {"fromMonth": 1, "toMonth": 6, "retireMonth": 6, "retireDay": 30},
+            {"fromMonth": 7, "toMonth": 12, "retireMonth": 12, "retireDay": 31}
+          ],
+          "rankLimit": {
+            "yearsByRank": {"소방령": 14, "소방정": 11, "소방준감": 6, "소방감": 4},
+            "source": {
+              "law": "fireAct",
+              "article": "제25조제1항제2호·제5항",
+              "snapshot": "fire-officials-act.txt",
+              "note": "현 계급 임용일부터 세요. 상응 계급 근무 연수 합산(제2항), 강등(제3항)과 비상사태 연장(제4항)은 반영하지 않아요. 해당하면 '계급정년에 이르는 날'을 직접 넣어 주세요."
+            }
+          },
+          "source": {
+            "law": "fireAct",
+            "article": "제25조제1항제1호·제5항",
+            "snapshot": "fire-officials-act.txt",
+            "note": "정년이 되는 날이 1~6월이면 6월 30일, 7~12월이면 12월 31일에 당연히 퇴직해요. 연령정년과 계급정년 중 먼저 오는 날이에요."
+          }
+        },
+        "probation": {"status": "pending", "reason": "소방공무원의 시보 조항은 아직 원문으로 확인하지 않았어요."},
+        "minService": {
+          "monthsByGrade": {"소방사": 12, "소방교": 12, "소방장": 12, "소방위": 12, "소방경": 24, "소방령": 24, "소방정": 36},
+          "source": {
+            "law": "firePromotion",
+            "article": "제5조제1항",
+            "snapshot": "fire-promotion-rule.txt",
+            "note": "승진소요최저근무연수. 휴직·직위해제·징계 기간 등은 넣지 않아요(제2항). 소방준감 이상은 규정이 없어요."
+          }
+        },
+        "longService": {
+          "monthsByGrade": {"소방사": 48, "소방교": 60, "소방장": 78, "소방위": 96},
+          "reviewLeadDays": 5,
+          "quotaTo": "소방경",
+          "quotaNote": "소방경으로의 근속승진은 해마다 대상자의 50% 범위에서만 임용해요.",
+          "source": {
+            "law": "fireAct",
+            "article": "제15조제1항",
+            "snapshot": "fire-officials-act.txt",
+            "also": [
+              {"law": "firePromotion", "article": "제6조의2제1항·제4항·제5항·제8항", "snapshot": "fire-promotion-rule.txt"}
+            ],
+            "note": "근속승진임용을 '할 수 있다'는 규정이라 요건을 채운 날이 곧 승진일은 아니에요. 기간 단축(제6조의2제2항)은 반영하지 않아요. 승진대상자명부에 올라 있어야 해요(제4항)."
+          }
+        },
+        "seniorTreatment": {
+          "monthsByGrade": {"소방사": 48, "소방교": 48, "소방장": 48, "소방위": 48, "소방경": 48, "소방령": 84, "소방정": 84},
+          "appointDayOfMonth": 1,
+          "source": {
+            "law": "firePromotionRule",
+            "article": "제36조제1항, 제37조제1항",
+            "snapshot": "fire-promotion-enforcement-rule.txt",
+            "also": [{"law": "firePromotion", "article": "제43조제1항", "snapshot": "fire-promotion-rule.txt"}],
+            "note": "승진소요최저근무연수를 채운 소방정 이하가 대상이에요. 근무실적 요건은 반영하지 않아요."
+          }
+        },
+        "leaveLongService": {
+          "status": "external",
+          "reason": "시·도 소속 소방공무원의 장기재직휴가는 소속 지방자치단체 조례를 따라요(소방공무원 복무규정 제11조제2항). 소방청 소속이면 국가공무원 복무규정 제20조제18항을 따라요."
+        },
+        "positionAllowance": {
+          "amountByGrade": {
+            "소방사": 175000,
+            "소방교": 175000,
+            "소방장": 180000,
+            "소방위": 185000,
+            "소방경": 185000,
+            "소방령": 250000,
+            "소방정": 400000,
+            "소방준감": 500000,
+            "소방감": 650000,
+            "소방정감": 750000,
+            "소방총감": 950000
+          },
+          "source": {
+            "law": "allowance",
+            "article": "제18조의6, 별표 15",
+            "revised": "2026-09-29",
+            "snapshot": "allowance-reg-table15-full.txt",
+            "note": "직급보조비(월). 소방총감은 비고 제2호로 월 300,000원을 더해요. 금액 계산에는 반영하지 않아요."
+          }
+        },
+        "applies": {
+          "stepRaise": {"law": "pay", "article": "제13조제1항·제3항", "snapshot": "pay-reg-articles.txt"},
+          "promotionStep": {"law": "pay", "article": "제11조제1항·제2항, 별표 28 가목", "snapshot": "pay-reg-table28-promotion-step.txt"},
+          "leaveAnnual": {
+            "law": "fireService",
+            "article": "제10조",
+            "snapshot": "fire-service-rule.txt",
+            "note": "복무규정에 없는 사항은 국가공무원 복무규정을 준용해요. 포상휴가(제9조)는 연가에 넣지 않아요."
+          },
+          "leaveAdvance": {"law": "fireService", "article": "제10조", "snapshot": "fire-service-rule.txt"},
+          "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
+          "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
+          "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
+          "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
+        },
+        "workHoursNote": "교대 근무라면 설정 > 근무시간을 내 근무에 맞춰 주세요.",
+        "notes": []
+      },
+      "teacher": {
+        "label": "교원",
+        "status": "ready",
+        "scope": "국립·공립 유치원·초등학교·중학교·고등학교 교원(공무원보수규정 별표 11). 사립학교 교원과 대학 교원은 대상이 아니에요.",
+        "payTables": ["table11"],
+        "ladder": "teacher",
+        "source": {
+          "law": "pay",
+          "article": "별표 1",
+          "snapshot": "pay-reg-table1-classification.txt",
+          "note": "고등학교 이하 각급 학교의 교원은 별표 11 봉급표를 써요."
+        },
+        "payday": {
+          "defaultDay": 17,
+          "note": "별표 30에서 '교육부 및 그 소속 기관'(각급 교육행정기관·교육기관 포함)의 지급일 17일을 기본으로 뒀어요. 학교·교육청에 따라 다를 수 있으니 실제 월급날로 맞춰 주세요."
+        },
+        "retirement": {
+          "age": 62,
+          "periods": [
+            {"fromMonth": 3, "toMonth": 8, "retireMonth": 8, "retireDay": 31},
+            {"fromMonth": 9, "toMonth": 12, "retireMonth": 2, "retireDay": "last", "yearOffset": 1},
+            {"fromMonth": 1, "toMonth": 2, "retireMonth": 2, "retireDay": "last"}
+          ],
+          "source": {
+            "law": "educationAct",
+            "article": "제47조",
+            "snapshot": "education-officials-act.txt",
+            "note": "'정년에 이른 날'은 62세가 되는 출생일이에요(법제처 법령해석 12-0189). 3~8월이면 8월 31일, 9월~다음 해 2월이면 다음 해 2월 말일에 퇴직해요. 고등교육법 교원(65세)은 대상이 아니에요."
+          }
+        },
+        "probation": {"status": "pending", "reason": "교육공무원법에는 시보 조항이 없어요. 국가공무원법의 시보 규정(계급 기준)을 교원에게 어떻게 적용하는지는 아직 확인하지 않았어요."},
+        "promotionStep": {"status": "none", "reason": "교원 봉급표에는 직급이 없어 승진해도 봉급표 칸이 바뀌지 않아요."},
+        "minService": {"status": "none", "reason": "교원 봉급표에는 직급이 없어요. 교감·교장 등 직위는 이 서비스에서 계산하지 않아요."},
+        "longService": {"status": "none", "reason": "교원 봉급표에는 직급이 없어요. 교감·교장 등 직위는 이 서비스에서 계산하지 않아요."},
+        "seniorTreatment": {"status": "none", "reason": "교원 봉급표에는 직급이 없어요. 교감·교장 등 직위는 이 서비스에서 계산하지 않아요."},
+        "seniorAllowance": {"status": "none", "reason": "교원 봉급표에는 직급이 없어요. 교감·교장 등 직위는 이 서비스에서 계산하지 않아요."},
+        "leaveAdvance": {
+          "tiers": [
+            {"fromMonths": 0, "toMonths": 6, "days": 3, "label": "6월 미만"},
+            {"fromMonths": 6, "toMonths": 12, "days": 4, "label": "6월 이상 1년 미만"},
+            {"fromMonths": 12, "toMonths": 24, "days": 6, "label": "1년 이상 2년 미만"},
+            {"fromMonths": 24, "toMonths": 36, "days": 7, "label": "2년 이상 3년 미만"},
+            {"fromMonths": 36, "toMonths": 48, "days": 8, "label": "3년 이상 4년 미만"},
+            {"fromMonths": 48, "toMonths": null, "days": 10, "label": "4년 이상"}
+          ],
+          "source": {
+            "law": "teacherLeave",
+            "article": "제5조제6항",
+            "snapshot": "teacher-leave-directive.txt",
+            "note": "원문 표가 그림이라 '3년 이상 4년 미만'의 8일은 글자 모양으로 판독했어요. 연도 중 휴직·퇴직 예정자는 미리 쓸 수 없어요."
+          }
+        },
+        "leaveCompensation": {"status": "none", "reason": "방학이 있는 학교의 교육공무원은 연가보상비를 받지 않아요(공무원수당 등에 관한 규정 제18조의5제1항제1호)."},
+        "positionAllowance": {"status": "external", "reason": "교사는 직급보조비 표(별표 15)에 행이 없고, 비고 제8호에 따라 인사혁신처장이 정해요. 이 서비스에서는 계산하지 않아요."},
+        "applies": {
+          "stepRaise": {
+            "law": "pay",
+            "article": "제13조제1항·제3항",
+            "snapshot": "pay-reg-articles.txt",
+            "also": [
+              {"law": "educationAct", "article": "제34조제2항", "snapshot": "education-officials-act.txt"}
+            ]
+          },
+          "leaveAnnual": {
+            "law": "teacherLeave",
+            "article": "제10조",
+            "snapshot": "teacher-leave-directive.txt",
+            "note": "예규가 국가공무원 복무규정 제15조(연가 일수)를 배제하지 않아 그대로 적용해요. 연가는 수업일을 빼고 쓰는 것이 원칙이에요(제4조제1항)."
+          },
+          "leaveLongService": {"law": "teacherLeave", "article": "제8조제4항", "snapshot": "teacher-leave-directive.txt"},
+          "diligence": {
+            "law": "allowance",
+            "article": "제7조제1항·제4항",
+            "snapshot": "allowance-reg-articles.txt",
+            "note": "교육공무원의 근무연수는 별표 22 경력환산율로 세요. 여기서는 임용일부터 센 값으로 어림해요."
+          },
+          "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
+        },
+        "workHoursNote": "학교마다 근무시간이 달라요. 설정 > 근무시간에서 맞춰 주세요.",
+        "leaveNote": "수업일 중 연가는 생일·기일·가족 간호 등 사유가 있을 때 학교장이 승인해요(예규 제5조제1항). 반일연가는 13시 기준이에요(제5조제2항). 성실 근무 가산(병가 1일 미만·연가 3일 미만, 각 1일, 총 2일 이내, 제5조제5항)은 부여 일수를 직접 고쳐 주세요.",
+        "leaveScreen": {
+          "recordSystem": "나이스(교육정보시스템)",
+          "savingCarryOver": false,
+          "source": {
+            "law": "teacherLeave",
+            "article": "제4조제4항, 제10조",
+            "snapshot": "teacher-leave-directive.txt",
+            "note": "교원에게는 국가공무원 복무규정 제16조의2(권장 연가)·제16조의3(연가 저축)을 적용하지 않아요."
+          }
+        },
+        "notes": ["장학사·교육연구사 등 교육전문직원의 휴가는 교원휴가 예규가 아니라 국가공무원 복무규정을 따르고, 연가보상비를 받을 수 있어요. 연가 화면의 보상비는 학교 교원 기준이라 보이지 않아요."]
+      },
+      "foreign": {
+        "label": "외무",
+        "status": "partial",
+        "scope": "외무공무원 1~6등급(별표 3을 써요). 7등급 이상은 아직 계산하지 않아요.",
+        "payTables": ["table3"],
+        "ladder": "foreign",
+        "source": {
+          "law": "pay",
+          "article": "별표 1·별표 3",
+          "snapshot": "pay-reg-table1-classification.txt",
+          "note": "1등급부터 6등급까지의 외무공무원은 별표 3 봉급표를 써요. 별표 3의 열은 4급ㆍ6등급부터 9급ㆍ1등급까지 짝지어져 있어요."
+        },
+        "payday": {"defaultDay": 25, "note": ""},
+        "applies": {
+          "stepRaise": {"law": "pay", "article": "제13조제1항·제3항", "snapshot": "pay-reg-articles.txt"},
+          "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
+          "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
+        },
+        "pendingReason": "외무공무원법의 정년·승진·복무 규정을 원문으로 확인한 뒤 넣을게요."
+      },
+      "militaryCivil": {
+        "label": "군무원",
+        "status": "pending",
+        "payTables": [],
+        "ladder": null,
+        "scope": "일반군무원은 별표 3 봉급표를 쓰지만(별표 1), 계급 이름과 정년·승진·복무 규정(군무원인사법)을 확인한 뒤 넣을게요.",
+        "source": {"law": "pay", "article": "별표 1", "snapshot": "pay-reg-table1-classification.txt"},
+        "payday": {"defaultDay": 10, "note": "별표 30의 '국방부 및 그 소속 기관'(10일)을 기본으로 뒀어요. 실제 월급날로 맞춰 주세요."},
+        "pendingReason": "군무원인사법의 계급·정년·승진·복무 규정을 원문으로 확인한 뒤 넣을게요."
+      },
+      "otherSpecial": {
+        "label": "그 밖의 특정직",
+        "status": "pending",
+        "payTables": [],
+        "ladder": null,
+        "scope": "법관·검사·중대범죄수사청수사관·국가정보원 직원·경호공무원·헌법연구관 등(국가공무원법 제2조제2항제2호). 봉급표가 별표 4라도 이 직종이에요. 근거 법령이 저마다 달라 아직 계산하지 않아요.",
+        "source": {"law": "stateOfficialsAct", "article": "제2조제2항제2호", "snapshot": "state-officials-act-art2.txt"},
+        "payday": {"defaultDay": 25, "note": ""},
+        "pendingReason": "직종마다 근거 법령이 달라 원문을 확인한 뒤 넣을게요."
       }
     }
   },
