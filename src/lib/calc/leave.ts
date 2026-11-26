@@ -205,6 +205,26 @@ export function summarizeLeave(
   };
 }
 
+/** 하루의 연가 모양: 'full'(하루 이상), 'am'·'pm'(반일 기록 하나), 'hours'(그 밖의 시간 연가), 없으면 null */
+export type DayLeave = 'full' | 'am' | 'pm' | 'hours' | null;
+
+/**
+ * 같은 날의 연가 기록들을 한 가지 모양으로 본다(홈의 오늘 연가·업적 달력이 같은 판정을 쓴다).
+ * 하루 합계가 hoursPerDay 이상이면 'full', 기록이 하나뿐이고 오전·오후 반일이면 그것,
+ * 그 밖에 시간이 있으면 'hours'.
+ */
+export function dayLeaveKind(
+  records: readonly Pick<LeaveRecord, 'kind' | 'hours'>[],
+  hoursPerDay: number,
+): DayLeave {
+  const hours = records.reduce((sum, r) => sum + r.hours, 0);
+  if (hours <= 0) return null;
+  if (hours >= hoursPerDay) return 'full';
+  const only = records.length === 1 ? records[0] : undefined;
+  if (only && (only.kind === 'am' || only.kind === 'pm')) return only.kind;
+  return 'hours';
+}
+
 /** 96 → '12일', 100 → '12일 4시간', 4 → '4시간', 0 → '0일', -10 → '-1일 2시간' */
 export function formatLeaveHours(hours: number, hoursPerDay = 8): string {
   const sign = hours < 0 ? '-' : '';

@@ -25,8 +25,15 @@ import {
   yearOf,
   type Ymd,
 } from '../calc/date.ts';
-import { advanceLimitDays, compensationPerDay, summarizeLeave } from '../calc/leave.ts';
+import {
+  advanceLimitDays,
+  compensationPerDay,
+  dayLeaveKind,
+  summarizeLeave,
+  type DayLeave,
+} from '../calc/leave.ts';
 import { buildMilestones, upcomingMilestones } from '../calc/milestones.ts';
+import { yearGrid as buildYearGrid, yearRecap, type GridInput } from '../calc/recap.ts';
 import {
   longServiceInfo,
   minServiceDate,
@@ -248,6 +255,21 @@ class View {
   badges = $derived(achievementViews(this.achievementInput, this.earned));
   earnedCount = $derived(this.badges.filter((b) => b.at !== null).length);
 
+  // ── 올해 결산·1년 달력(날짜가 바뀔 때만 다시 센다) ──────────────────
+  recapInput = $derived<GridInput>({
+    today: this.today,
+    profile: this.profile,
+    retireDate: this.retire.retireDate,
+    maxStep: this.maxStep,
+    periodMonths: this.rules.stepRaise.periodMonths,
+    cal: calendar,
+    records: this.data.leave.records,
+    hoursPerDay: this.rules.leave.units.hoursPerDay,
+    visits: this.data.visits.days,
+  });
+  recap = $derived(yearRecap({ ...this.recapInput, rules: rulesFor, badges: this.badges }));
+  yearGrid = $derived(buildYearGrid(yearOf(this.today), this.recapInput));
+
   // ── 오늘(초 단위) ────────────────────────────────────────────────────
   schedule = $derived(toSchedule(this.data.settings.work, this.rules.workHours));
   status = $derived.by<TodayStatus>(() => {
@@ -281,15 +303,12 @@ class View {
   /**
    * 오늘 연가 종류: 'full'(하루 이상), 'am'·'pm'(반일 기록 하나), 'hours'(시간 연가), 없으면 null
    */
-  leaveToday = $derived.by<'full' | 'am' | 'pm' | 'hours' | null>(() => {
-    const records = this.data.leave.records.filter((r) => r.date === this.today);
-    const hours = records.reduce((sum, r) => sum + r.hours, 0);
-    if (hours <= 0) return null;
-    if (hours >= this.rules.leave.units.hoursPerDay) return 'full';
-    const only = records.length === 1 ? records[0] : undefined;
-    if (only && (only.kind === 'am' || only.kind === 'pm')) return only.kind;
-    return 'hours';
-  });
+  leaveToday = $derived<DayLeave>(
+    dayLeaveKind(
+      this.data.leave.records.filter((r) => r.date === this.today),
+      this.rules.leave.units.hoursPerDay,
+    ),
+  );
   /**
    * 반차의 경계(자정부터의 분): 퇴근 시각에서 반일 시간을 뺀 때(9~18시면 14시).
    * 오전 반차는 이때까지, 오후 반차는 이때부터 쉰다.
