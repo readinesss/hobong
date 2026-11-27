@@ -138,6 +138,8 @@
   });
 
   let formOpen = $state(false);
+  /** 폼을 연 때의 app.dataGeneration(그 사이 다른 탭의 값을 따라갔으면 정하지 않고 알린다) */
+  let formBase = 0;
   /** 폼에 치는 중인 값('YYYY-MM' 또는 덜 채웠으면 '') */
   let draft = $state('');
   /** [정하기]를 한 번이라도 눌렀는지(빈 칸의 "넣어 주세요"는 그 뒤에만 보인다) */
@@ -208,6 +210,7 @@
     announce = '';
     announceNamesMonth = false;
     announceIsError = false;
+    formBase = untrack(() => app.dataGeneration);
     formOpen = true;
     await tick();
     monthInput?.focus();
@@ -224,9 +227,17 @@
    * 화면 위 안내(저장하지 못했어요)도 함께 뜬다.
    */
   function save(month: string | null) {
-    const result = app.setRetirePlan(month);
+    const result = app.setRetirePlan(month, formBase);
     if (!result) return;
     formOpen = false;
+    if (result === 'discarded') {
+      // 다른 탭이 바꾼 저장본을 따라갔다: 정했다고 하지 않는다(app 이 알림으로 알린다). 창은 따라간 값으로 그린다
+      announce = '';
+      announceNamesMonth = false;
+      announceIsError = false;
+      void focusOpener();
+      return;
+    }
     announce =
       result === 'saved'
         ? // 정년이 지난 뒤 남은 달을 지울 때는 '정년까지로 되돌렸어요'가 아니라 '지웠어요'

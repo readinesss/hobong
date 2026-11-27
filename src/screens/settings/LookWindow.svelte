@@ -3,6 +3,7 @@
    * 설정 > 호봉이 꾸미기(#17). 지금 모습을 보여 주고, '꾸미기'를 누르면 고르는 창을 연다.
    * 고르는 동안은 저장하지 않고, '바꾸기'를 눌러야 저장한다(설계 onboardingFlow §6).
    */
+  import { untrack } from 'svelte';
   import { lookName, sameLook } from '../../lib/character/customize.ts';
   import { resolveLook } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
@@ -25,10 +26,13 @@
 
   let editing = $state(false);
   let draft = $state<CharacterLook>(defaultLook());
+  /** 고르는 창을 연 때의 app.dataGeneration(그 사이 다른 탭의 값을 따라갔으면 고른 것으로 덮지 않는다) */
+  let base = 0;
 
   function open() {
     const saved = view.characterLook;
     draft = { ...saved, deco: { ...saved.deco } };
+    base = untrack(() => app.dataGeneration);
     editing = true;
   }
   function close() {
@@ -48,9 +52,11 @@
       app.toast('바뀐 것이 없어요.', 'info', 'icon-check');
       return;
     }
-    app.updateLook(draft);
+    // 다른 탭이 바꾼 데이터를 따라가느라 버렸으면(창을 연 뒤 storage 이벤트·포커스로 먼저 따라갔어도) app 이
+    // 알린다(다시 열면 바뀐 모습으로 시작한다)
+    const kept = app.updateLook(draft, base);
     close();
-    app.toast('호봉이 모습을 바꿨어요.', 'good', 'icon-check');
+    if (kept) app.toast('호봉이 모습을 바꿨어요.', 'good', 'icon-check');
   }
 </script>
 

@@ -188,7 +188,11 @@
       const wait = badgeHeld ? BADGE_AFTER_ENTRANCE_MS : 0;
       badgeHeld = false;
       if (fresh.length === 0 && !removed) return;
-      app.recordAchievements(earned);
+      // 다른 탭이 바꾼 저장본을 따라가느라 버렸으면 알리지 않는다(따라간 값으로 이 effect 가 다시 셈한다)
+      if (!app.recordAchievements(earned)) {
+        badgeHeld = wait > 0;
+        return;
+      }
       const announce = () => {
         badgeTimer = null;
         if (fresh.length > 3) {

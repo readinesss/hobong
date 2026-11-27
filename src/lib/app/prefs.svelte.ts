@@ -48,18 +48,35 @@ function storage(): Storage | null {
   }
 }
 
-/** 저장된 값을 읽는다(읽지 못하면 빈 값) */
-function readStored(): Prefs {
+/** 저장된 값을 읽는다(읽지 못하면 null — 저장소가 없거나 막혔다) */
+function readStored(): Prefs | null {
   try {
-    return parsePrefs(storage()?.getItem(PREFS_KEY) ?? null);
+    const store = storage();
+    return store ? parsePrefs(store.getItem(PREFS_KEY)) : null;
   } catch {
-    return {};
+    return null;
   }
 }
 
 class PrefsStore {
   /** 앱이 뜰 때 한 번 읽어 둔다(화면이 그리는 도중에 읽어 상태를 바꾸지 않게) */
-  value = $state<Prefs>(readStored());
+  value = $state<Prefs>(readStored() ?? {});
+
+  constructor() {
+    // 다른 탭(또는 다른 hobong.html)이 바꾸면 따라간다(이벤트가 오지 않는 브라우저는 쓰기 직전에 다시 읽는다)
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+    window.addEventListener('storage', (event) => {
+      if (event.key === PREFS_KEY || event.key === null) this.value = readStored() ?? this.value;
+    });
+  }
+
+  /**
+   * 쓰기 직전의 값: 저장소를 다시 읽는다. 이 탭이 연 뒤 다른 탭이 바꾼 것(예: 그 탭에서 패키지를 받아 'done')을
+   * 이 탭의 옛 값으로 덮지 않게(부록 J13). 저장소를 읽지 못하면 이 탭의 메모리 값.
+   */
+  #fresh(): Prefs {
+    return readStored() ?? this.value;
+  }
 
   get onboardMode(): OnboardMode | undefined {
     return this.value.onboardMode;
@@ -70,13 +87,13 @@ class PrefsStore {
   }
 
   set(patch: Prefs): void {
-    this.value = { ...this.value, ...patch };
+    this.value = { ...this.#fresh(), ...patch };
     this.#save();
   }
 
   /** 데이터를 모두 지울 때: 패키지 안내 상태는 처음으로, 고른 입력 방식은 기기 편의라 남긴다 */
   resetForNewStart(): void {
-    const { onboardMode } = this.value;
+    const { onboardMode } = this.#fresh();
     this.value = onboardMode ? { onboardMode } : {};
     this.#save();
   }

@@ -2,7 +2,7 @@
   import { emitCue } from '../lib/fx/cues.ts';
   import { prefs } from '../lib/app/prefs.svelte.ts';
   import { TALK } from '../lib/talk.ts';
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { hapticsSupported } from '../lib/app/haptics.ts';
@@ -20,7 +20,7 @@
   import { LICENSE_NOTICES } from '../lib/licenses.ts';
   import { backupFileName } from '../lib/store/backup.ts';
   import { canEncrypt, encryptBackup } from '../lib/store/crypto.ts';
-  import type { Profile, ThemeSetting, WorkHours } from '../lib/store/schema.ts';
+  import type { Profile, Settings, ThemeSetting, WorkHours } from '../lib/store/schema.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
@@ -43,6 +43,12 @@
   const noun = $derived(view.careerRules.ladder?.noun ?? '직급');
 
   let editing = $state(false);
+  /** 내 정보 고치기를 연 때의 app.dataGeneration(그 사이 다른 탭의 값을 따라갔으면 폼의 옛 값으로 덮지 않는다) */
+  let editBase = 0;
+  function openEdit() {
+    editBase = untrack(() => app.dataGeneration);
+    editing = true;
+  }
   let importing = $state(false);
   let confirmReset = $state(false);
   let confirmUndo = $state(false);
@@ -67,17 +73,36 @@
 
   function saveProfile(next: Profile, _payday: number, options: { celebrate: boolean }) {
     // '승진했어요'를 켜 두었으면 저장한 뒤 승진 연출이 뜬다(조건은 updateProfile 이 다시 본다)
-    app.updateProfile(next, { celebrate: options.celebrate });
+    const kept = app.updateProfile(next, { celebrate: options.celebrate, base: editBase });
+    // 다른 탭이 바꾼 데이터를 따라가느라 버렸으면(폼을 연 뒤 storage 이벤트·포커스로 먼저 따라갔어도) app 이
+    // 알린다. 폼은 옛 값으로 채워져 있으므로 닫는다(다시 열면 바뀐 내 정보로 시작한다)
     editing = false;
-    app.toast('내 정보를 고쳤어요.', 'good', 'icon-check');
+    if (kept) app.toast('내 정보를 고쳤어요.', 'good', 'icon-check');
+  }
+
+  /**
+   * 스위치를 바꿔 저장한다. 다른 탭이 바꾼 저장본을 따라가느라 버렸으면(app 이 알린다) 스위치를 지금 저장값으로
+   * 되돌린다 — checked 는 한쪽으로만 묶여 있어, 따라간 값이 누르기 전과 같으면 다시 그려지지 않고 누른 모습이 남는다
+   * (금액 가리기가 켜져 보이는데 금액이 보이고, '다시 해 주세요'대로 누르면 반대 값이 저장된다. 부록 J13).
+   */
+  function toggle(
+    el: HTMLInputElement,
+    patch: Partial<Settings>,
+    now: (s: Settings) => boolean,
+    count = false,
+  ) {
+    if (app.updateSettings(patch, count) || !app.data) return;
+    el.checked = now(app.data.settings);
   }
 
   // ── 근무시간·월급날 ──────────────────────────────────────────────────
-  function setWork(key: keyof WorkHours, value: string) {
-    const next = { ...settings.work, [key]: value };
+  function setWork(key: keyof WorkHours, el: HTMLInputElement) {
+    const next = { ...settings.work, [key]: el.value };
     const problem = checkWorkHours(next);
     workError = problem ?? '';
-    if (!problem) app.updateSettings({ work: next });
+    if (problem) return;
+    // 버려졌으면 칸을 지금 저장값으로 되돌린다(toggle 과 같은 까닭)
+    if (!app.updateSettings({ work: next }) && app.data) el.value = app.data.settings.work[key];
   }
   function resetWork() {
     const w = view.rules.workHours;
@@ -88,8 +113,10 @@
   }
   const paydayOptions = $derived(view.rules.payday.options);
   const customPayday = $derived(!paydayOptions.some((o) => o.day === settings.payday));
-  function setPayday(day: number) {
-    if (Number.isInteger(day) && day >= 1 && day <= 31) app.updateSettings({ payday: day });
+  /** 월급날을 바꾼다. 이 탭에 남았으면 true, 맞지 않는 값이거나 다른 탭 때문에 버렸으면 false */
+  function setPayday(day: number): boolean {
+    if (!Number.isInteger(day) || day < 1 || day > 31) return false;
+    return app.updateSettings({ payday: day });
   }
 
   // ── 화면 ─────────────────────────────────────────────────────────────
@@ -99,8 +126,7 @@
     { id: 'dark', label: '야근 모드' },
   ];
   function setTheme(theme: ThemeSetting) {
-    app.updateSettings({ theme }, false);
-    if (theme === 'dark' && app.grantEvent('evt-night')) {
+    if (app.updateSettings({ theme }, false) && theme === 'dark' && app.grantEvent('evt-night')) {
       app.toast('새 배지: 야근 모드', 'good', 'icon-moon', 4500);
     }
   }
@@ -116,7 +142,7 @@
   $effect(() => {
     if (nav.editProfileRequested) {
       nav.editProfileRequested = false;
-      editing = true;
+      openEdit();
     }
   });
 
@@ -259,15 +285,18 @@
   }
   function undo() {
     confirmUndo = false;
-    if (app.undoImport()) app.toast('불러오기 전 상태로 되돌렸어요.', 'good', 'icon-undo');
-    else app.toast('되돌릴 수 있는 상태가 없어요.', 'warn', 'icon-warn');
+    const result = app.undoImport();
+    // 'discarded': 다른 탭이 바꾼 데이터를 따라갔다 / 'blocked': 지금은 저장할 수 없다(app 이 알린다)
+    if (result === 'undone') app.toast('불러오기 전 상태로 되돌렸어요.', 'good', 'icon-undo');
+    else if (result === false) app.toast('되돌릴 수 있는 상태가 없어요.', 'warn', 'icon-warn');
   }
   function reset() {
     confirmReset = false;
     resetDownloaded = false;
     resetConfirmed = false;
     lastLocked = null;
-    app.reset();
+    // 다른 탭이 바꾼 데이터를 따라갔거나 이 탭이 더 쓰지 않는 상태면 지우지 않는다(app 이 알린다)
+    if (!app.reset()) return;
     // 이 탭에서만 기억하던 화면 상태(닫은 안내 띠·카드 종류)도 처음으로
     session.reset();
     // 임용정보 패키지 안내 상태도 처음으로(고른 입력 방식은 이 기기의 편의라 남긴다)
@@ -377,7 +406,7 @@
         {/if}
       </dl>
       <div class="btn-row">
-        <button type="button" class="btn" onclick={() => (editing = true)}>
+        <button type="button" class="btn" onclick={openEdit}>
           <Icon name="icon-pencil" /> 고치기
         </button>
       </div>
@@ -392,9 +421,12 @@
             checked={settings.identity.showSeriesHome}
             aria-describedby="set-identity-home-hint"
             onchange={(e) =>
-              app.updateSettings({
-                identity: { ...settings.identity, showSeriesHome: e.currentTarget.checked },
-              })}
+              toggle(
+                e.currentTarget,
+                { identity: { ...settings.identity, showSeriesHome: e.currentTarget.checked } },
+                (s) => s.identity.showSeriesHome,
+                true,
+              )}
           />
           <span class="box" aria-hidden="true"></span>
           <span>홈에 직렬·계급 이름 보이기</span>
@@ -554,8 +586,9 @@
                 placeholder="1~31"
                 onchange={(e) => {
                   const day = Number(e.currentTarget.value.replace(/\D/g, ''));
-                  if (day >= 1 && day <= 31) setPayday(day);
-                  else e.currentTarget.value = customPayday ? String(settings.payday) : '';
+                  // 맞지 않는 값이거나 다른 탭 때문에 버려졌으면 칸을 지금 저장값으로 되돌린다
+                  if (setPayday(day) || !app.data) return;
+                  e.currentTarget.value = customPayday ? String(settings.payday) : '';
                 }}
               />
               <span>일</span>
@@ -572,7 +605,7 @@
                   class="input"
                   type="time"
                   value={settings.work.start}
-                  onchange={(e) => setWork('start', e.currentTarget.value)}
+                  onchange={(e) => setWork('start', e.currentTarget)}
                 />
               </div>
               <div class="field">
@@ -582,7 +615,7 @@
                   class="input"
                   type="time"
                   value={settings.work.end}
-                  onchange={(e) => setWork('end', e.currentTarget.value)}
+                  onchange={(e) => setWork('end', e.currentTarget)}
                 />
               </div>
               <div class="field">
@@ -592,7 +625,7 @@
                   class="input"
                   type="time"
                   value={settings.work.lunchStart}
-                  onchange={(e) => setWork('lunchStart', e.currentTarget.value)}
+                  onchange={(e) => setWork('lunchStart', e.currentTarget)}
                 />
               </div>
               <div class="field">
@@ -602,7 +635,7 @@
                   class="input"
                   type="time"
                   value={settings.work.lunchEnd}
-                  onchange={(e) => setWork('lunchEnd', e.currentTarget.value)}
+                  onchange={(e) => setWork('lunchEnd', e.currentTarget)}
                 />
               </div>
             </div>
@@ -639,7 +672,12 @@
             <input
               type="checkbox"
               checked={settings.hideAmounts}
-              onchange={(e) => app.updateSettings({ hideAmounts: e.currentTarget.checked }, false)}
+              onchange={(e) =>
+                toggle(
+                  e.currentTarget,
+                  { hideAmounts: e.currentTarget.checked },
+                  (s) => s.hideAmounts,
+                )}
             />
             <span class="box" aria-hidden="true"></span>
             <span>금액 가리기 <span class="cap muted">사무실에서 띄워 둘 때</span></span>
@@ -650,7 +688,12 @@
               checked={settings.reduceMotion || anim.systemReduced}
               disabled={anim.systemReduced}
               aria-describedby={anim.systemReduced ? 'set-motion-system' : undefined}
-              onchange={(e) => app.updateSettings({ reduceMotion: e.currentTarget.checked }, false)}
+              onchange={(e) =>
+                toggle(
+                  e.currentTarget,
+                  { reduceMotion: e.currentTarget.checked },
+                  (s) => s.reduceMotion || anim.systemReduced,
+                )}
             />
             <span class="box" aria-hidden="true"></span>
             <span>움직임 줄이기 <span class="cap muted">캐릭터와 연출을 멈춰요</span></span>
@@ -666,7 +709,8 @@
               <input
                 type="checkbox"
                 checked={settings.haptics}
-                onchange={(e) => app.updateSettings({ haptics: e.currentTarget.checked }, false)}
+                onchange={(e) =>
+                  toggle(e.currentTarget, { haptics: e.currentTarget.checked }, (s) => s.haptics)}
               />
               <span class="box" aria-hidden="true"></span>
               <span>
@@ -679,9 +723,10 @@
               type="checkbox"
               checked={settings.tabTitle === 'countdown'}
               onchange={(e) =>
-                app.updateSettings(
+                toggle(
+                  e.currentTarget,
                   { tabTitle: e.currentTarget.checked ? 'countdown' : 'default' },
-                  false,
+                  (s) => s.tabTitle === 'countdown',
                 )}
             />
             <span class="box" aria-hidden="true"></span>

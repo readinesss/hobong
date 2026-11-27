@@ -97,15 +97,46 @@
     else if (step === 'form') void goIntro({ viaHistory: true });
     if (step !== 'intro') guard();
   }
+  /** 첫 입력 칸에 넣은 것이 있는지 */
+  function entered(): boolean {
+    return (
+      draft.nickname.trim() !== '' ||
+      draft.birthDate !== '' ||
+      draft.hireDate !== '' ||
+      draft.nextStepDate !== '' ||
+      Object.values(draft.dateProblems).some(Boolean)
+    );
+  }
   /** 넣은 값이 있는데 아직 저장하지 않았으면, 새로 고침·창 닫기 전에 브라우저가 한 번 묻게 한다 */
-  const dirty = $derived(
-    (step === 'talk' || step === 'form') &&
-      (draft.nickname.trim() !== '' ||
-        draft.birthDate !== '' ||
-        draft.hireDate !== '' ||
-        draft.nextStepDate !== '' ||
-        Object.values(draft.dateProblems).some(Boolean)),
-  );
+  const dirty = $derived((step === 'talk' || step === 'form') && entered());
+
+  /** 이 화면이 스스로 홈으로 넘겼다(알을 깨웠다) */
+  let handedOff = false;
+  /** 알 깨우기가 다른 탭 때문에 막혀 app 이 이미 알렸다 */
+  let refused = false;
+  /**
+   * 이 화면이 사라질 때. 스스로 넘긴 것(알 깨우기·패키지로 이어하기)이 아니면 다른 탭(또는 다른 hobong.html)이
+   * 먼저 내 정보를 넣어 이 탭이 그 데이터를 따라간 것이다(알 깨우기가 막혔을 때와 storage 이벤트·포커스로 끌려
+   * 나왔을 때 모두). 첫 입력 중이었으면 알리고, 누른 단추·칸이 사라졌으니 홈의 본문으로 포커스를 옮긴다.
+   * 끼워 둔 기록 자리도 거둔다(홈에서 첫 [뒤로]가 헛돌지 않게. docs/PLAN.md 부록 J13).
+   * 정리 함수 안에서 읽는 상태는 이 화면을 치운 변경 전의 값이라(Svelte 5) app.data 는 한 박자 뒤에 본다.
+   */
+  function onLeave() {
+    const inInput = step === 'talk' || step === 'form';
+    const hadInput = inInput && entered();
+    unguard();
+    if (handedOff || importing || !inInput) return;
+    const announce = !refused;
+    queueMicrotask(() => {
+      if (!app.data) return;
+      if (announce) app.announceCreatedElsewhere(hadInput);
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active === null || active === document.body)
+          document.getElementById('main')?.focus({ preventScroll: true });
+      });
+    });
+  }
   onMount(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!dirty) return;
@@ -118,6 +149,7 @@
     return () => {
       window.removeEventListener('popstate', onPopState);
       window.removeEventListener('beforeunload', onBeforeUnload);
+      onLeave();
     };
   });
 
@@ -179,10 +211,13 @@
       look,
       { hatch: true },
     );
+    // 저장하지 못했으면(이 탭은 더 쓰지 않음·다른 탭이 먼저 내 정보를 넣음) app 이 까닭을 알린다.
+    // 다른 탭의 데이터를 따라갔으면 이 화면은 곧 사라진다(onLeave 가 기록 자리·포커스를 맡는다)
     if (!ok) {
-      app.toast('지금은 저장할 수 없어요. 새로 고친 뒤 다시 해 주세요.', 'warn', 'icon-warn');
+      refused = app.data !== null;
       return;
     }
+    handedOff = true;
     // 저장을 마쳤다: 끼워 둔 기록 자리를 거둔다(홈에서 뒤로 가기가 헛돌지 않게)
     unguard();
     // 임용정보 패키지 안내를 홈에서 한 번 보일 차례다
@@ -236,8 +271,10 @@
   }
 
   function undoImport() {
-    if (app.undoImport()) app.toast('불러오기 전 상태로 되돌렸어요.', 'good', 'icon-undo');
-    else app.toast('되돌릴 수 있는 상태가 없어요.', 'warn', 'icon-warn');
+    const result = app.undoImport();
+    // 'discarded': 다른 탭이 바꾼 데이터를 따라갔다 / 'blocked': 지금은 저장할 수 없다(app 이 알린다)
+    if (result === 'undone') app.toast('불러오기 전 상태로 되돌렸어요.', 'good', 'icon-undo');
+    else if (result === false) app.toast('되돌릴 수 있는 상태가 없어요.', 'warn', 'icon-warn');
   }
 
   function onDrop(event: DragEvent) {

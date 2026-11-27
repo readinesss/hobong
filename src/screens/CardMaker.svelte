@@ -245,6 +245,15 @@
   function setCard(patch: Partial<CardSettings>) {
     app.updateSettings({ card: { ...card, ...patch } }, false);
   }
+  type CardSwitch = Exclude<keyof CardSettings, 'ratio'>;
+  /**
+   * 카드 스위치를 바꾼다. 다른 탭이 바꾼 저장본을 따라가느라 버렸으면(app 이 알린다) 스위치를 지금 저장값으로
+   * 되돌린다 — checked 는 한쪽으로만 묶여 있어 따라간 값이 누르기 전과 같으면 다시 그려지지 않는다(부록 J13)
+   */
+  function toggleCard(key: CardSwitch, el: HTMLInputElement) {
+    if (app.updateSettings({ card: { ...card, [key]: el.checked } }, false) || !app.data) return;
+    el.checked = app.data.settings.card[key];
+  }
 
   async function render(): Promise<Blob | null> {
     await ensureCardFonts();
@@ -471,7 +480,7 @@
               type="checkbox"
               checked={card.showRank}
               aria-describedby="card-show-rank-hint"
-              onchange={(e) => setCard({ showRank: e.currentTarget.checked })}
+              onchange={(e) => toggleCard('showRank', e.currentTarget)}
             />
             <span class="box" aria-hidden="true"></span>
             <span>계급 이름 넣기</span>
@@ -501,7 +510,7 @@
                 type="checkbox"
                 checked={card.showSeries}
                 aria-describedby="card-show-series-hint"
-                onchange={(e) => setCard({ showSeries: e.currentTarget.checked })}
+                onchange={(e) => toggleCard('showSeries', e.currentTarget)}
               />
               <span class="box" aria-hidden="true"></span>
               <span>직렬 이름 넣기</span>
@@ -515,7 +524,7 @@
             <input
               type="checkbox"
               checked={card.showBadges}
-              onchange={(e) => setCard({ showBadges: e.currentTarget.checked })}
+              onchange={(e) => toggleCard('showBadges', e.currentTarget)}
             />
             <span class="box" aria-hidden="true"></span>
             <span>배지</span>
@@ -524,7 +533,7 @@
             <input
               type="checkbox"
               checked={card.showTenure}
-              onchange={(e) => setCard({ showTenure: e.currentTarget.checked })}
+              onchange={(e) => toggleCard('showTenure', e.currentTarget)}
             />
             <span class="box" aria-hidden="true"></span>
             <span>재직기간 <span class="cap muted">임용 시기를 짐작할 수 있어요</span></span>
@@ -533,7 +542,7 @@
             <input
               type="checkbox"
               checked={card.showRetirement}
-              onchange={(e) => setCard({ showRetirement: e.currentTarget.checked })}
+              onchange={(e) => toggleCard('showRetirement', e.currentTarget)}
             />
             <span class="box" aria-hidden="true"></span>
             <span>정년 D-day <span class="cap muted">나이를 짐작할 수 있어요</span></span>
@@ -542,7 +551,7 @@
             <input
               type="checkbox"
               checked={card.showSalary}
-              onchange={(e) => setCard({ showSalary: e.currentTarget.checked })}
+              onchange={(e) => toggleCard('showSalary', e.currentTarget)}
             />
             <span class="box" aria-hidden="true"></span>
             <span>

@@ -110,6 +110,48 @@ export interface Celebration {
 export type Entrance = 'hatch' | 'import';
 
 /**
+ * 저장의 결과.
+ * saved: 저장소에 썼다. unsaved: 이 탭의 데이터는 바뀌었지만 저장소에 쓰지 못했다(꽉 참·더 새 버전·읽지 못한
+ * 저장본 — 화면 위 띠가 알린다). discarded: 그 사이 다른 탭(또는 다른 hobong.html)이 저장본을 바꿔 두어 쓰지 않고
+ * 그 값을 따라갔다 — 이 탭의 바뀐 내용은 메모리에서도 사라졌다(docs/PLAN.md 부록 J).
+ */
+export type SaveOutcome = 'saved' | 'unsaved' | 'discarded';
+
+interface WriteOptions {
+  /** "마지막 백업 이후 변경"으로 센다 */
+  count: boolean;
+  /** 사용자가 하지 않은 자동 기록(방문·업적·도감·승급 확인). 버려져도 알리지 않는다 */
+  auto: boolean;
+  /**
+   * 대화상자가 열 때 기억해 둔 `dataGeneration`. 그 사이 이 탭이 다른 탭의 저장본을 따라갔으면(storage 이벤트·
+   * 포커스로 먼저 따라갔어도) 대화상자의 초안은 옛 값이므로 쓰지 않고 버린다(docs/PLAN.md 부록 J13).
+   */
+  base?: number;
+}
+
+/** 사용자가 방금 한 것을 다른 탭 때문에 버렸을 때의 알림 */
+const DISCARDED_TEXT = {
+  changed:
+    '다른 탭(또는 다른 hobong.html)에서 데이터가 바뀌어 방금 한 것은 저장하지 않았어요. 바뀐 내용을 불러왔으니 다시 해 주세요.',
+  cleared:
+    '다른 탭(또는 다른 hobong.html)에서 데이터를 모두 지워서 방금 한 것은 저장하지 않았어요. 처음부터 넣거나 임용정보 패키지로 이어해 주세요.',
+} as const;
+
+/** 버렸다는 알림은 놓치기 쉬워 다른 알림보다 오래 둔다(다시 해서 저장되면 바로 닫는다) */
+const DISCARDED_MS = 12000;
+
+/** 첫 입력 중에 다른 탭이 먼저 내 정보를 넣어 그 데이터를 불러왔을 때(넣던 것이 있었는지에 따라) */
+function createdElsewhereText(nickname: string, entered: boolean): string {
+  const head = `다른 탭(또는 다른 hobong.html)에서 먼저 내 정보를 넣어서 그 데이터(닉네임 '${nickname}')를 불러왔어요.`;
+  return entered
+    ? `${head} 방금 넣은 내용은 저장하지 않았어요. 다르면 설정에서 고쳐 주세요.`
+    : `${head} 다르면 설정에서 고쳐 주세요.`;
+}
+
+/** 이 탭이 지금 저장할 수 없을 때(다른 탭의 더 새 버전·읽지 못한 저장본) */
+const CANNOT_WRITE_TEXT = '지금은 저장할 수 없어요. 새로 고친 뒤 다시 해 주세요.';
+
+/**
  * today 기준 이 프로필의 호봉·형태·계급 이름(연출 기준을 맞추는 데 쓴다).
  * 화면(view.step·view.formId)과 같이 정년퇴직일이 지나면 그날 기준으로 센다(serviceDayOf).
  */
@@ -193,6 +235,15 @@ class AppStore {
   #heldToasts: (() => void)[] = [];
   /** 이 탭이 마지막으로 읽거나 쓴 저장본 원문. 다른 탭이 바꿨는지 알아보는 데 쓴다 */
   #lastRaw: string | null = null;
+  /** 떠 있는 '저장하지 않았어요' 알림(다시 해서 저장되면 닫는다) */
+  #discardedToast: number | null = null;
+
+  /**
+   * 이 탭이 다른 탭(또는 다른 hobong.html)의 저장본을 따라간 횟수. 초안을 들고 있는 대화상자(내 정보 고치기·꾸미기·
+   * 부여 일수·정한 달)는 열 때 이 값을 기억해 저장할 때 넘긴다 — 그 사이 따라갔으면 초안은 옛 값이라 버린다.
+   * 한쪽으로만 묶인 칸이 저장값을 다시 그리는 데에도 쓴다(부록 J13).
+   */
+  dataGeneration = $state(0);
 
   /**
    * 검사 기준. stored 가 true 면 이 브라우저에 저장돼 있던 값을 읽을 때의 기준이다
@@ -243,14 +294,72 @@ class AppStore {
 
   /** 이 탭이 마지막으로 읽거나 쓴 뒤에 저장소가 바뀌었으면 따라간다 */
   #recheckStore(): void {
-    if (!this.#store) return;
+    this.#inSync();
+  }
+
+  /**
+   * 저장소가 이 탭이 마지막으로 읽거나 쓴 값(#lastRaw) 그대로인지. 그 사이 다른 탭(또는 다른 hobong.html)이
+   * 바꿨으면 #followOtherTab 으로 그 값을 따라가고 false 를 돌려준다. 쓰기 직전에 늘 부른다 — storage 이벤트는
+   * 같은 탭의 쓰기에는 오지 않고, WebKit 의 file:// 에서는 다른 탭의 쓰기에도 오지 않을 때가 있다(부록 C·J).
+   * 저장소를 읽지 못하면 견줄 수 없으므로 true(쓰기가 실패하면 saveFailed 가 알린다).
+   */
+  #inSync(): boolean {
+    if (!this.#store) return true;
     let raw: string | null;
     try {
       raw = this.#store.getItem(KEYS.data);
     } catch {
-      return;
+      return true;
     }
-    if (raw !== this.#lastRaw) this.#followOtherTab();
+    if (raw === this.#lastRaw) return true;
+    this.#followOtherTab();
+    return false;
+  }
+
+  /**
+   * 쓰려던 것을 버리고 저장소의 값을 따라간 뒤의 결과. 따라간 값을 읽지 못했으면(더 새 버전·읽지 못한 값) 이 탭은
+   * 더 쓰지 않고(staleNotice) 바뀐 내용은 메모리에만 남는다: 'unsaved'. 읽었으면(비었으면 첫 화면) 이 탭의 메모리와
+   * 저장소가 같아졌다: 'discarded'. 사용자가 한 것이면 알린다(자동 기록은 조용히).
+   */
+  #afterFollow(auto: boolean, text: string = DISCARDED_TEXT.changed): SaveOutcome {
+    if (!this.canWrite) {
+      this.saveFailed = true;
+      return 'unsaved';
+    }
+    if (!auto) this.#announceDiscarded(text);
+    return 'discarded';
+  }
+
+  #announceDiscarded(text: string = DISCARDED_TEXT.changed): void {
+    this.#closeDiscardedToast();
+    this.#discardedToast = this.toast(
+      this.data ? text : DISCARDED_TEXT.cleared,
+      'warn',
+      'icon-warn',
+      DISCARDED_MS,
+    );
+  }
+
+  /** 앞서 띄운 '저장하지 않았어요' 알림을 닫는다(다시 해서 저장됐으면 두 말이 나란히 남지 않게) */
+  #closeDiscardedToast(): void {
+    if (this.#discardedToast !== null) this.dismissToast(this.#discardedToast);
+    this.#discardedToast = null;
+  }
+
+  /**
+   * 첫 입력 중에 다른 탭이 먼저 내 정보를 넣어 이 탭이 그 데이터를 따라갔다고 알린다. 알 깨우기가 막혔을 때
+   * (createProfile)와 storage 이벤트·포커스로 첫 화면에서 끌려 나왔을 때(Welcome) 같은 말을 한다.
+   * entered: 넣던 내용이 있었는지.
+   */
+  announceCreatedElsewhere(entered: boolean): void {
+    if (!this.data) return;
+    this.#closeDiscardedToast();
+    this.#discardedToast = this.toast(
+      createdElsewhereText(this.data.profile.nickname, entered),
+      'warn',
+      'icon-warn',
+      DISCARDED_MS,
+    );
   }
 
   #load(): void {
@@ -258,10 +367,12 @@ class AppStore {
     const ctx = this.context(new Date(), true);
     const loaded = loadData(this.#store, ctx);
     this.newerNotice = null;
+    // 읽으면서 바뀌었을 수 있는 저장소(되살림·옮겨 둠)를 이 탭이 아는 값으로 둔다(아래 변환 저장이 다른 탭 탓으로 막히지 않게)
+    this.#rememberStored();
     if (loaded.status === 'ok') {
       this.data = loaded.data;
       if (loaded.fromVersion < 4) this.upgradedFromV3 = true;
-      if (loaded.migrated || loaded.restored) this.#persist();
+      if (loaded.migrated || loaded.restored) this.#persist(true);
       if (loaded.restored) {
         this.toast(
           '예전에 읽지 못해 따로 옮겨 뒀던 데이터를 되살렸어요.',
@@ -286,12 +397,23 @@ class AppStore {
    */
   #followOtherTab(): void {
     if (!this.#store) return;
+    const before = this.#lastRaw;
     const ctx = this.context(new Date(), true);
     const loaded = loadData(this.#store, ctx, { readOnly: true });
     if (loaded.status === 'ok') {
       this.data = loaded.data;
+      // 이 탭의 메모리가 저장소와 같아졌다(앞서 저장하지 못한 것이 있었어도 이제 남은 것이 없다)
+      this.saveFailed = false;
     } else if (loaded.status === 'empty') {
       this.data = null;
+      this.saveFailed = false;
+      // 지운 데이터에 딸린 이 탭의 연출·안내도 거둔다(reset 과 같다). 연출이 남아 있으면 알림이 계속 미뤄진다
+      this.welcomeBack = null;
+      this.celebration = null;
+      this.upgradedFromV3 = false;
+      this.trackChange = null;
+      this.hatching = false;
+      this.entrance = null;
     } else {
       this.staleNotice =
         loaded.status === 'newer'
@@ -301,6 +423,8 @@ class AppStore {
     this.corruptKept = hasCorrupt(this.#store);
     this.undoSavedAt = loadUndo(this.#store, ctx)?.savedAt ?? null;
     this.#rememberStored();
+    // 데이터 칸이 바뀌었을 때만 센다(되돌리기 보관본만 바뀐 storage 이벤트로 열린 대화상자를 버리지 않게)
+    if (this.#lastRaw !== before) this.dataGeneration += 1;
   }
 
   /** 이 탭이 저장소에 써도 되는지 */
@@ -308,20 +432,24 @@ class AppStore {
     return this.newerNotice === null && this.staleNotice === null;
   }
 
-  /** 저장한다. 성공하면 true */
-  #persist(): boolean {
-    if (!this.#store || !this.data) return false;
+  /**
+   * 지금 데이터를 저장한다. 쓰기 직전에 저장소가 이 탭이 아는 값 그대로인지 보고(#inSync), 그 사이 다른 탭이
+   * 바꿨으면 쓰지 않고 그 값을 따라간다('discarded'). auto 는 사용자가 하지 않은 자동 기록(버려도 알리지 않는다).
+   */
+  #persist(auto: boolean): SaveOutcome {
+    if (!this.#store || !this.data) return 'unsaved';
     if (!this.canWrite) {
       this.saveFailed = true;
-      return false;
+      return 'unsaved';
     }
+    if (!this.#inSync()) return this.#afterFollow(auto);
     const ctx = this.context(new Date(), true);
-    // 다른 탭·파일이 더 새 버전으로 저장해 뒀다면 덮어쓰지 않는다.
+    // 저장소를 읽지 못해 견주지 못했을 때를 위해 한 번 더: 더 새 버전의 데이터는 덮어쓰지 않는다.
     if (isNewerData(this.#store, ctx)) {
       this.staleNotice =
         '더 새 버전의 호봉이 저장한 데이터가 있어 이 탭은 저장하지 않았어요. 새 버전으로 열어 주세요.';
       this.saveFailed = true;
-      return false;
+      return 'unsaved';
     }
     const snapshot = $state.snapshot(this.data) as UserData;
     const nowIso = new Date().toISOString();
@@ -329,25 +457,61 @@ class AppStore {
     const check = parseBackup(serializeBackup(makeEnvelope(snapshot, APP_VERSION, nowIso)), ctx);
     if (!check.ok) {
       this.saveFailed = true;
-      return false;
+      return 'unsaved';
     }
     const ok = saveData(this.#store, snapshot, APP_VERSION, nowIso);
     this.saveFailed = !ok;
     if (ok) this.#rememberStored();
-    return ok;
+    return ok ? 'saved' : 'unsaved';
   }
 
   /**
    * 데이터를 바꾸고 저장한다.
    * count가 true면 "마지막 백업 이후 변경"으로 센다(방문 기록 같은 자동 변경은 세지 않는다).
-   * 저장소에 썼으면 true(쓰지 못해도 이 탭의 데이터는 바뀐다 — 화면 위 안내가 알린다).
+   * 그 사이 다른 탭이 저장본을 바꿨으면 바꾸지 않고(바꾼 것은 메모리에서도 사라진다) 저장소의 값을 따라간다.
    */
-  commit(mutate: (data: UserData) => void, count = true): boolean {
-    if (!this.data) return false;
+  #write(mutate: (data: UserData) => void, options: WriteOptions): SaveOutcome {
+    if (!this.data) return 'unsaved';
+    if (options.base !== undefined && this.#staleBase(options.base, options.auto))
+      return 'discarded';
     mutate(this.data);
     this.data.meta.updatedAt = new Date().toISOString();
-    if (count) this.data.meta.changesSinceBackup += 1;
-    return this.#persist();
+    if (options.count) this.data.meta.changesSinceBackup += 1;
+    const outcome = this.#persist(options.auto);
+    if (outcome === 'saved' && !options.auto) this.#closeDiscardedToast();
+    return outcome;
+  }
+
+  /**
+   * 대화상자를 연 뒤(base) 이 탭이 다른 탭의 저장본을 따라갔는지. 지금 저장소도 한 번 더 맞춰 본다.
+   * 따라갔으면 초안을 쓰지 않는다: 사용자가 한 것이면 알린다(이 탭이 더 쓰지 않는 상태면 그렇다고).
+   */
+  #staleBase(base: number, auto: boolean): boolean {
+    this.#inSync();
+    if (base === this.dataGeneration) return false;
+    if (!auto) {
+      if (this.canWrite) this.#announceDiscarded();
+      else this.toast(CANNOT_WRITE_TEXT, 'warn', 'icon-warn');
+    }
+    return true;
+  }
+
+  /**
+   * 사용자가 한 변경을 저장한다. 저장소에 썼으면 true. false 면 쓰지 못했거나(이 탭의 데이터는 바뀐다 — 화면 위
+   * 안내가 알린다) 다른 탭이 바꾼 저장본을 따라가느라 버렸다(알림이 뜬다).
+   */
+  commit(mutate: (data: UserData) => void, count = true): boolean {
+    return this.#write(mutate, { count, auto: false }) === 'saved';
+  }
+
+  /** 사용자가 한 변경. 이 탭의 데이터에 남았으면 true(저장하지 못했어도), 다른 탭 때문에 버렸으면 false */
+  #userWrite(mutate: (data: UserData) => void, count = true, base?: number): boolean {
+    return this.#write(mutate, { count, auto: false, base }) !== 'discarded';
+  }
+
+  /** 자동 기록(방문·업적·도감·승급 확인). 버려도 알리지 않는다 */
+  #autoWrite(mutate: (data: UserData) => void): SaveOutcome {
+    return this.#write(mutate, { count: false, auto: true });
   }
 
   // ── 방문 ─────────────────────────────────────────────────────────────
@@ -363,15 +527,16 @@ class AppStore {
     const days = data.visits.days;
     const last = days[days.length - 1] ?? null;
     if (last === today) return;
+    let back: WelcomeBack | null = null;
     if (last !== null && last < today) {
       const days = diffDays(last, today);
       // 마지막 방문 다음 날부터 어제까지의 근무일
       const missed = days >= 2 ? visitCalendar.workdaysBetween(addDays(last, 1), today) : 0;
       if (missed >= WELCOME_BACK.missedWorkdays || days >= WELCOME_BACK.calendarDays) {
-        this.welcomeBack = { since: last, days };
+        back = { since: last, days };
       }
     }
-    this.commit((d) => {
+    const outcome = this.#autoWrite((d) => {
       d.visits.lastVisit = last;
       if (!d.visits.days.includes(today)) {
         d.visits.days.push(today);
@@ -379,7 +544,9 @@ class AppStore {
         if (d.visits.days.length > LIMITS.maxVisitDays)
           d.visits.days.splice(0, d.visits.days.length - LIMITS.maxVisitDays);
       }
-    }, false);
+    });
+    // 다른 탭의 값을 따라갔으면 옛 방문 기록으로 센 복귀 정산은 띄우지 않는다(따라간 값으로 화면이 다시 부른다)
+    if (back && outcome !== 'discarded') this.welcomeBack = back;
   }
 
   dismissWelcomeBack(): void {
@@ -398,7 +565,16 @@ class AppStore {
     look?: CharacterLook,
     options: { hatch?: boolean } = {},
   ): boolean {
-    if (!this.canWrite) return false;
+    // 첫 화면을 여는 동안 다른 탭이 먼저 내 정보를 넣었으면 그 데이터를 따라가고 이 입력은 저장하지 않는다.
+    // 저장소가 비어 있으면(다른 탭이 지웠어도) 지킬 데이터가 없으므로 그대로 만든다.
+    if (!this.#inSync() && this.canWrite && this.data !== null) {
+      this.announceCreatedElsewhere(true);
+      return false;
+    }
+    if (!this.canWrite) {
+      this.toast(CANNOT_WRITE_TEXT, 'warn', 'icon-warn');
+      return false;
+    }
     const now = new Date();
     const today = todayYmd(now);
     const rules = rulesFor(yearOf(today));
@@ -421,7 +597,8 @@ class AppStore {
     this.hatching = options.hatch === true;
     this.celebration = null;
     this.data = data;
-    this.#persist();
+    // 바로 위에서 저장소를 맞춰 봤으므로 여기서는 버려지지 않는다(쓰지 못하면 화면 위 띠가 알린다)
+    this.#persist(false);
     return true;
   }
 
@@ -440,8 +617,9 @@ class AppStore {
   /**
    * 내 정보를 고쳐 저장한다. celebrate 를 주면(고치는 화면의 '승진했어요') 같은 사다리에서 계급 순서가 오르고
    * 승진일이 뒤로 바뀐 경우에만 승진 연출을 띄운다. 틀린 값을 바로잡는 것(승진일 그대로·계급을 내림)은 조용히 맞춘다.
+   * 다른 탭이 바꾼 저장본을 따라가느라 버렸으면 false(연출·직종 안내도 띄우지 않는다).
    */
-  updateProfile(profile: Profile, options: { celebrate?: boolean } = {}): void {
+  updateProfile(profile: Profile, options: { celebrate?: boolean; base?: number } = {}): boolean {
     const today = todayYmd(new Date());
     const mark = growthMarkOf(profile, today);
     const before = this.data ? careerOf(rulesFor, this.data.profile, yearOf(today)) : null;
@@ -453,14 +631,19 @@ class AppStore {
       before !== null &&
       defaultShowRank(before) !== showRank &&
       this.data?.settings.card.showRank !== showRank;
-    this.commit((d) => {
-      d.profile = profile;
-      // 직접 고친 값(직종·계급을 바꾼 경우 포함)이 연출을 일으키지 않게 기준을 맞춘다.
-      d.character.lastRank = profile.rank;
-      d.character.lastStep = mark.step;
-      d.character.lastForm = mark.form;
-      if (cardReset) d.settings.card = { ...d.settings.card, showRank };
-    });
+    const kept = this.#userWrite(
+      (d) => {
+        d.profile = profile;
+        // 직접 고친 값(직종·계급을 바꾼 경우 포함)이 연출을 일으키지 않게 기준을 맞춘다.
+        d.character.lastRank = profile.rank;
+        d.character.lastStep = mark.step;
+        d.character.lastForm = mark.form;
+        if (cardReset) d.settings.card = { ...d.settings.card, showRank };
+      },
+      true,
+      options.base,
+    );
+    if (!kept) return false;
     const payday = mark.career.payday;
     // 월급날은 직종을 바꿀 때만 묻는다. 카드 설정은 봉급표만 바꿔 사다리가 바뀌어도(별표 3 ↔ 8) 알린다.
     const paydayDiffers =
@@ -477,6 +660,7 @@ class AppStore {
           }
         : null;
     if (promoted) this.#celebrate(promoted);
+    return true;
   }
 
   /** 지금 저장된 내 정보에서 profile 로 바꾸는 것이 승진이면 그 연출 정보, 아니면 null */
@@ -537,11 +721,12 @@ class AppStore {
     if (!this.data) return;
     const c = this.data.character;
     if (c.lastRank === rank && c.lastStep === step && c.lastForm === form) return;
-    this.commit((d) => {
+    // 다른 탭의 값을 따라갔으면 화면이 그 값으로 checkGrowth 를 다시 부른다
+    this.#autoWrite((d) => {
       d.character.lastRank = rank;
       d.character.lastStep = step;
       d.character.lastForm = form;
-    }, false);
+    });
   }
 
   /**
@@ -584,16 +769,18 @@ class AppStore {
 
   markFormSeen(formId: string): void {
     if (!this.data || this.data.character.seenForms.includes(formId)) return;
-    this.commit((d) => {
+    this.#autoWrite((d) => {
       d.character.seenForms.push(formId);
-    }, false);
+    });
   }
 
   // ── 연가 ─────────────────────────────────────────────────────────────
+  // 연가·꾸미기·설정을 바꾸는 동작은 이 탭의 데이터에 남았으면 true, 다른 탭이 바꾼 저장본을 따라가느라 버렸으면
+  // false 를 돌려준다(버렸다는 알림은 여기서 띄운다. 화면은 '기록했어요' 같은 말을 하지 않는다).
 
-  addLeave(entries: { date: Ymd; kind: LeaveKind; hours: number; memo?: string }[]): void {
-    if (entries.length === 0) return;
-    this.commit((d) => {
+  addLeave(entries: { date: Ymd; kind: LeaveKind; hours: number; memo?: string }[]): boolean {
+    if (entries.length === 0) return false;
+    return this.#userWrite((d) => {
       for (const entry of entries) {
         const record: LeaveRecord = {
           id: newId(),
@@ -610,32 +797,62 @@ class AppStore {
     });
   }
 
+  /**
+   * 여러 기록을 한 번의 쓰기로 지운다(여러 날을 한꺼번에 넣은 것을 [되돌리기]할 때).
+   * 하나씩 지우면 그 사이 다른 탭이 바꾼 경우 첫 번째만 버려지고 나머지는 지워져, 기록 하나가 말없이 남는다.
+   */
+  removeLeaves(ids: readonly string[]): boolean {
+    const drop = new Set(ids);
+    if (!this.data?.leave.records.some((r) => drop.has(r.id))) return false;
+    return this.#userWrite((d) => {
+      d.leave.records = d.leave.records.filter((r) => !drop.has(r.id));
+    });
+  }
+
   removeLeave(id: string): LeaveRecord | null {
     const found = this.data?.leave.records.find((r) => r.id === id) ?? null;
     if (!found) return null;
     const copy = { ...found };
-    this.commit((d) => {
+    const kept = this.#userWrite((d) => {
       d.leave.records = d.leave.records.filter((r) => r.id !== id);
     });
-    return copy;
+    return kept ? copy : null;
   }
 
-  restoreLeave(record: LeaveRecord): void {
-    this.commit((d) => {
-      if (d.leave.records.some((r) => r.id === record.id)) return;
-      d.leave.records.push(record);
-      d.leave.records.sort((a, b) =>
-        a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1,
-      );
-    });
+  /**
+   * 지운 기록을 되살린다(알림의 [되돌리기]). 다른 탭이 저장본을 바꿔 두어 버려졌으면 따라간 값 위에 한 번 더 한다 —
+   * id 가 없을 때만 넣는, 더하기만 하는 기록이라 다른 탭의 변경을 지우지 않는다. [되돌리기]는 눌리면 사라져서
+   * '다시 해 주세요'라고 하면 기록과 메모를 잃는다(부록 J13).
+   */
+  restoreLeave(record: LeaveRecord, retry = true): boolean {
+    const outcome = this.#write(
+      (d) => {
+        if (d.leave.records.some((r) => r.id === record.id)) return;
+        d.leave.records.push(record);
+        d.leave.records.sort((a, b) =>
+          a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1,
+        );
+      },
+      // 첫 시도가 버려져도 곧바로 다시 하므로 그때는 알리지 않는다(다시 해도 버려지면 알린다)
+      { count: true, auto: retry },
+    );
+    if (outcome === 'discarded') return retry ? this.restoreLeave(record, false) : false;
+    return true;
   }
 
-  /** 올해 부여 시간을 직접 고친다. null이면 자동 계산으로 되돌린다 */
-  setGrantOverride(year: number, hours: number | null): void {
-    this.commit((d) => {
-      if (hours === null) delete d.leave.grantOverrideHours[String(year)];
-      else d.leave.grantOverrideHours[String(year)] = Math.max(0, Math.round(hours));
-    });
+  /**
+   * 올해 부여 시간을 직접 고친다. null이면 자동 계산으로 되돌린다.
+   * base: 대화상자를 열 때의 dataGeneration(그 사이 다른 탭의 값을 따라갔으면 버린다)
+   */
+  setGrantOverride(year: number, hours: number | null, base?: number): boolean {
+    return this.#userWrite(
+      (d) => {
+        if (hours === null) delete d.leave.grantOverrideHours[String(year)];
+        else d.leave.grantOverrideHours[String(year)] = Math.max(0, Math.round(hours));
+      },
+      true,
+      base,
+    );
   }
 
   // ── 꾸미기 ───────────────────────────────────────────────────────────
@@ -644,10 +861,14 @@ class AppStore {
    * 호봉이 꾸미기를 저장한다(#17). 고르지 않은 칸의 값(이 버전이 모르는 새 장식 id 등)은 받은 그대로 둔다 —
    * 그릴 때만 기본값으로 대신한다.
    */
-  updateLook(look: CharacterLook): void {
-    this.commit((d) => {
-      d.character.look = { ...look, deco: { ...look.deco } };
-    });
+  updateLook(look: CharacterLook, base?: number): boolean {
+    return this.#userWrite(
+      (d) => {
+        d.character.look = { ...look, deco: { ...look.deco } };
+      },
+      true,
+      base,
+    );
   }
 
   // ── 앞날의 가정 ──────────────────────────────────────────────────────
@@ -658,39 +879,59 @@ class AppStore {
    * 틀린 값만 막는다(false) — 저장한 값이 다음에 열 때 검사에 걸려 저장 자체가 실패하지 않게.
    * 'saved': 바꾸고 저장했다(같은 값이면 아무것도 하지 않고 'saved'). 'unsaved': 이 탭에서는 바꿨지만 저장소에
    * 쓰지 못했다(꽉 참·더 새 버전의 저장본 등). 창은 정했다고만 말하지 않고, 화면 위 안내(saveFailed)도 함께 알린다.
+   * 'discarded': 그 사이 다른 탭이 저장본을 바꿔 두어 바꾸지 않고 그 값을 따라갔다(알림이 뜬다. 창은 정했다고 하지 않는다).
+   * 한 탭에서만 바뀌는 값이라 다른 탭의 자동 저장이 덮어쓰기 쉬웠다(docs/PLAN.md 부록 I39·J).
    */
-  setRetirePlan(month: string | null): 'saved' | 'unsaved' | false {
+  setRetirePlan(month: string | null, base?: number): SaveOutcome | false {
     if (!this.data || !isRetireMonthOrNull(month)) return false;
-    // 같은 값이면 바꾸지 않는다. 앞서 저장하지 못한 채라면 그대로 'unsaved'
-    if (this.data.plan.retireMonth === month) return this.saveFailed ? 'unsaved' : 'saved';
-    const saved = this.commit((d) => {
-      d.plan.retireMonth = month;
-    });
-    return saved ? 'saved' : 'unsaved';
+    // 폼을 연 뒤 다른 탭의 값을 따라갔으면(그 사이 정한 달이 바뀌었을 수 있다) 정하지 않는다
+    if (base !== undefined && this.#staleBase(base, false)) return 'discarded';
+    // 같은 값이면 바꾸지 않는다. 다만 저장소가 그 사이 바뀌었으면 '정했다'고 하지 않고 따라간다.
+    // 앞서 저장하지 못한 채라면 그대로 'unsaved'
+    if (this.data.plan.retireMonth === month) {
+      if (!this.#inSync()) return this.#afterFollow(false);
+      return this.saveFailed ? 'unsaved' : 'saved';
+    }
+    return this.#write(
+      (d) => {
+        d.plan.retireMonth = month;
+      },
+      { count: true, auto: false },
+    );
   }
 
   // ── 설정·업적 ────────────────────────────────────────────────────────
 
-  updateSettings(patch: Partial<Settings>, count = true): void {
-    this.commit((d) => {
+  /** 설정을 바꾼다(늘 사용자가 한 것). 버렸으면 false */
+  updateSettings(patch: Partial<Settings>, count = true): boolean {
+    return this.#userWrite((d) => {
       d.settings = { ...d.settings, ...patch };
     }, count);
   }
 
-  /** 새로 얻은 업적을 기록한다(달성일 포함) */
-  recordAchievements(earned: Record<string, { at: Ymd }>): void {
-    this.commit((d) => {
-      d.achievements = earned;
-    }, false);
+  /**
+   * 새로 얻은 업적을 기록한다(달성일 포함). 다른 탭의 값을 따라가느라 버렸으면 false — 화면은 알리지 않고,
+   * 따라간 값으로 다시 셈한다(같은 배지를 두 번 알리지 않게).
+   */
+  recordAchievements(earned: Record<string, { at: Ymd }>): boolean {
+    return (
+      this.#autoWrite((d) => {
+        d.achievements = earned;
+      }) !== 'discarded'
+    );
   }
 
-  /** 행동으로 얻는 업적을 준다. 새로 얻었으면 true */
-  grantEvent(id: EventBadgeId): boolean {
+  /**
+   * 행동으로 얻는 업적을 준다. 새로 얻었으면 true. 다른 탭이 저장본을 바꿔 두었으면 그 값을 따라간 뒤 한 번 더
+   * 준다(더하기만 하는 기록이라 따라간 값 위에 줘도 다른 탭의 변경을 지우지 않는다).
+   */
+  grantEvent(id: EventBadgeId, retry = true): boolean {
     if (!this.data || this.data.achievements[id]) return false;
     const today = todayYmd(new Date());
-    this.commit((d) => {
+    const outcome = this.#autoWrite((d) => {
       d.achievements[id] = { at: today };
-    }, false);
+    });
+    if (outcome === 'discarded') return retry ? this.grantEvent(id, false) : false;
     return true;
   }
 
@@ -759,8 +1000,8 @@ class AppStore {
     this.data.meta.changesSinceBackup = 0;
     if (!this.data.achievements['evt-backup'])
       this.data.achievements['evt-backup'] = marked.achievements['evt-backup'] as { at: Ymd };
-    this.#persist();
-    return true;
+    // 기록은 자동 저장으로 다룬다: 그 사이 바뀌었으면 '백업됨'으로 세지 않고 화면이 '한 번 더 내려받아' 달라고 한다
+    return this.#persist(true) !== 'discarded';
   }
 
   /** 파일 내용을 검사만 한다(아직 아무것도 바꾸지 않는다) */
@@ -771,12 +1012,16 @@ class AppStore {
   /**
    * 검사를 통과한 데이터로 바꾼다. 기존 데이터가 있으면 되돌릴 수 있게 먼저 보관한다.
    * 결과: 'imported'(기존 데이터 없이 불러옴) / 'replaced'(보관 뒤 덮어씀) / 'failed'(아무것도 바꾸지 않음)
+   * 그 사이 다른 탭이 저장본을 바꿨으면 먼저 그 값을 따라가고, 그것을 되돌리기 보관본으로 둔 뒤 불러온다
+   * (사용자가 고른 파일로 어차피 바꾸는 것이고, 다른 탭의 변경은 보관본에 남아 되돌릴 수 있다. 부록 J).
    */
   importData(
     incoming: UserData,
     exportedAt: string | null = null,
   ): 'imported' | 'replaced' | 'failed' {
-    if (!this.#store || !this.canWrite) return 'failed';
+    if (!this.#store) return 'failed';
+    this.#inSync();
+    if (!this.canWrite) return 'failed';
     const nowIso = new Date().toISOString();
     const replacing = this.data !== null;
     if (this.data) {
@@ -800,26 +1045,54 @@ class AppStore {
     this.hatching = false;
     // 첫 화면에서 임용정보 패키지로 이어하면 부화 연출 없이 홈 창들만 차례로 나타난다
     this.entrance = replacing ? null : 'import';
-    this.#persist();
+    this.#persist(false);
     return replacing ? 'replaced' : 'imported';
   }
 
-  /** 불러오기 직전 상태로 되돌린다 */
-  undoImport(): boolean {
-    if (!this.#store || !this.canWrite) return false;
+  /**
+   * 불러오기 직전 상태로 되돌린다. 'undone': 되돌렸다. 'discarded': 그 사이 다른 탭이 저장본을 바꿔 두어 되돌리지
+   * 않고 그 값을 따라갔다(알림이 뜬다. 알고 나서 다시 누르면 되돌린다). false: 되돌릴 것이 없거나 저장하지 못했다.
+   */
+  undoImport(): 'undone' | 'discarded' | 'blocked' | false {
+    if (!this.#store) return false;
+    // 이 탭이 더 쓰지 않는 상태(더 새 버전·읽지 못한 저장본)면 되돌릴 것이 없는 것이 아니라 저장할 수 없는 것이다
+    if (!this.canWrite) {
+      this.toast(CANNOT_WRITE_TEXT, 'warn', 'icon-warn');
+      return 'blocked';
+    }
+    // 보관본으로 덮기 전에, 불러온 뒤 다른 탭이 바꾼 것을 모른 채 지우지 않게 맞춰 본다
+    if (!this.#inSync()) {
+      if (this.#afterFollow(false) === 'discarded') return 'discarded';
+      this.toast(CANNOT_WRITE_TEXT, 'warn', 'icon-warn');
+      return 'blocked';
+    }
     const snapshot = loadUndo(this.#store, this.context(new Date(), true));
     if (!snapshot) return false;
     this.data = snapshot.data;
     // 되돌린 상태를 저장하지 못했으면 보관본을 지우지 않는다(새로 고쳐도 다시 되돌릴 수 있게).
-    if (!this.#persist()) return false;
+    // 화면 위 띠(저장하지 못했어요)가 알린다
+    if (this.#persist(false) !== 'saved') return 'blocked';
     clearUndo(this.#store);
     this.undoSavedAt = null;
     this.celebration = null;
-    return true;
+    return 'undone';
   }
 
-  /** 모든 데이터를 지우고 처음 화면으로 돌아간다 */
-  reset(): void {
+  /**
+   * 모든 데이터를 지우고 처음 화면으로 돌아간다. 지웠으면 true.
+   * 그 사이 다른 탭이 저장본을 바꿨으면 지우지 않고 따라간다(확인창에서 본 것과 다른 데이터를 지우지 않게. 알림이 뜬다).
+   * 이 탭이 더는 쓰지 않는 상태(더 새 버전·읽지 못한 저장본)에서도 지우지 않는다 — 예전 사본이 새 데이터를 치우지 않게.
+   */
+  reset(): boolean {
+    if (this.#store && !this.#inSync()) {
+      // 다른 탭이 이미 모두 지웠으면 바라던 것이 이루어졌다: 남은 것(보관본 등)까지 마저 지우고 지웠다고 한다
+      const clearedElsewhere = this.canWrite && this.data === null;
+      if (!clearedElsewhere && this.#afterFollow(false) === 'discarded') return false;
+    }
+    if (!this.canWrite) {
+      this.toast(CANNOT_WRITE_TEXT, 'warn', 'icon-warn');
+      return false;
+    }
     if (this.#store) clearAll(this.#store);
     this.#rememberStored();
     this.data = null;
@@ -832,6 +1105,7 @@ class AppStore {
     this.trackChange = null;
     this.hatching = false;
     this.entrance = null;
+    return true;
   }
 
   dismissCorruptNotice(): void {
@@ -852,23 +1126,25 @@ class AppStore {
 
   // ── 알림 ─────────────────────────────────────────────────────────────
 
+  /** 알림을 띄운다. 띄운 알림의 id(연출 중이라 미뤘으면 null) */
   toast(
     text: string,
     kind: Toast['kind'] = 'info',
     icon?: string,
     ms = 3200,
     action?: ToastAction,
-  ): void {
+  ): number | null {
     // 승급·승진 연출이 떠 있는 동안에는 미룬다(연출 위에 알림이 쌓이지 않게). 닫히면 releaseToasts 가 띄운다
     if (this.celebration !== null) {
       this.#heldToasts.push(() => this.toast(text, kind, icon, ms, action));
       if (this.#heldToasts.length > 4) this.#heldToasts.shift();
-      return;
+      return null;
     }
     const id = (this.#toastSeq += 1);
     this.toasts.push({ id, text, kind, icon, action, ms });
     if (this.toasts.length > 4) this.toasts.splice(0, this.toasts.length - 4);
     setTimeout(() => this.dismissToast(id), ms);
+    return id;
   }
 
   /** 미뤄 둔 알림을 띄운다(연출이 닫힌 뒤 App 이 부른다). 연출이 아직 떠 있으면 아무 일도 없다 */
@@ -891,6 +1167,12 @@ class AppStore {
 }
 
 export const app = new AppStore();
+
+/** 새 앱 상태(단위 테스트가 탭 하나를 새로 흉내 낼 때 쓴다. 화면은 `app` 하나만 쓴다) */
+export function newAppStore() {
+  return new AppStore();
+}
+export type AppStoreType = AppStore;
 
 /** 오늘 이후로 가장 가까운 평일(연가 입력 기본값 등에 쓴다) */
 export function nextDay(date: Ymd): Ymd {

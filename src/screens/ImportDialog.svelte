@@ -171,7 +171,9 @@
     const outcome = app.importData(ok.data, ok.exportedAt);
     if (outcome === 'failed') {
       app.toast(
-        '지금 데이터를 되돌릴 수 있게 보관하지 못해 불러오지 않았어요. 먼저 설정에서 임용정보 패키지를 내려받아 주세요.',
+        app.canWrite
+          ? '지금 데이터를 되돌릴 수 있게 보관하지 못해 불러오지 않았어요. 먼저 설정에서 임용정보 패키지를 내려받아 주세요.'
+          : '지금은 저장할 수 없어 불러오지 않았어요. 새로 고친 뒤 다시 해 주세요.',
         'warn',
         'icon-warn',
         8000,

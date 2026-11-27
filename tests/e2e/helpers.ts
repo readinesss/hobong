@@ -23,7 +23,12 @@ export interface OpenOptions {
   settle?: number;
 }
 
-/** 시계를 고정하고 앱을 연다 */
+/**
+ * 시계를 고정하고 앱을 연다.
+ * 한 테스트 안에서 날짜를 바꿔 다시 부를 때, 해시가 있거나 같은 해시면 같은 문서 안의 이동이라 떠 있던 옛 페이지가
+ * 새로 고치기 전에 새 저장본을 따라가 그 위에 방문·업적·도감·승급 확인을 기록한다(docs/PLAN.md 부록 J13 ⑧).
+ * 그 뒤 처음 열 때 한 번만 생기는 것(복귀 정산·승급 연출·새 배지 알림·v3 띠)을 보려면 새 페이지로 연다.
+ */
 export async function openApp(page: Page, options: OpenOptions = {}): Promise<void> {
   await page.clock.install({ time: new Date(options.time ?? NOW) });
   await page.goto(`${APP_URL}${options.hash ? `#${options.hash}` : ''}`);

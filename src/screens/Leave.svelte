@@ -118,7 +118,8 @@
     message = '';
     const amount = hoursOfKind(rules, kind, hours);
     const before = new Set(view.data.leave.records.map((r) => r.id));
-    app.addLeave([{ date: selected, kind, hours: amount, memo }]);
+    // 다른 탭이 바꾼 데이터를 따라가느라 버렸으면 app 이 알린다(메모는 남겨 다시 누르면 된다)
+    if (!app.addLeave([{ date: selected, kind, hours: amount, memo }])) return;
     const added = view.data.leave.records.filter((r) => !before.has(r.id)).map((r) => r.id);
     memo = '';
     app.toast(
@@ -126,7 +127,7 @@
       'good',
       'icon-palm',
       6000,
-      { label: '되돌리기', run: () => added.forEach((id) => app.removeLeave(id)) },
+      { label: '되돌리기', run: () => app.removeLeaves(added) },
     );
   }
 
@@ -142,19 +143,25 @@
   // ── 부여 일수 직접 수정 ──────────────────────────────────────────────
   let grantDays = $state(0);
   let grantHours = $state(0);
+  /** 대화상자를 연 때의 app.dataGeneration(그 사이 다른 탭의 값을 따라갔으면 옛 값으로 채운 것을 쓰지 않는다) */
+  let grantBase = 0;
   function openGrant() {
     grantDays = Math.floor(leave.grantedHours / hpd);
     grantHours = leave.grantedHours % hpd;
+    grantBase = untrack(() => app.dataGeneration);
     showGrant = true;
   }
+  // 다른 탭이 바꾼 데이터를 따라가느라 버렸으면(대화상자를 연 뒤 먼저 따라갔어도. app 이 알린다) 대화상자는 닫고
+  // 고쳤다고 하지 않는다. 다시 열면 바뀐 데이터로 시작한다
   function saveGrant() {
-    app.setGrantOverride(leave.year, grantDays * hpd + grantHours);
+    const kept = app.setGrantOverride(leave.year, grantDays * hpd + grantHours, grantBase);
     showGrant = false;
-    app.toast('올해 부여 일수를 고쳤어요.', 'good', 'icon-pencil');
+    if (kept) app.toast('올해 부여 일수를 고쳤어요.', 'good', 'icon-pencil');
   }
   function resetGrant() {
-    app.setGrantOverride(leave.year, null);
+    const kept = app.setGrantOverride(leave.year, null, grantBase);
     showGrant = false;
+    if (!kept) return;
     app.toast(
       annualOff ? '직접 넣은 부여 일수를 지웠어요.' : '재직기간으로 자동 계산하도록 되돌렸어요.',
       'info',
@@ -188,14 +195,17 @@
     const days = rangeDays;
     if (days.length === 0) return;
     const before = new Set(view.data.leave.records.map((r) => r.id));
-    app.addLeave(days.map((date) => ({ date, kind: 'day' as const, hours: hpd, memo })));
-    const added = view.data.leave.records.filter((r) => !before.has(r.id)).map((r) => r.id);
+    const kept = app.addLeave(
+      days.map((date) => ({ date, kind: 'day' as const, hours: hpd, memo })),
+    );
     showRange = false;
+    if (!kept) return;
+    const added = view.data.leave.records.filter((r) => !before.has(r.id)).map((r) => r.id);
     memo = '';
     select(days[0] as Ymd);
     app.toast(`${days.length}일 연가를 기록했어요.`, 'good', 'icon-palm', 6000, {
       label: '되돌리기',
-      run: () => added.forEach((id) => app.removeLeave(id)),
+      run: () => app.removeLeaves(added),
     });
   }
 
