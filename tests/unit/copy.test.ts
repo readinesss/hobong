@@ -77,6 +77,23 @@ describe('표기 통일', () => {
   });
 });
 
+describe("'생애 봉급' 창(#30)의 낱말", () => {
+  const files = ['src/lib/app/lifetime-copy.ts', 'src/screens/home/LifetimeWindow.svelte'].map(
+    (path) => ({ path, text: read(path) }),
+  );
+  it("봉급만 세므로 '소득'·'연봉'·'수입'이라고 부르지 않는다", () => {
+    for (const { path, text } of files) expect(text, path).not.toMatch(/소득|연봉|수입/);
+    expect(read('src/lib/app/lifetime-copy.ts')).toContain("'생애 봉급(추정)'");
+  });
+  it('원문에 없는 것을 확정으로 말하지 않는다(계급정년 뒤 근무 조건, 봉급표 개정 횟수)', () => {
+    for (const { path, text } of files)
+      expect(text, path).not.toMatch(/승진해야|해마다 바뀌|새 봉급표가|해마다 1월/);
+  });
+  it("파일은 '임용정보 패키지'로 부른다('백업'이라는 낱말을 새로 쓰지 않는다)", () => {
+    for (const { path, text } of files) expect(text, path).not.toContain('백업');
+  });
+});
+
 describe('말투와 띄어쓰기', () => {
   const screens = sourceFiles().filter((f) => f.endsWith('.svelte'));
   it("화면 글은 해요체다(합쇼체 '-습니다·-ㅂ니다'를 섞지 않는다)", () => {

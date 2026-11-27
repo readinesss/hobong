@@ -30,6 +30,7 @@ import {
 import { effectiveRetirement, retirementInfo } from '../../src/lib/calc/retirement.ts';
 import {
   cumulativeSalary,
+  lifetimeSalary,
   nextStepRaise,
   salaryOn,
   yearToDateSalary,
@@ -287,5 +288,34 @@ describe('일반직 결과 고정(golden-general)', () => {
     expect(g3.byDate['2026-11-26']?.promotionPreview).not.toBeNull();
     expect(g3.minServiceDate).toBeNull();
     expect(typeof g4.minServiceDate).toBe('string');
+  });
+});
+
+/**
+ * 생애 봉급(#30): '지금까지 번 봉급'은 지갑 창의 누적 봉급과 같은 코드 경로·같은 값이어야 한다.
+ * 기대값 파일은 읽기만 한다(고치지 않는다).
+ */
+describe('생애 봉급의 지금까지 번 봉급 = 기대값의 누적 봉급', () => {
+  const expected = JSON.parse(readFileSync(FIXTURE, 'utf8')) as Record<
+    string,
+    {
+      retirementInfo: { retireDate: string };
+      byDate: Record<string, { cumulativeSalary: { total: number; tableYear: number } }>;
+    }
+  >;
+  it.each(Object.keys(SEEDS))('%s', (id) => {
+    const p = SEEDS[id] as Profile;
+    const fixture = expected[id];
+    if (!fixture) throw new Error(`기대값 없음: ${id}`);
+    const retire = fixture.retirementInfo.retireDate;
+    for (const date of DATES) {
+      expect(date <= retire, `${id} ${date}: 재직 중`).toBe(true);
+      const life = on(lifetimeSalary(rules, p, date, retire));
+      const cum = fixture.byDate[date]?.cumulativeSalary;
+      expect(life.earned, `${id} ${date}`).toBe(cum?.total);
+      expect(life.tableYear, `${id} ${date}`).toBe(cum?.tableYear);
+      expect(life.earned + life.remaining, `${id} ${date}`).toBe(life.total);
+      expect(life.total, `${id} ${date}`).toBeGreaterThanOrEqual(life.earned);
+    }
   });
 });

@@ -14,6 +14,7 @@
  * - v5: 고도화 2차. 직렬(profile.series, 기본 없음)과 그 이름을 어디에 보일지(settings.identity.showSeriesHome·
  *       settings.card.showSeries), 호봉이 꾸미기(character.look), 진동·소리·포인터·반짝이 설정
  *       (settings.haptics·sound·pointer·sparkles). 모두 '지금과 같은 모습·동작'이 되는 기본값으로 채운다.
+ * - v6: 생애 봉급(#30)의 퇴직 예정 달(plan.retireMonth, 기본 없음 = 정년까지). 이 칸 하나만 더했다.
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
@@ -200,12 +201,22 @@ function v4ToV5(data: Dict, ctx: MigrationContext): Dict {
   return out;
 }
 
+/**
+ * v5 → v6: 퇴직 예정 달은 정한 적이 없다(null = 정년까지). 늘 이 값으로 덮는다.
+ * v5 저장본에 plan 키가 섞여 있어도(손으로 고친 파일) 옮겨 담지 않는다 — v5 앱은 그 키를 읽지도
+ * 저장하지도 않았으므로 사용자가 정한 값이 아니다(v4ToV5 와 같은 관례). 그 밖의 값은 건드리지 않는다.
+ */
+function v5ToV6(data: Dict): Dict {
+  return { ...data, plan: { retireMonth: null } };
+}
+
 /** 키 = 변환 전 버전 */
 const MIGRATIONS: Record<number, Migration> = {
   1: v1ToV2,
   2: v2ToV3,
   3: v3ToV4,
   4: v4ToV5,
+  5: v5ToV6,
 };
 
 export type MigrateResult =

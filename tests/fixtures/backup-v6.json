@@ -1,0 +1,109 @@
+{
+  "app": "hobong",
+  "schemaVersion": 6,
+  "appVersion": "0.2.0",
+  "exportedAt": "2026-11-27T09:00:00.000Z",
+  "data": {
+    "profile": {
+      "nickname": "꾸미기",
+      "birthDate": "1993-06-15",
+      "hireDate": "2019-03-04",
+      "track": "general",
+      "series": "간호",
+      "payTable": "table3",
+      "rank": "7",
+      "rankDate": "2023-07-01",
+      "step": 9,
+      "nextStepDate": "2027-03-01",
+      "stepAsOf": "2026-11-26",
+      "overrides": {
+        "longServiceDate": null,
+        "seniorDate": null,
+        "rankLimitDate": null
+      }
+    },
+    "settings": {
+      "payday": 20,
+      "work": {
+        "start": "09:00",
+        "end": "18:00",
+        "lunchStart": "12:00",
+        "lunchEnd": "13:00"
+      },
+      "theme": "dark",
+      "reduceMotion": false,
+      "hideAmounts": false,
+      "tabTitle": "default",
+      "card": {
+        "ratio": "square",
+        "showSalary": false,
+        "showRetirement": false,
+        "showTenure": true,
+        "showBadges": true,
+        "showRank": true,
+        "showSeries": false
+      },
+      "identity": {
+        "showSeriesHome": false
+      },
+      "haptics": false,
+      "sound": {
+        "sfx": true,
+        "bgm": false,
+        "master": 60,
+        "sfxVolume": 70,
+        "bgmVolume": 40,
+        "bgmTrack": "auto"
+      },
+      "pointer": "system",
+      "sparkles": false
+    },
+    "leave": {
+      "records": [
+        {
+          "id": "r1",
+          "date": "2026-05-04",
+          "hours": 8,
+          "kind": "day",
+          "memo": ""
+        }
+      ],
+      "grantOverrideHours": {}
+    },
+    "achievements": {
+      "hire": {
+        "at": "2019-03-04"
+      }
+    },
+    "character": {
+      "seenForms": ["egg", "chick", "fledgling"],
+      "lastRank": "7",
+      "lastStep": 9,
+      "lastForm": "fledgling",
+      "look": {
+        "body": "sky",
+        "crest": "blue",
+        "plume": "auto",
+        "deco": {
+          "pin": "flower",
+          "chest": "star",
+          "cheek": true
+        },
+        "prop": "auto"
+      }
+    },
+    "visits": {
+      "days": ["2026-11-24", "2026-11-25", "2026-11-26"],
+      "lastVisit": "2026-11-25"
+    },
+    "meta": {
+      "createdAt": "2026-03-01T00:00:00.000Z",
+      "updatedAt": "2026-11-26T08:50:00.000Z",
+      "lastBackupAt": "2026-11-01T00:00:00.000Z",
+      "changesSinceBackup": 2
+    },
+    "plan": {
+      "retireMonth": "2030-03"
+    }
+  }
+}

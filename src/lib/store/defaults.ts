@@ -81,5 +81,7 @@ export function newUserData(
     },
     visits: { days: [today], lastVisit: null },
     meta: { createdAt: nowIso, updatedAt: nowIso, lastBackupAt: null, changesSinceBackup: 0 },
+    // 퇴직 예정 달은 정한 적이 없다(정년까지)
+    plan: { retireMonth: null },
   };
 }

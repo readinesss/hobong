@@ -9,7 +9,7 @@
 import type { Ymd } from '../calc/date.ts';
 import type { RankKey, TrackId } from '../rules/types.ts';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const APP_ID = 'hobong';
 
 /** 일반직 직급 수(v3 까지 저장하던 grade, 별표 3 의 열). v4 부터 저장본은 계급 키(rank) 문자열을 쓴다 */
@@ -44,6 +44,9 @@ export const SERIES_KEY_RE = /^(?=.{1,20}$)[0-9A-Za-z가-힣·]+(?: [0-9A-Za-z�
  * 예전 사본이 버리거나 거부하므로 저장 형식 버전을 올린다(docs/DATA.md).
  */
 export const LOOK_ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** 저장본의 연·월 형식('2030-03'). 연도 범위(LIMITS.minLeaveYear~maxLeaveYear)는 저장본 검사가 따로 본다 */
+export const YEAR_MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export interface Profile {
   nickname: string;
@@ -228,6 +231,19 @@ export interface MetaState {
   changesSinceBackup: number;
 }
 
+/**
+ * 앞날에 대한 사용자의 가정(v6). 계산의 '내 정보'(Profile)가 아니라 '해 보기' 값이라 따로 둔다 —
+ * 내 정보 폼이 프로필을 새로 만들어 저장해도 잃지 않고, 정년·호봉 계산의 입력과 섞이지 않는다.
+ */
+export interface PlanState {
+  /**
+   * 퇴직 예정 달 'YYYY-MM'. 없으면(기본) 정년까지. '생애 봉급' 창에서만 쓴다(정년 D-day·연가·보너스·카드는
+   * 정년퇴직일 그대로). 저장본 검사는 형식만 본다 — 지난 달이나 정년 뒤의 달이 되어도 지우거나 고치지 않고,
+   * 계산(calc/lifetime.ts resolveLifetimeEnd)이 걸러 화면이 고쳐 달라고 한다.
+   */
+  retireMonth: string | null;
+}
+
 export interface UserData {
   profile: Profile;
   settings: Settings;
@@ -237,6 +253,7 @@ export interface UserData {
   character: CharacterState;
   visits: VisitState;
   meta: MetaState;
+  plan: PlanState;
 }
 
 /** 백업 파일(그리고 localStorage 저장본)의 겉봉 */

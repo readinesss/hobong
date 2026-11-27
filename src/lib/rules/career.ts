@@ -22,6 +22,7 @@ import {
   type LadderId,
   type LadderRank,
   type LeaveRules,
+  type LongServiceAddOn,
   type PayTableId,
   type PaydayRules,
   type PositionAllowanceRules,
@@ -59,6 +60,8 @@ export interface PayInfo {
   tableYear: number;
   /** 그 해 표로 확정돼 있는지(아니면 이전 연도 표) */
   confirmed: boolean;
+  /** 이 봉급표에 금액이 정해진 근속가봉(보수규정 제30조의2). 원문에 금액이 없는 표는 null. 계산에는 쓰지 않는다 */
+  longServiceAddOn: LongServiceAddOn | null;
   source: SourceRef;
 }
 
@@ -336,6 +339,7 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
       row,
       tableYear,
       confirmed: tableYear === rules.year,
+      longServiceAddOn: table?.longServiceAddOn ?? null,
       source,
     };
     sources.push({ feature: 'pay', source });

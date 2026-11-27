@@ -27,6 +27,7 @@ import {
   addDays,
   addMonthsClamped,
   diffDays,
+  minYmd,
   parseYmd,
   spanBetween,
   yearOf,
@@ -39,6 +40,14 @@ import {
   summarizeLeave,
   type DayLeave,
 } from '../calc/leave.ts';
+import {
+  diligenceLeft,
+  newYearsLeft,
+  paydayCounts,
+  paydayHolidaysKnown,
+  resolveLifetimeEnd,
+  type YearMonth,
+} from '../calc/lifetime.ts';
 import { buildMilestones, longLeaveNotices, upcomingMilestones } from '../calc/milestones.ts';
 import { yearGrid as buildYearGrid, yearRecap, type GridInput } from '../calc/recap.ts';
 import {
@@ -56,11 +65,13 @@ import {
   effectiveRetirement,
   retireDateFor,
   retirePeriodText,
+  retirementInfo,
   serviceDayOf,
 } from '../calc/retirement.ts';
 import {
   cumulativeSalary,
   isPayPending,
+  lifetimeSalary,
   nextStepRaise,
   salaryOn,
   yearToDateSalary,
@@ -341,6 +352,86 @@ class View {
   /** 다음 월급날이 속한 해의 공휴일이 반영돼 있는지(아니면 공휴일과 겹쳐 앞당겨질 수 있다) */
   paydayHolidaysKnown = $derived(calendar.hasHolidayData(yearOf(this.payday)));
   isPayday = $derived(!this.retired && this.payday === this.today);
+
+  // ── 생애 봉급(#30) ── 날짜가 바뀔 때만 다시 센다(clock.now 에 기대지 않는다) ──
+  /**
+   * 퇴직 예정 달('YYYY-MM', 저장 형식 v6 의 data.plan.retireMonth). 없으면 정년까지.
+   * '생애 봉급' 창에서만 쓴다 — 정년 D-day·연가·보너스·일정·카드는 정년퇴직일 그대로다.
+   */
+  retirePlanMonth: YearMonth | null = $derived(this.data.plan.retireMonth);
+  /** 연령정년 퇴직일(정년 규정이 켜져 있으면 계급을 몰라도 셈한다). 정한 달의 상한 */
+  lifeAgeRetireDate = $derived(
+    isAvailable(this.careerRules.retirement)
+      ? retirementInfo(this.careerRules.retirement, this.profile.birthDate).retireDate
+      : null,
+  );
+  /** 생애 봉급의 끝나는 날(기본은 정년퇴직일). 정년을 계산하지 못하면 date 가 null */
+  lifeEnd = $derived(
+    resolveLifetimeEnd({
+      today: this.today,
+      hireDate: this.profile.hireDate,
+      retirement: this.retirement,
+      ageRetireDate: this.lifeAgeRetireDate,
+      planMonth: this.retirePlanMonth,
+    }),
+  );
+  /** 재직 중의 오늘(끝나는 날이 지나면 그날). 정년 기준이면 serviceDay 와 같은 날이다 */
+  lifeAsOf = $derived(this.lifeEnd.date === null ? null : minYmd(this.today, this.lifeEnd.date));
+  /**
+   * 생애 봉급(추정): 임용일~끝나는 날의 봉급 합계와 지금까지 번 만큼. 끝나는 날이 없거나 봉급·정기승급이 꺼져 있으면 null.
+   * earned 는 지갑 창의 '지금까지 번 봉급'(cumulative.total)과 같은 값이다.
+   */
+  lifetime = $derived(
+    this.lifeEnd.date !== null && this.lifeAsOf !== null
+      ? lifetimeSalary(rulesFor, this.profile, this.lifeAsOf, this.lifeEnd.date)
+      : null,
+  );
+  /** 받은·남은 월급날 횟수(날짜만으로 센다 — 봉급이 꺼진 직종도 나온다). 끝나는 날이 없으면 null */
+  lifePaydays = $derived(
+    this.lifeEnd.date === null
+      ? null
+      : paydayCounts(
+          calendar,
+          this.data.settings.payday,
+          this.profile.hireDate,
+          this.today,
+          this.lifeEnd.date,
+        ),
+  );
+  /** 남은 정근수당 횟수. 정근수당 규정이 꺼져 있거나 끝나는 날이 없으면 null */
+  lifeDiligenceLeft = $derived.by(() => {
+    const rule = this.careerRules.allowances.diligence;
+    if (!isAvailable(rule) || this.lifeEnd.date === null || this.lifeAsOf === null) return null;
+    return diligenceLeft(
+      calendar,
+      rule,
+      this.data.settings.payday,
+      this.profile.hireDate,
+      this.lifeAsOf,
+      this.lifeEnd.date,
+    );
+  });
+  /** 끝나는 날까지 해가 바뀌는 횟수(달력의 사실. 봉급표가 바뀌는 횟수가 아니다) */
+  lifeNewYears = $derived(
+    this.lifeEnd.date !== null && this.lifeAsOf !== null
+      ? newYearsLeft(this.lifeAsOf, this.lifeEnd.date)
+      : null,
+  );
+  /** 정한 달 기준일 때 한마디의 기간 비율. 정년 기준이면 화면이 careerRatio 를 쓴다(정년 창과 같은 값) */
+  lifeTimeRatio = $derived(
+    this.lifeEnd.basis === 'plan' && this.lifeEnd.date !== null
+      ? careerProgress(this.profile.hireDate, this.lifeEnd.date, this.today).ratio
+      : null,
+  );
+  /** 월급날 횟수에 공휴일이 반영돼 있는지(아니면 하루 이틀 차이로 한 번 달라질 수 있다) */
+  lifePaydayHolidaysKnown = $derived(
+    this.lifeAsOf === null ? true : paydayHolidaysKnown(calendar, this.lifeAsOf),
+  );
+  /**
+   * 금액 가리기 중에 본문을 한 줄로 줄일지: 저장된 퇴직 예정 달이 있으면 그 달·횟수·막대까지 함께 가린다.
+   * 참이면 화면은 lifetime·lifePaydays·lifeEnd.planMonth 를 읽지도 않는다(숨긴 DOM 에 숫자가 남지 않게).
+   */
+  lifeMasked = $derived(this.data.settings.hideAmounts && this.lifeEnd.planHeld);
 
   // ── 쉬는 날 ──────────────────────────────────────────────────────────
   nextHoliday = $derived.by(() => {

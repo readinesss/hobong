@@ -241,6 +241,17 @@ export interface PayTableRules {
   columns: { key: string; label: string }[];
   /** 열 키 → 호봉(1부터)별 월 봉급 */
   table: Record<string, number[]>;
+  /**
+   * 최고호봉 뒤의 근속가봉(공무원보수규정 제30조의2). 금액이 원문에 정해진 봉급표에만 둔다(지금은 별표 11).
+   * 계산에는 쓰지 않는다 — '생애 봉급' 창이 "근속가봉은 넣지 않았어요"를 이 표의 사용자에게만 밝히는 데 쓴다(#30)
+   */
+  longServiceAddOn?: LongServiceAddOn;
+  source: SourceRef;
+}
+/** 근속가봉: 승급기간을 넘길 때마다 더할 수 있는 금액(원)과 가산 횟수의 상한 */
+export interface LongServiceAddOn {
+  amount: number;
+  maxCount: number;
   source: SourceRef;
 }
 export interface PayTablesSection {

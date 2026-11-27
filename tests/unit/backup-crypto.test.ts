@@ -174,14 +174,33 @@ describe('암호 걸기 → 풀기', () => {
     });
   });
 
-  it('v5 백업(꾸미기·직렬·소리 설정)도 암호를 걸고 풀어 그대로 열린다', async () => {
+  it('v5 백업(꾸미기·직렬·소리 설정)도 암호를 걸고 풀면 값 그대로 열린다(v6 의 퇴직 예정 달은 없음)', async () => {
     const v5 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v5.json'), 'utf8');
     const opened = await decryptBackup(await locked(PASSWORD, v5), PASSWORD);
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
     const parsed = parseBackup(opened.plain, ctx);
+    expect(parsed.ok && parsed.fromVersion).toBe(5);
+    expect(parsed.ok && parsed.data).toEqual({
+      ...JSON.parse(v5).data,
+      plan: { retireMonth: null },
+    });
+  });
+
+  it('v6 패키지: 퇴직 예정 달은 암호를 걸면 파일에 보이지 않고, 풀면 그대로 열린다', async () => {
+    const v6 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v6.json'), 'utf8');
+    // 평문 패키지에는 정한 달이 그대로 실린다(폼 아래 안내가 이것을 알린다)
+    expect(v6).toContain('"retireMonth": "2030-03"');
+    const file = await locked(PASSWORD, v6);
+    expect(file).not.toContain('2030-03');
+    expect(file).not.toContain('retireMonth');
+    const opened = await decryptBackup(file, PASSWORD);
+    expect(opened).toEqual({ ok: true, plain: v6 });
+    if (!opened.ok) return;
+    const parsed = parseBackup(opened.plain, ctx);
     expect(parsed.ok && parsed.migrated).toBe(false);
-    expect(parsed.ok && parsed.data).toEqual(JSON.parse(v5).data);
+    expect(parsed.ok && parsed.data).toEqual(JSON.parse(v6).data);
+    expect(parsed.ok && parsed.data.plan.retireMonth).toBe('2030-03');
   });
 
   it('같은 평문·암호라도 파일마다 salt·IV·암호문이 모두 다르다(salt 16바이트, IV 12바이트)', async () => {

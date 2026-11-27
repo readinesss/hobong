@@ -1495,3 +1495,114 @@ describe('직종 확대 데이터(#20): 발췌본과 대조', () => {
     expect(r2026.promotion.longService.quotaNote).toContain('6급');
   });
 });
+
+describe('생애 봉급(#30): 발췌본과 대조(U20)', () => {
+  const snap = (name: string) => readFileSync(join(ROOT, 'docs/sources/2026', name), 'utf8');
+
+  it('퇴직하는 달의 봉급·근속가봉: 공무원보수규정 제4조·제24조·제30조의2', () => {
+    const text = snap('pay-reg-articles-separation.txt');
+    for (const phrase of [
+      '5년 이상 근속한 공무원이 월 중에 15일 이상을 근무한 후 면직되는 경우',
+      '탄핵, 파면 또는 해임에 의하여 면직되는 경우',
+      '그 달의 보수를 그 달의 일수로 나누어 계산',
+      '근속가봉을 가산할 수 있다',
+      '별표 11의 봉급표를 적용받는 공무원',
+      '8만1000원',
+      '10회를 초과하지 못한다',
+    ])
+      expect(text, phrase).toContain(phrase);
+  });
+
+  it('새 발췌본은 머리말 4줄(제목·출처·조회·비고) 형식이다', () => {
+    for (const name of [
+      'pay-reg-articles-separation.txt',
+      'appointment-decree-art2-definition.txt',
+    ]) {
+      const head = snap(name).split('\n').slice(0, 5);
+      expect(head[0], name).toMatch(/^# /);
+      expect(head[1], name).toMatch(/^# 출처: .+\[시행 \d{4}\. \d{1,2}\. \d{1,2}\.\] \[.+제\d+호/);
+      expect(head[2], name).toMatch(/^# 조회: \d{4}-\d{2}-\d{2}, 국가법령정보센터/);
+      expect(head[3], name).toMatch(/^# 비고: /);
+      expect(head[4], name).toBe('');
+    }
+    // 같은 판본(시행일·공포번호)을 본 것이다
+    const laws = r2026.laws;
+    expect(snap('pay-reg-articles-separation.txt').split('\n')[1]).toContain(
+      laws.pay?.promulgation,
+    );
+    expect(snap('appointment-decree-art2-definition.txt').split('\n')[1]).toContain(
+      laws.appointment?.promulgation,
+    );
+  });
+
+  it('근속가봉: 금액·횟수가 제30조의2제2항과 같고, 금액이 원문에 있는 봉급표(별표 11)에만 있다', () => {
+    const text = snap('pay-reg-articles-separation.txt');
+    const line = text.split('\n').find((l) => l.startsWith('② 유치원')) ?? '';
+    const m = /별표 11의 봉급표를 적용받는 공무원을 말한다\)에게는 (\d+)만(\d+)원을/.exec(line);
+    const count = /가산하는 횟수는 (\d+)회를 초과하지 못한다/.exec(line);
+    const addOn = r2026.payTables.items.table11?.longServiceAddOn;
+    expect(addOn?.amount).toBe(Number(m?.[1]) * 10_000 + Number(m?.[2]));
+    expect(addOn?.amount).toBe(81_000);
+    expect(addOn?.maxCount).toBe(Number(count?.[1]));
+    expect(addOn?.source).toMatchObject({
+      law: 'pay',
+      article: '제30조의2제1항·제2항',
+      snapshot: 'pay-reg-articles-separation.txt',
+    });
+    // 제2항의 마지막 개정일
+    const revised = [...line.matchAll(/(\d{4})\. (\d{1,2})\. (\d{1,2})\./g)].at(-1);
+    expect(addOn?.source.revised).toBe(
+      `${revised?.[1]}-${String(revised?.[2]).padStart(2, '0')}-${String(revised?.[3]).padStart(2, '0')}`,
+    );
+    for (const id of EXTRA_PAY_TABLE_IDS) {
+      if (id !== 'table11') expect(r2026.payTables.items[id]?.longServiceAddOn).toBeUndefined();
+    }
+    // 표 단위로 합치므로, 별표 11 을 자기 값으로 가진 해는 근속가봉도 함께 넣어야 한다(빠뜨리면 안내가 사라진다)
+    for (const file of files) {
+      const own = file.payTables?.items.table11;
+      if (own) expect(own.longServiceAddOn, `${file.year}.json table11`).toBeDefined();
+    }
+    // 봉급표 숫자는 그대로다(40칸)
+    expect(r2026.payTables.items.table11?.table['봉급']).toHaveLength(40);
+  });
+
+  it('정근수당 횟수의 근거: 공무원수당 등에 관한 규정 제7조', () => {
+    const text = snap('allowance-reg-articles.txt');
+    for (const phrase of [
+      '1월 1일 현재 공무원의 신분을 보유하고 봉급이 지급되는 사람',
+      '7월 1일 현재 공무원의 신분을 보유하고 봉급이 지급되는 사람',
+      '을 받은 공무원에게는 지급하지 아니하며',
+    ])
+      expect(text, phrase).toContain(phrase);
+    expect(r2026.allowances.diligence.payMonths).toEqual([1, 7]);
+  });
+
+  it("계급정년 뒤 안내가 '승진해야'라고 쓰지 않는 근거: 계급정년은 연장될 수 있다", () => {
+    expect(snap('police-officials-act.txt')).toContain('계급정년을 연장할 수 있다');
+    expect(snap('fire-officials-act.txt')).toContain('계급정년을 연장할 수 있다');
+    // 화면은 규정 데이터의 설명을 그대로 보인다: 계급정년이 있는 직종마다 비어 있지 않고 두 낱말을 담고 있다
+    let n = 0;
+    for (const [id, track] of Object.entries(r2026.tracks.items)) {
+      const ret = track.retirement;
+      if (!ret || !isAvailable(ret) || !ret.rankLimit) continue;
+      n += 1;
+      const note = ret.rankLimit.source.note ?? '';
+      expect(note, id).toContain('연장');
+      expect(note, id).toContain('계급정년에 이르는 날');
+    }
+    expect(n).toBeGreaterThanOrEqual(3);
+  });
+
+  it('정년퇴직일은 모두 달의 말일이다(끝나는 날까지 봉급을 세는 전제)', () => {
+    const all: RetirementRules[] = [r2026.retirement];
+    for (const track of Object.values(r2026.tracks.items)) {
+      if (track.retirement && isAvailable(track.retirement)) all.push(track.retirement);
+    }
+    for (const rules of all) {
+      for (const p of rules.periods) {
+        const last = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][p.retireMonth - 1];
+        expect(p.retireDay === 'last' || p.retireDay === last, JSON.stringify(p)).toBe(true);
+      }
+    }
+  });
+});

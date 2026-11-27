@@ -43,7 +43,7 @@ import {
   saveUndo,
   type KeyValueStore,
 } from '../store/storage.ts';
-import { cleanText } from '../store/validate.ts';
+import { cleanText, isRetireMonthOrNull } from '../store/validate.ts';
 import { LIMITS } from '../store/schema.ts';
 import type { EventBadgeId } from '../achievements.ts';
 
@@ -647,6 +647,23 @@ class AppStore {
     this.commit((d) => {
       d.character.look = { ...look, deco: { ...look.deco } };
     });
+  }
+
+  // ── 앞날의 가정 ──────────────────────────────────────────────────────
+
+  /**
+   * 퇴직 예정 달('YYYY-MM')을 정하거나 지운다(null = 정년까지). '생애 봉급' 창에서만 쓰는 값이다.
+   * 고를 수 있는 달인지(이번 달 ~ 연령정년 퇴직일의 달)는 폼이 본다(checkRetirePlan). 여기서는 형식이
+   * 틀린 값만 막는다(false) — 저장한 값이 다음에 열 때 검사에 걸려 저장 자체가 실패하지 않게.
+   * 저장소에 쓰지 못한 경우는 다른 변경과 같이 화면 위 안내(saveFailed)가 알린다.
+   */
+  setRetirePlan(month: string | null): boolean {
+    if (!this.data || !isRetireMonthOrNull(month)) return false;
+    if (this.data.plan.retireMonth === month) return true;
+    this.commit((d) => {
+      d.plan.retireMonth = month;
+    });
+    return true;
   }
 
   // ── 설정·업적 ────────────────────────────────────────────────────────

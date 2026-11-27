@@ -14,12 +14,14 @@ import {
   LOOK_ID_RE,
   RANK_KEY_RE,
   SERIES_KEY_RE,
+  YEAR_MONTH_KEY_RE,
   type CardSettings,
   type CharacterLook,
   type GeneralPayTableId,
   type Grade,
   type LeaveKind,
   type LeaveRecord,
+  type PlanState,
   type Profile,
   type Settings,
   type UserData,
@@ -541,6 +543,26 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
   return { records, grantOverrideHours };
 }
 
+/** 저장본의 퇴직 예정 달: null 이거나 'YYYY-MM'(연도는 날짜 계산이 다루는 범위) */
+export function isRetireMonthOrNull(value: unknown): value is string | null {
+  if (value === null) return true;
+  if (typeof value !== 'string' || !YEAR_MONTH_KEY_RE.test(value)) return false;
+  const year = Number(value.slice(0, 4));
+  return year >= LIMITS.minLeaveYear && year <= LIMITS.maxLeaveYear;
+}
+
+/**
+ * 앞날의 가정(plan) 검사. 형식만 본다 — 오늘·정년·임용일과 비교하지 않는다(시간이 지나 지난 달이 되거나
+ * 내 정보를 고쳐 정년이 당겨져도 멀쩡한 저장본을 거부하지 않게. 맞지 않게 된 값은 계산이 걸러 화면이 알린다).
+ */
+function checkPlan(raw: unknown, errors: string[]): PlanState | null {
+  if (!isDict(raw) || !('retireMonth' in raw) || !isRetireMonthOrNull(raw.retireMonth)) {
+    errors.push('퇴직 예정 달의 형식이 틀렸어요.');
+    return null;
+  }
+  return { retireMonth: raw.retireMonth };
+}
+
 /**
  * 현재 버전 형식의 사용자 데이터인지 검사하고 새 객체로 옮겨 담는다.
  * 알 수 없는 속성은 버린다.
@@ -638,7 +660,9 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     };
   }
 
-  if (errors.length > 0 || !settings || !leave || !character || !visits || !meta) {
+  const plan = checkPlan(raw.plan, errors);
+
+  if (errors.length > 0 || !settings || !leave || !character || !visits || !meta || !plan) {
     return { ok: false, errors: errors.length > 0 ? errors : ['데이터 형식이 틀렸어요.'] };
   }
   return {
@@ -651,6 +675,7 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
       character,
       visits,
       meta,
+      plan,
     },
   };
 }

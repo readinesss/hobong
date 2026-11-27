@@ -378,7 +378,7 @@ test.describe('호봉이 꾸미기(#17·#16)', () => {
     ]);
     const text = readFileSync(await file.path(), 'utf8');
     const envelope = JSON.parse(text);
-    expect(envelope.schemaVersion).toBe(5);
+    expect(envelope.schemaVersion).toBe(6);
     expect(envelope.data.character.look).toEqual(look);
     expect(envelope.data.profile.series).toBe('전산');
 

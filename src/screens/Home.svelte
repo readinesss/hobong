@@ -9,6 +9,7 @@
   import CareerWindow from './home/CareerWindow.svelte';
   import GrowthWindow from './home/GrowthWindow.svelte';
   import LeaveMini from './home/LeaveMini.svelte';
+  import LifetimeWindow from './home/LifetimeWindow.svelte';
   import RecapHint from './home/RecapHint.svelte';
   import StatusWindow from './home/StatusWindow.svelte';
   import TodayWindow from './home/TodayWindow.svelte';
@@ -112,9 +113,9 @@
 
 <!--
   좁은 화면: 한 열(칸 순서는 grid-template-areas가 정한다)
-  두 열(720~1099px): [상태창·정년·지갑] [오늘·승급·연가·다가오는 일정]. 열 묶음(.col)이 각자 위에서부터 쌓여
+  두 열(720~1099px): [상태창·정년·생애 봉급·지갑] [오늘·승급·연가·다가오는 일정]. 열 묶음(.col)이 각자 위에서부터 쌓여
     창 높이가 달라도 빈틈이 생기지 않는다.
-  세 열(1100px~): [상태창·정년] [오늘·승급·연가] [지갑·다가오는 일정]
+  세 열(1100px~): [상태창·정년·생애 봉급] [오늘·승급·연가] [지갑·다가오는 일정]
 -->
 <p class="sr-only" role="status" id="home-arrived">{arrived}</p>
 {#if ghost}
@@ -141,6 +142,8 @@
         </StatusWindow>
       </div>
       <CareerWindow />
+      <!-- 정년까지의 길(날짜 진행률) 바로 아래에 생애 봉급(금액 진행률): 두 막대를 견줘 본다 -->
+      <LifetimeWindow />
     </div>
     <div class="col c1b"><WalletWindow /></div>
   </div>
@@ -165,6 +168,7 @@
       'growth'
       'wallet'
       'career'
+      'lifetime'
       'leave'
       'upcoming';
     align-items: start;

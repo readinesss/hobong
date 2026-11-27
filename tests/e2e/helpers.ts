@@ -332,3 +332,29 @@ export function makeSeedV5(profile: SeedProfileV4 = {}, v5: SeedV5 = {}): string
   };
   return JSON.stringify(env);
 }
+
+export interface SeedV6 extends SeedV5 {
+  /** 퇴직 예정 달('YYYY-MM'). 없으면 null(정년까지) */
+  retireMonth?: string | null;
+  hideAmounts?: boolean;
+  payday?: number;
+}
+
+/** 지금 형식(v6)의 저장본. makeSeedV5 에 v6 칸(퇴직 예정 달)을 더한다 */
+export function makeSeedV6(profile: SeedProfileV4 = {}, v6: SeedV6 = {}): string {
+  const env = JSON.parse(makeSeedV5(profile, v6)) as {
+    schemaVersion: number;
+    data: { settings: Record<string, unknown>; plan?: { retireMonth: string | null } };
+  };
+  env.schemaVersion = 6;
+  env.data.plan = { retireMonth: v6.retireMonth ?? null };
+  if (v6.hideAmounts !== undefined) env.data.settings.hideAmounts = v6.hideAmounts;
+  if (v6.payday !== undefined) env.data.settings.payday = v6.payday;
+  return JSON.stringify(env);
+}
+
+/** 연·월 두 칸 입력(MonthInput)에 값을 넣는다. 연도 네 자리를 치면 월 칸으로 넘어간다 */
+export async function fillMonth(page: Page, label: string, year: string, month: string) {
+  await page.getByLabel(`${label} 연도`).fill(year);
+  await page.getByLabel(`${label} 월`).fill(month);
+}

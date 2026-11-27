@@ -24,7 +24,12 @@ import {
   defaultSettings,
   newUserData,
 } from '../../src/lib/store/defaults.ts';
-import { SCHEMA_VERSION, type Profile, type UserData } from '../../src/lib/store/schema.ts';
+import {
+  SCHEMA_VERSION,
+  YEAR_MONTH_KEY_RE,
+  type Profile,
+  type UserData,
+} from '../../src/lib/store/schema.ts';
 import {
   clearAll,
   clearCorrupt,
@@ -47,6 +52,7 @@ import {
   isIsoInstant,
   validateUserData,
 } from '../../src/lib/store/validate.ts';
+import { YEAR_MONTH_RE } from '../../src/lib/calc/lifetime.ts';
 import { nextRaiseDate, stepOn } from '../../src/lib/calc/step.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
 import { salaryOn } from '../../src/lib/calc/salary.ts';
@@ -124,10 +130,18 @@ function sampleData(): UserData {
   return data;
 }
 
-/** v4 데이터가 v5 로 바뀔 때 더해지는 것(지금과 같은 모습·동작의 기본값). 나머지는 그대로다 */
-function asV5(v4: any): any {
+/** v5 데이터가 v6 으로 바뀔 때 더해지는 것: 퇴직 예정 달 없음(정년까지). 나머지는 그대로다 */
+function asV6(v5: any): any {
+  return { ...v5, plan: { retireMonth: null } };
+}
+
+/**
+ * v4 데이터가 지금 형식(v6)으로 바뀔 때 더해지는 것(지금과 같은 모습·동작의 기본값). 나머지는 그대로다.
+ * v5 에서 직렬·꾸미기·소리 등, v6 에서 퇴직 예정 달(없음).
+ */
+function asNow(v4: any): any {
   const d = defaultSettings(R);
-  return {
+  return asV6({
     ...v4,
     profile: { ...v4.profile, series: null },
     settings: {
@@ -140,7 +154,7 @@ function asV5(v4: any): any {
       sparkles: d.sparkles,
     },
     character: { ...v4.character, look: defaultLook() },
-  };
+  });
 }
 
 describe('내보내기 → 초기화 → 불러오기', () => {
@@ -183,9 +197,21 @@ describe('내보내기 → 초기화 → 불러오기', () => {
     const env = JSON.parse(serializeBackup(makeEnvelope(sampleData(), '0.1.0', NOW)));
     expect(Object.keys(env)).toEqual(['app', 'schemaVersion', 'appVersion', 'exportedAt', 'data']);
     expect(Object.keys(env.data).sort()).toEqual(
-      ['achievements', 'character', 'leave', 'meta', 'profile', 'settings', 'visits'].sort(),
+      [
+        'achievements',
+        'character',
+        'leave',
+        'meta',
+        'plan',
+        'profile',
+        'settings',
+        'visits',
+      ].sort(),
     );
-    const text = JSON.stringify(env);
+    // 퇴직 예정 달(plan.retireMonth, v6)은 사용자가 정한 입력값이다. 그 키 하나만 빼고 본다 —
+    // 정년퇴직일·남은 날 같은 계산 결과(retireDate·retirement…)는 여전히 파일에 없어야 한다
+    expect(Object.keys(env.data.plan)).toEqual(['retireMonth']);
+    const text = JSON.stringify(env).replaceAll('"retireMonth"', '"(퇴직 예정 달)"');
     for (const derived of ['salary', 'retire', 'remaining', 'daysLeft', 'amount']) {
       expect(text.toLowerCase()).not.toContain(`"${derived.toLowerCase()}`);
     }
@@ -261,7 +287,7 @@ describe('구버전(v1) 파일 변환', () => {
     const { lastGrade: _lg, ...characterRest } = before.character;
     expect({ ...parsed.data, profile: { ...parsed.data.profile, stepAsOf: undefined } }).toEqual(
       // v4 이름으로 바뀐 것과 v5 에 더해진 것 말고는 그대로다
-      asV5({
+      asNow({
         ...before,
         profile: {
           ...profileRest,
@@ -816,7 +842,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
     const { grade: _g, gradeDate: _gd, overrides, ...profileRest } = before.profile;
     const { lastGrade: _lg, ...characterRest } = before.character;
     expect(parsed.data).toEqual(
-      asV5({
+      asNow({
         ...before,
         profile: {
           ...profileRest,
@@ -950,7 +976,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
       'backup-v4-teacher.json',
       'backup-v4-other.json',
     ]) {
-      const data = asV5(JSON.parse(fixture(name)).data);
+      const data = asNow(JSON.parse(fixture(name)).data);
       expect(errorsOf(validateUserData(data, noRules)), name).toBe('');
       expect(parseBackup(fixture(name), noRules).ok, name).toBe(true);
     }
@@ -985,7 +1011,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
       expect(parsed.ok ? '' : parsed.details.join('\n'), name).toBe('');
       if (!parsed.ok) continue;
       expect(parsed.migrated, name).toBe(true);
-      expect(parsed.data, name).toEqual(asV5(JSON.parse(text).data));
+      expect(parsed.data, name).toEqual(asNow(JSON.parse(text).data));
       const again = serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW));
       expect(parseBackup(again, ctx), name).toMatchObject({ ok: true, data: parsed.data });
     }
@@ -1306,17 +1332,23 @@ describe('저장 형식 v5: 직렬·꾸미기·소리·포인터(고도화 2차)
     expect(data.character.look).not.toBe(look);
   });
 
-  it('v5 파일은 그대로 왕복한다(직렬·꾸미기·소리 설정)', () => {
+  it('v5 파일의 값(직렬·꾸미기·소리 설정)은 지금 형식으로 열어도 그대로다', () => {
     const text = fixture('backup-v5.json');
     const parsed = parseBackup(text, ctx);
     expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
     if (!parsed.ok) return;
-    expect(parsed.migrated).toBe(false);
+    // v5 → v6 은 퇴직 예정 달(없음) 한 칸만 더한다. v5 의 값은 하나도 바뀌지 않는다
+    expect(parsed.migrated).toBe(true);
     expect(parsed.fromVersion).toBe(5);
-    expect(parsed.data).toEqual(JSON.parse(text).data);
-    expect(serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-26T09:00:00.000Z'))).toBe(
-      `${JSON.stringify(JSON.parse(text), null, 2)}\n`,
+    expect(parsed.data).toEqual(asV6(JSON.parse(text).data));
+    // 다시 내보내면 지금 버전 파일이고, 변환 없이 같은 값으로 열린다
+    const again = parseBackup(
+      serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-26T09:00:00.000Z')),
+      ctx,
     );
+    expect(again.ok && again.migrated).toBe(false);
+    expect(again.ok && again.fromVersion).toBe(SCHEMA_VERSION);
+    expect(again.ok && again.data).toEqual(parsed.data);
   });
 
   it('v1~v4 파일이 모두 v5 로 열린다(새 칸은 기본값)', () => {
@@ -1478,19 +1510,222 @@ describe('저장 형식 v5: 직렬·꾸미기·소리·포인터(고도화 2차)
     expect(r.value.settings.identity).toEqual({ showSeriesHome: true });
   });
 
-  it('옛 사본 보호: v5 저장본·파일은 v4 앱에게 "더 새 버전"이다 — 이 앱도 v6 은 읽지도 옮기지도 않는다', () => {
+  it('옛 사본 보호: v5 저장본·파일은 v4 앱에게 "더 새 버전"이다 — 이 앱도 더 새 버전은 읽지도 옮기지도 않는다', () => {
     // v4 앱의 규칙(migrate.ts: 파일 버전 > 앱 버전이면 newer)을 그대로 적용하면 v5 는 newer 다
     const v5 = JSON.parse(fixture('backup-v5.json'));
     expect(v5.schemaVersion).toBe(5);
     expect(v5.schemaVersion > 4).toBe(true);
-    // 이 앱(v5)이 더 새 파일(v6)을 만나면: 손대지 않고 새 버전으로 열어 달라고만 한다
-    const v6 = envelope(v5.data, SCHEMA_VERSION + 1);
-    expect(parseBackup(v6, ctx)).toMatchObject({ ok: false, code: 'newer' });
+    // 이 앱이 더 새 파일을 만나면: 손대지 않고 새 버전으로 열어 달라고만 한다
+    const newer = envelope(asV6(v5.data), SCHEMA_VERSION + 1);
+    expect(parseBackup(newer, ctx)).toMatchObject({ ok: false, code: 'newer' });
     const store = memoryStore();
-    store.setItem(KEYS.data, v6);
+    store.setItem(KEYS.data, newer);
     expect(loadData(store, stored).status).toBe('newer');
     expect(isNewerData(store, stored)).toBe(true);
-    expect(store.getItem(KEYS.data)).toBe(v6);
+    expect(store.getItem(KEYS.data)).toBe(newer);
     expect(hasCorrupt(store)).toBe(false);
+  });
+});
+
+describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
+  const fixture = (name: string) =>
+    readFileSync(join(process.cwd(), 'tests/fixtures', name), 'utf8');
+  const stored = { ...ctx, stored: true };
+  const envelope = (data: unknown, version = SCHEMA_VERSION) =>
+    JSON.stringify({
+      app: 'hobong',
+      schemaVersion: version,
+      appVersion: '0.2.0',
+      exportedAt: NOW,
+      data,
+    });
+  const patched = (patch: (d: Record<string, any>) => void) => {
+    const data = JSON.parse(JSON.stringify(sampleData())) as Record<string, any>;
+    patch(data);
+    return data;
+  };
+  const errorsOf = (r: ReturnType<typeof validateUserData>) => (r.ok ? [] : r.errors).join('\n');
+
+  it('지금 저장 형식은 v6 이고, 새 사용자는 퇴직 예정 달이 없다(정년까지)', () => {
+    expect(SCHEMA_VERSION).toBe(6);
+    const data = newUserData(sampleProfile(), defaultSettings(R), NOW, TODAY);
+    expect(data.plan).toEqual({ retireMonth: null });
+    expect(validateUserData(data, stored).ok).toBe(true);
+  });
+
+  it('저장본의 연·월 형식은 계산이 쓰는 형식과 같은 식이다', () => {
+    expect(YEAR_MONTH_KEY_RE.source).toBe(YEAR_MONTH_RE.source);
+    expect(YEAR_MONTH_KEY_RE.flags).toBe(YEAR_MONTH_RE.flags);
+  });
+
+  it('S1: v5 파일 → v6 은 퇴직 예정 달(없음)만 더하고 나머지 값은 그대로다', () => {
+    const text = fixture('backup-v5.json');
+    const parsed = parseBackup(text, ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.fromVersion).toBe(5);
+    expect(parsed.migrated).toBe(true);
+    expect(parsed.data.plan).toEqual({ retireMonth: null });
+    const { plan: _plan, ...rest } = parsed.data;
+    expect(rest).toEqual(JSON.parse(text).data);
+  });
+
+  it('S1: v5 파일에 퇴직 예정 달이 섞여 있어도 옮겨 담지 않는다(v5 앱은 그 칸을 읽지도 저장하지도 않았다)', () => {
+    for (const mixed of [
+      { retireMonth: '2030-03' },
+      { retireMonth: 'x' },
+      'zzz',
+      null,
+      { retireMonth: '2030-03', extra: 1 },
+    ]) {
+      const env = JSON.parse(fixture('backup-v5.json'));
+      env.data.plan = mixed;
+      const parsed = parseBackup(JSON.stringify(env), ctx);
+      expect(parsed.ok ? '' : parsed.details.join('\n'), JSON.stringify(mixed)).toBe('');
+      expect(parsed.ok && parsed.data.plan, JSON.stringify(mixed)).toEqual({ retireMonth: null });
+      // 저장본 자리에 있어도 같다
+      const store = memoryStore();
+      store.setItem(KEYS.data, JSON.stringify(env));
+      const loaded = loadData(store, stored);
+      expect(loaded.status === 'ok' && loaded.data.plan, JSON.stringify(mixed)).toEqual({
+        retireMonth: null,
+      });
+    }
+  });
+
+  it('S2: v1~v4 파일도 v6 까지 이어서 바뀐다(퇴직 예정 달 없음)', () => {
+    for (const name of [
+      'backup-v1.json',
+      'backup-v2.json',
+      'backup-v3.json',
+      'backup-v4-police.json',
+      'backup-v4-teacher.json',
+      'backup-v4-other.json',
+    ]) {
+      const parsed = parseBackup(fixture(name), ctx);
+      expect(parsed.ok ? '' : parsed.details.join('\n'), name).toBe('');
+      if (!parsed.ok) continue;
+      expect(parsed.migrated, name).toBe(true);
+      expect(parsed.data.plan, name).toEqual({ retireMonth: null });
+      const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.2.0', NOW)), ctx);
+      expect(again.ok && again.fromVersion, name).toBe(6);
+      expect(again.ok && again.migrated, name).toBe(false);
+      expect(again.ok && again.data, name).toEqual(parsed.data);
+    }
+  });
+
+  it('S3: v6 파일(퇴직 예정 달 2030-03)은 그대로 왕복한다 — 내보내기 → 모두 지우기 → 불러오기', () => {
+    const text = fixture('backup-v6.json');
+    const parsed = parseBackup(text, ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.migrated).toBe(false);
+    expect(parsed.fromVersion).toBe(6);
+    expect(parsed.data).toEqual(JSON.parse(text).data);
+    expect(parsed.data.plan).toEqual({ retireMonth: '2030-03' });
+    // 같은 겉봉으로 다시 내보내면 글자까지 같다
+    const out = serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-27T09:00:00.000Z'));
+    expect(out).toBe(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+    // 저장 → 모두 지우기 → 파일에서 되살리기
+    const store = memoryStore();
+    expect(saveData(store, parsed.data, '0.2.0', NOW)).toBe(true);
+    clearAll(store);
+    expect(loadData(store, stored).status).toBe('empty');
+    const restored = parseBackup(out, ctx);
+    expect(restored.ok && restored.data).toEqual(parsed.data);
+    if (!restored.ok) return;
+    expect(saveData(store, restored.data, '0.2.0', NOW)).toBe(true);
+    const loaded = loadData(store, stored);
+    expect(loaded.status === 'ok' && loaded.data.plan.retireMonth).toBe('2030-03');
+    expect(loaded.status === 'ok' && loaded.migrated).toBe(false);
+  });
+
+  it('S4: 형식이 틀린 퇴직 예정 달은 그 이름으로 거부한다(내부 키 이름은 쓰지 않는다)', () => {
+    const cases: ((d: Record<string, any>) => void)[] = [
+      (d) => (d.plan.retireMonth = '2030-3'),
+      (d) => (d.plan.retireMonth = '2030-13'),
+      (d) => (d.plan.retireMonth = '2030-00'),
+      (d) => (d.plan.retireMonth = '2030-03-15'),
+      (d) => (d.plan.retireMonth = 203003),
+      (d) => (d.plan.retireMonth = '2151-01'),
+      (d) => (d.plan.retireMonth = '1929-12'),
+      (d) => (d.plan.retireMonth = ''),
+      (d) => (d.plan.retireMonth = ' 2030-03'),
+      (d) => (d.plan.retireMonth = { y: 2030, m: 3 }),
+      (d) => delete d.plan.retireMonth,
+      (d) => delete d.plan,
+      (d) => (d.plan = null),
+      (d) => (d.plan = '2030-03'),
+      (d) => (d.plan = ['2030-03']),
+    ];
+    for (const patch of cases) {
+      const data = patched(patch);
+      for (const c of [ctx, stored]) {
+        const message = errorsOf(validateUserData(data, c));
+        expect(message, patch.toString()).toContain('퇴직 예정 달');
+        expect(message, patch.toString()).not.toMatch(/plan|retireMonth/);
+      }
+      // 파일 불러오기도 거부하고, 기존 데이터는 건드리지 않는다
+      const store = memoryStore();
+      saveData(store, sampleData(), '0.2.0', NOW);
+      const before = store.getItem(KEYS.data);
+      const file = parseBackup(envelope(data), ctx);
+      expect(file.ok, patch.toString()).toBe(false);
+      expect(!file.ok && file.details.join('\n'), patch.toString()).toContain('퇴직 예정 달');
+      expect(store.getItem(KEYS.data)).toBe(before);
+    }
+  });
+
+  it('S4: 검사는 형식만 본다 — 지난 달·정년 뒤의 달·임용 전의 달·정년과 같은 달도 그대로 받는다', () => {
+    // sampleData: 1995-05-20생(정년퇴직일 2055-06-30), 임용 2020-01-01, 오늘 2026-11-25
+    for (const month of ['2026-10', '2056-01', '2150-12', '1930-01', '2019-12', '2055-06', null]) {
+      const data = patched((d) => (d.plan.retireMonth = month));
+      for (const c of [ctx, stored]) {
+        const r = validateUserData(data, c);
+        expect(errorsOf(r), String(month)).toBe('');
+        expect(r.ok && r.value.plan, String(month)).toEqual({ retireMonth: month });
+      }
+      const file = parseBackup(envelope(data), ctx);
+      expect(file.ok && file.data.plan.retireMonth, String(month)).toBe(month);
+      // 저장본으로 있어도 손상으로 보지 않고, 옮기거나 고치지 않는다
+      const store = memoryStore();
+      const text = envelope(data);
+      store.setItem(KEYS.data, text);
+      const loaded = loadData(store, stored);
+      expect(loaded.status, String(month)).toBe('ok');
+      expect(loaded.status === 'ok' && loaded.data.plan.retireMonth, String(month)).toBe(month);
+      expect(store.getItem(KEYS.data)).toBe(text);
+      expect(hasCorrupt(store)).toBe(false);
+    }
+  });
+
+  it('검증은 알 수 없는 키를 버리고 새 객체로 옮겨 담는다', () => {
+    const data = patched((d) => {
+      d.plan = { retireMonth: '2031-06', retireDate: '2031-06-15', note: 'x' };
+    });
+    const r = validateUserData(data, stored);
+    expect(r.ok && r.value.plan).toEqual({ retireMonth: '2031-06' });
+    expect(r.ok && r.value.plan).not.toBe(data.plan);
+  });
+
+  it('S6: 옛 사본 보호 — v6 저장본·파일은 v5 앱에게 "더 새 버전"이다(읽지도 옮기지도 않는다)', () => {
+    // v5 앱의 규칙(migrate.ts: 파일 버전 > 앱이 읽는 버전이면 newer)은 지금 코드와 같은 한 줄이다.
+    // 그 규칙을 그대로 적용하면 v6 은 newer 다
+    const v6 = JSON.parse(fixture('backup-v6.json'));
+    expect(v6.schemaVersion).toBe(6);
+    expect(v6.schemaVersion > 5).toBe(true);
+    // 같은 규칙을 이 앱으로 재현한다: 지금 버전보다 하나 새 겉봉은 읽지 않고 손대지 않는다
+    const newer = envelope(v6.data, SCHEMA_VERSION + 1);
+    expect(parseBackup(newer, ctx)).toMatchObject({ ok: false, code: 'newer' });
+    const store = memoryStore();
+    store.setItem(KEYS.data, newer);
+    expect(loadData(store, stored).status).toBe('newer');
+    expect(loadData(store, stored, { readOnly: true }).status).toBe('newer');
+    expect(isNewerData(store, stored)).toBe(true);
+    expect(store.getItem(KEYS.data)).toBe(newer);
+    expect(hasCorrupt(store)).toBe(false);
+    // 손상본 보관함으로 옮기지도, 되돌리기 보관본으로 삼지도 않는다
+    expect(readCorrupt(store)).toEqual([]);
+    expect(loadUndo(store, stored)).toBeNull();
   });
 });

@@ -11,7 +11,14 @@ import {
 } from './date.ts';
 import type { RulesProvider } from './calendar.ts';
 import { careerOf, careerStepOn, type CareerKey } from './career-profile.ts';
-import { nextRaiseDate, raiseDate, raiseIndexOn, type StepAnchor } from './step.ts';
+import {
+  dateReachedStep,
+  nextRaiseDate,
+  raiseDate,
+  raiseIndexOn,
+  stepOn,
+  type StepAnchor,
+} from './step.ts';
 import type { CareerRules, PayInfo } from '../rules/career.ts';
 import { isAvailable, type RankKey } from '../rules/types.ts';
 
@@ -189,6 +196,78 @@ export function yearToDateSalary(
   if (!basis) return null;
   const start = maxYmd(formatYmd({ y: yearOf(today), m: 1, d: 1 }), profile.hireDate);
   return Math.floor(sumSalary(basis.pay.row, basis.periodMonths, profile, start, today));
+}
+
+export interface LifetimeSalary {
+  /** 임용일~to 의 봉급 합계 추정(원 미만 버림) */
+  total: number;
+  /** 임용일~asOf. cumulativeSalary(rules, profile, asOf).total 과 같은 값 */
+  earned: number;
+  /** total - earned (뺄셈으로 정의한다) */
+  remaining: number;
+  /** earned / total (total 이 0 이면 0) */
+  ratio: number;
+  tableYear: number;
+  from: Ymd;
+  asOf: Ymd;
+  to: Ymd;
+  stepNow: number;
+  /** to 의 호봉(최고호봉에서 멈춤) */
+  stepAtEnd: number;
+  /** stepAtEnd - stepNow */
+  raisesLeft: number;
+  maxStep: number;
+  /** asOf 뒤 to 이전에 최고호봉에 닿으면 그 승급일, 아니면 null(이미 최고호봉이거나 닿지 못함) */
+  maxStepDate: Ymd | null;
+}
+
+/**
+ * 생애 봉급 추정(#30): 임용일부터 end(퇴직일 또는 퇴직 예정 달의 말일, 그날 포함)까지의 봉급 합계와
+ * 그 가운데 asOf('재직 중의 오늘' = min(오늘, end))까지 번 만큼. 봉급표나 정기승급이 꺼진 직종은 null.
+ *
+ * 가정은 cumulativeSalary 와 같다: asOf 가 속한 해의 봉급표 한 장과 지금 직급을 전 기간에 쓰고,
+ * 호봉만 승급기간마다 한 호봉씩(최고호봉까지) 움직인다. 과거·앞날의 봉급표, 승진, 휴직·감액은 넣지 않는다.
+ *
+ * 경계: earned 는 임용일 ≤ 날 ≤ asOf(오늘 하루치 포함), total 은 임용일 ≤ 날 ≤ to.
+ * '앞으로'(asOf 다음 날 ~ to)는 따로 더하지 않고 total - earned 로 정의한다. 따로 더해 버림하면
+ * floor(a) + floor(b) ≠ floor(a + b) 로 1원이 어긋날 수 있다. 그래서 earned + remaining === total 이 늘 성립한다.
+ */
+export function lifetimeSalary(
+  rules: RulesProvider,
+  profile: PayProfile,
+  asOf: Ymd,
+  end: Ymd,
+): LifetimeSalary | null {
+  const basis = sumBasis(rules, profile, asOf);
+  if (!basis) return null;
+  const { pay, periodMonths } = basis;
+  // 부르는 쪽이 asOf <= end 로 맞추지만, 어겨도 음수가 나오지 않게
+  const to = maxYmd(asOf, end);
+  const max = maxStepOf(pay.row);
+  const earned = Math.floor(sumSalary(pay.row, periodMonths, profile, profile.hireDate, asOf));
+  // asOf === to 일 때 부동소수 오차로 total 이 1원 작아지는 일을 막는다
+  const total = Math.max(
+    earned,
+    Math.floor(sumSalary(pay.row, periodMonths, profile, profile.hireDate, to)),
+  );
+  const stepNow = stepOn(profile, asOf, max, periodMonths);
+  const stepAtEnd = stepOn(profile, to, max, periodMonths);
+  const reach = dateReachedStep(profile, max, periodMonths);
+  return {
+    total,
+    earned,
+    remaining: total - earned,
+    ratio: total > 0 ? earned / total : 0,
+    tableYear: pay.tableYear,
+    from: profile.hireDate,
+    asOf,
+    to,
+    stepNow,
+    stepAtEnd,
+    raisesLeft: stepAtEnd - stepNow,
+    maxStep: max,
+    maxStepDate: stepNow < max && reach <= to ? reach : null,
+  };
 }
 
 /** start~end(양끝 포함)가 몇 "달치"인지. 각 달은 그 달의 일수로 나눈다 */

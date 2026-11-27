@@ -4,6 +4,7 @@ import {
   makeSeed,
   makeSeedV4,
   makeSeedV5,
+  makeSeedV6,
   openApp,
   PACKAGE_OPEN,
   startForm,
@@ -407,12 +408,18 @@ test.describe('반응형과 조작', () => {
       const r = (q: string) => document.querySelector(q)!.getBoundingClientRect();
       return {
         career: r('#career').bottom,
+        lifetimeTop: r('#lifetime').top,
+        lifetime: r('#lifetime').bottom,
         wallet: r('#wallet').top,
         leave: r('#leave-mini').bottom,
         upcoming: r('#upcoming').top,
       };
     });
-    expect(home.wallet - home.career, '정년 ↔ 지갑').toBeLessThanOrEqual(24);
+    // 두 열: 왼쪽 열은 상태창 · 정년 · 생애 봉급(#30) · 지갑 순서로 빈틈없이 쌓인다
+    expect(home.lifetimeTop - home.career, '정년 ↔ 생애 봉급').toBeLessThanOrEqual(24);
+    expect(home.lifetimeTop - home.career, '정년 ↔ 생애 봉급').toBeGreaterThan(0);
+    expect(home.wallet - home.lifetime, '생애 봉급 ↔ 지갑').toBeLessThanOrEqual(24);
+    expect(home.wallet - home.lifetime, '생애 봉급 ↔ 지갑').toBeGreaterThan(0);
     expect(home.upcoming - home.leave, '연가 ↔ 다가오는 일정').toBeLessThanOrEqual(24);
   });
 
@@ -628,4 +635,189 @@ test.describe('반응형과 조작', () => {
       });
     }
   }
+
+  // 생애 봉급 창(#30, E10): 정년 창 바로 아래. 임용정보 패키지 안내가 떠 있을 때(막 첫 입력을 마친 흐름)와 없을 때 둘 다
+  for (const width of [360, 1280]) {
+    for (const guide of [false, true]) {
+      test(`${width}px: 생애 봉급 창이 넘치지 않고 정년 창 바로 아래다${guide ? '(패키지 안내가 떠 있을 때)' : ''}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await openApp(page, { seed: makeSeedV5() });
+        if (guide) {
+          // 첫 입력을 마친 기기의 상태: 패키지 안내를 보일 차례('pending')이고 아직 받지 않았다
+          await page.evaluate(() =>
+            window.localStorage.setItem('hobong.prefs', '{"packageGuide":"pending"}'),
+          );
+          await page.reload();
+          await tick(page, 2500);
+          await expect(page.getByRole('button', { name: '패키지 받기' })).toBeVisible();
+        } else {
+          await expect(page.getByRole('button', { name: '패키지 받기' })).toHaveCount(0);
+        }
+        const open = async () => {
+          const m = await page.evaluate(() => {
+            const doc = document.documentElement;
+            const r = (q: string) => document.querySelector(q)!.getBoundingClientRect();
+            const win = document.querySelector('#lifetime')!;
+            const inner = [...win.querySelectorAll<HTMLElement>('*')].filter(
+              (el) => !el.classList.contains('sr-only') && el.getClientRects().length > 0,
+            );
+            return {
+              over: doc.scrollWidth - doc.clientWidth,
+              career: { left: r('#career').left, bottom: r('#career').bottom },
+              life: {
+                left: r('#lifetime').left,
+                right: r('#lifetime').right,
+                top: r('#lifetime').top,
+              },
+              // 창 안의 글이 창 밖으로 삐져나오지 않는다
+              spill: Math.max(...inner.map((el) => el.getBoundingClientRect().right)),
+              winScroll: [win.scrollWidth, win.clientWidth],
+            };
+          });
+          expect(m.over, '가로 넘침').toBeLessThanOrEqual(0);
+          expect(m.life.left, '정년 창과 같은 열').toBe(m.career.left);
+          expect(m.life.top - m.career.bottom, '정년 창 바로 아래').toBeGreaterThan(0);
+          expect(m.life.top - m.career.bottom, '정년 창 바로 아래').toBeLessThanOrEqual(24);
+          expect(m.spill, '창 안의 글').toBeLessThanOrEqual(m.life.right + 1);
+          expect(m.winScroll[0], '창 안 가로 넘침').toBeLessThanOrEqual(m.winScroll[1] as number);
+        };
+        await open();
+        // 자세한 가정을 펼쳐도 넘치지 않고, 누를 수 있는 것은 44px 이상이다
+        await page.locator('#lifetime-how summary').click();
+        await open();
+        expect(await page.evaluate(smallTargets), '홈의 작은 터치 대상').toEqual([]);
+      });
+    }
+  }
+
+  test('360px: 꺼진 직종(정년 준비 중)과 금액 가리기에서도 생애 봉급 창이 넘치지 않는다', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 760 });
+    const over = () =>
+      page.evaluate(() => {
+        const win = document.querySelector('#lifetime')!;
+        return [
+          document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          win.scrollWidth - win.clientWidth,
+        ];
+      });
+    await openApp(page, {
+      seed: makeSeedV5({ track: 'militaryCivil', payTable: null, rank: null }),
+    });
+    await expect(page.locator('#lifetime-off')).toBeVisible();
+    expect(await over()).toEqual([0, 0]);
+    const seed = JSON.parse(makeSeedV5({ rank: '7', step: 14 }));
+    seed.data.settings.hideAmounts = true;
+    await openApp(page, { seed: JSON.stringify(seed) });
+    await expect(page.locator('#lifetime').getByRole('img', { name: '금액 가려짐' })).toHaveCount(
+      3,
+    );
+    expect(await over()).toEqual([0, 0]);
+  });
+  // 퇴직 예정 달(#30 묶음 2): 창 안에서 펼쳐지는 폼과 상태별 안내
+  const POLICE = {
+    track: 'police',
+    payTable: null,
+    rank: '경정',
+    birthDate: '1980-08-15',
+    hireDate: '2005-04-01',
+    rankDate: '2020-03-01',
+    step: 22,
+    nextStepDate: '2027-04-01',
+  };
+  for (const width of [360, 1280]) {
+    test(`${width}px: 퇴직 예정 달 폼과 계급정년 뒤 안내가 넘치지 않고, 누르는 곳은 44px 이상이다`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const fits = async (what: string) => {
+        const m = await page.evaluate(() => {
+          const doc = document.documentElement;
+          const win = document.querySelector('#lifetime')!;
+          const right = win.getBoundingClientRect().right;
+          const inner = [...win.querySelectorAll<HTMLElement>('*')].filter(
+            (el) => !el.classList.contains('sr-only') && el.getClientRects().length > 0,
+          );
+          return {
+            over: doc.scrollWidth - doc.clientWidth,
+            win: win.scrollWidth - win.clientWidth,
+            spill: Math.max(...inner.map((el) => el.getBoundingClientRect().right)) - right,
+          };
+        });
+        expect(m.over, `${what}: 가로 넘침`).toBeLessThanOrEqual(0);
+        expect(m.win, `${what}: 창 안 가로 넘침`).toBeLessThanOrEqual(0);
+        expect(m.spill, `${what}: 창 안의 글`).toBeLessThanOrEqual(1);
+        expect(await page.evaluate(smallTargets), `${what}: 작은 터치 대상`).toEqual([]);
+      };
+      // 가장 긴 안내: 계급정년 뒤를 정한 경정(경고문 + 규정 데이터의 설명)
+      await openApp(page, { seed: makeSeedV6(POLICE, { retireMonth: '2036-12' }) });
+      await expect(page.locator('#lifetime-beyond-note')).toBeVisible();
+      await fits('계급정년 뒤');
+      // 폼을 열고 오류까지
+      await page.locator('#lifetime-plan-open').click();
+      await page.getByLabel('퇴직 예정 달 연도').fill('2041');
+      await page.getByLabel('퇴직 예정 달 월').fill('1');
+      await expect(page.locator('#lifetime-plan-month-error')).toBeVisible();
+      await fits('폼과 오류');
+      // 금액 가리기 + 쓸 수 없는 정한 달(버튼 둘)
+      await openApp(page, { seed: makeSeedV6({}, { retireMonth: '2026-10', hideAmounts: true }) });
+      await expect(page.locator('#lifetime-plan-discard')).toBeVisible();
+      await fits('가리기 + 확인 부탁');
+      // 정년 '준비 중' + 폼
+      await openApp(page, {
+        seed: makeSeedV6({ track: 'militaryCivil', payTable: null, rank: null }),
+      });
+      await page.locator('#lifetime-plan-open').click();
+      await expect(page.locator('#lifetime-plan-form')).toBeVisible();
+      await fits('준비 중 직종의 폼');
+    });
+  }
+
+  test('360px, 화면 키보드가 올라온 높이: 폼을 열면 이름표·칸이, 틀리면 오류 글까지 보인다', async ({
+    page,
+  }) => {
+    // 화면 키보드가 올라오면 보이는 높이가 절반쯤 된다(360×760 기기에서 약 360)
+    await page.setViewportSize({ width: 360, height: 360 });
+    await openApp(page, { seed: makeSeedV6() });
+    const inView = (ids: string[]) =>
+      page.evaluate(
+        (list) =>
+          list.map((id) => {
+            const r = document.getElementById(id)!.getBoundingClientRect();
+            return r.top >= 0 && r.bottom <= window.innerHeight;
+          }),
+        ids,
+      );
+    await page.locator('#lifetime-plan-open').click();
+    await expect(page.getByLabel('퇴직 예정 달 연도')).toBeFocused();
+    expect(
+      await inView(['lifetime-plan-month-label', 'lifetime-plan-month', 'lifetime-plan-month-m']),
+    ).toEqual([true, true, true]);
+    // 빈 칸으로 [정하기](Enter): 오류 글이 칸과 함께 보인다
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#lifetime-plan-month-error')).toHaveText('연도와 달을 넣어 주세요.');
+    expect(
+      await inView([
+        'lifetime-plan-month-label',
+        'lifetime-plan-month',
+        'lifetime-plan-month-error',
+      ]),
+    ).toEqual([true, true, true]);
+    // 지난 달을 치면 바로 뜨는 오류도 보인다
+    await page.keyboard.type('2026');
+    await page.keyboard.type('10');
+    await expect(page.locator('#lifetime-plan-month-error')).toContainText('이번 달(2026년 11월)');
+    expect(await inView(['lifetime-plan-month', 'lifetime-plan-month-error'])).toEqual([
+      true,
+      true,
+    ]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBe(0);
+  });
 });
