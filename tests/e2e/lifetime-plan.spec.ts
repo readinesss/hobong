@@ -359,11 +359,13 @@ test.describe('퇴직 예정 달 정하기', () => {
       await page.getByLabel(`${LABEL} 월`).fill('');
       await year.focus();
       await page.evaluate((value) => {
+        // Firefox 는 ClipboardEvent 생성자의 clipboardData 를 받지 않는다(만든 이벤트의 clipboardData 가 빈다).
+        // 그래서 이벤트를 만든 뒤 그 객체에 직접 붙인다(세 엔진에서 같은 길).
         const data = new DataTransfer();
-        data.setData('text', value);
-        document.activeElement?.dispatchEvent(
-          new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
-        );
+        data.setData('text/plain', value);
+        const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'clipboardData', { value: data });
+        document.activeElement?.dispatchEvent(event);
       }, text);
       await expect(year, text).toHaveValue('2030');
       await expect(page.getByLabel(`${LABEL} 월`), text).toHaveValue('3');
