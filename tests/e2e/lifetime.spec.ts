@@ -76,8 +76,9 @@ test.describe('생애 봉급 창', () => {
     await expect(win.locator('#lifetime-raises')).toContainText('26번');
     await expect(win.locator('#lifetime-raises')).toContainText('2052년 1월에 최고호봉');
     await expect(win.locator('#lifetime-diligence')).toHaveText('59번');
-    await expect(win.locator('#lifetime-line')).toContainText(
-      '기간은 12% 지났는데 봉급은 8% 받았어요.',
+    // 말하는 이 이름표는 쌍점으로 문장과 나눈다
+    await expect(win.locator('#lifetime-line')).toHaveText(
+      '호봉이: 기간은 12% 지났는데 봉급은 8% 받았어요. 승급할수록 뒤쪽 달이 더 두둑해요.',
     );
 
     const notice = win.locator('#lifetime-notice');
@@ -85,10 +86,14 @@ test.describe('생애 봉급 창', () => {
     await expect(notice).toContainText('실제로 받는 돈이 아니에요');
     await expect(notice).toContainText('퇴직급여(연금·퇴직수당)');
     await expect(notice).toContainText('임용일부터 퇴직 때까지 지금 직급과 2026년 봉급표');
-    // 낭독 요약이 먼저 온다
+    // 낭독 요약은 창(영역)의 설명이다. 본문에서 첫 줄·금액을 두 번 읽지 않게 숨겨 둔다
     await expect(win.locator('#lifetime-summary')).toHaveText(
       '정년퇴직일(2056년 6월 30일)까지 다닌다면 봉급만 셈한 생애 봉급 추정 합계는 약 12억 3,576만 원이고, 지금까지 약 1억 1,076만 원, 8%를 벌었어요.',
     );
+    await expect(win).toHaveAttribute('aria-describedby', 'lifetime-summary');
+    await expect(win.locator('#lifetime-summary')).toBeHidden();
+    // 정년 기준이면 견줘 볼 줄이 없다
+    await expect(win.locator('#lifetime-compare')).toHaveCount(0);
     // 받는 돈 전체처럼 읽히는 이름을 쓰지 않는다
     await expect(win).not.toContainText(/소득|연봉|수입/);
     // 예전(v5) 저장본은 열 때 v6 으로 올라가고, 퇴직 예정 달은 없음(정년까지)이다
@@ -163,7 +168,9 @@ test.describe('생애 봉급 창', () => {
     await expect(how).toContainText('정년퇴직일 당일까지 봉급을 셌어요');
     await expect(how).toContainText('5년 이상 근속하고 그 달에 15일 이상 근무했는지에 따라');
     await expect(how).toContainText('월급날(25일)이 그대로라고 보고 셌어요');
-    await expect(how).toContainText('1월 1일·7월 1일에 재직 중인 것만 셌어요');
+    await expect(how).toContainText(
+      '1월 1일·7월 1일에 재직 중이고 그 앞 6개월 가운데 1개월 이상 봉급을 받은 것만 셌어요',
+    );
     await expect(how).toContainText('국가공무원법 제74조');
     // 근속가봉 금액이 원문에 없는 봉급표(별표 3)에는 근속가봉을 말하지 않는다
     await expect(how).not.toContainText('근속가봉');
@@ -265,7 +272,7 @@ test.describe('생애 봉급 창: 직종·상태별(E8·E9)', () => {
     await expect(win.locator('#lifetime-raises')).toContainText('없음');
     await expect(win.locator('#lifetime-raises')).toContainText('지금 최고호봉이에요');
     await expect(win.locator('#lifetime-line')).toContainText('지났는데 봉급은');
-    await expect(win.locator('#lifetime-line')).not.toContainText('호봉이 오를수록');
+    await expect(win.locator('#lifetime-line')).not.toContainText('승급할수록');
   });
 
   test('올해 임용: 번 돈이 1%가 안 되면 "1% 미만", 첫 월급날 전이면 그렇게 말한다', async ({
@@ -297,7 +304,9 @@ test.describe('생애 봉급 창: 직종·상태별(E8·E9)', () => {
       },
       '2026-11-27T10:30:00+09:00',
     );
-    await expect(late.locator('#lifetime-paydays')).toContainText('지금까지 0번');
+    // 받은 월급날이 없으면 '(지금까지 0번)' 대신 다가오는 첫 월급날(12월 25일이 공휴일이라 24일)
+    await expect(late.locator('#lifetime-paydays')).toContainText('첫 월급날 12월 24일');
+    await expect(late.locator('#lifetime-paydays')).not.toContainText('0번');
     await expect(late.locator('#lifetime-line')).toContainText('첫 월급날이 다가오고 있어요.');
   });
 

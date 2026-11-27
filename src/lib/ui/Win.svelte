@@ -13,9 +13,21 @@
     id?: string;
     area?: string;
     level?: 2 | 3;
+    /** 창(영역)의 설명으로 이을 요소 id. 낭독기가 창에 들어갈 때 한 번 읽는다(본문에서 되풀이하지 않게 숨긴 요약 등) */
+    describedby?: string;
   }
 
-  let { title, icon, aside, children, flush = false, id, area, level = 2 }: Props = $props();
+  let {
+    title,
+    icon,
+    aside,
+    children,
+    flush = false,
+    id,
+    area,
+    level = 2,
+    describedby,
+  }: Props = $props();
   const headingId = $derived(id ? `${id}-title` : undefined);
 </script>
 
@@ -23,6 +35,7 @@
   class="win"
   {id}
   aria-labelledby={headingId}
+  aria-describedby={describedby}
   style={area ? `grid-area:${area}` : undefined}
 >
   <header class="win-title">

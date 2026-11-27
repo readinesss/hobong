@@ -78,7 +78,12 @@
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       if (!app.data || document.documentElement.hasAttribute('data-modal')) return;
       const target = event.target;
-      if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      // 칸 안, 그리고 폼 안의 버튼 위에서도 숫자는 화면을 바꾸지 않는다: 칸을 건너 버튼에 닿은 채 이어 친 숫자가
+      // 폼과 친 값을 버리고 다른 화면으로 넘기지 않게
+      if (
+        target instanceof HTMLElement &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.closest('form'))
+      )
         return;
       const index = Number(event.key) - 1;
       const tab = TABS[index];

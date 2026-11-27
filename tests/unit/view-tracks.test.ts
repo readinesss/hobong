@@ -578,6 +578,11 @@ describe('퇴직 예정 달(#30 묶음 2, 저장 형식 v6)', () => {
     expect(view.lifeNewYears).toBe(4);
     // 한마디의 기간 %는 정한 달까지로 센다(정년 창의 37% 와 다른 수)
     expect(Math.floor((view.lifeTimeRatio ?? 0) * 100)).toBe(80);
+    // 견줘 보일 정년 기준 합계는 정한 달이 없을 때의 lifetime.total 과 같다
+    const withPlanTotal = view.lifeRetirementTotal;
+    app.data = seed(p7);
+    expect(view.lifeRetirementTotal).toBeNull();
+    expect(withPlanTotal).toBe(view.lifetime?.total);
   });
 
   it('정한 달은 이 창에서만 쓴다: 정년 D-day·재직 진행률·연가·보너스·일정·누적 봉급은 그대로다', () => {
@@ -597,6 +602,7 @@ describe('퇴직 예정 달(#30 묶음 2, 저장 형식 v6)', () => {
         'lifeNewYears',
         'lifePaydayHolidaysKnown',
         'lifePaydays',
+        'lifeRetirementTotal',
         'lifeTimeRatio',
         'lifetime',
       ].sort(),
@@ -775,21 +781,23 @@ describe('퇴직 예정 달 저장(app.setRetirePlan)', () => {
     app.data = seed({});
     const changes = () => app.data?.meta.changesSinceBackup ?? -1;
     expect(app.data.plan).toEqual({ retireMonth: null });
-    expect(app.setRetirePlan('2030-03')).toBe(true);
+    // 이 검사에는 저장소가 없어(app.init 을 부르지 않았다) 바꾸기만 하고 'unsaved'를 돌려준다.
+    // 저장소에 쓴 경우('saved')와 쓰지 못한 경우의 화면은 e2e(lifetime-plan.spec)가 본다
+    expect(app.setRetirePlan('2030-03')).toBe('unsaved');
     expect(app.data.plan.retireMonth).toBe('2030-03');
     // 사용자가 바꾼 것이므로 '마지막 패키지 이후 변경'으로 센다
     expect(changes()).toBe(1);
-    expect(app.setRetirePlan('2031-06')).toBe(true);
+    expect(app.setRetirePlan('2031-06')).toBe('unsaved');
     expect(app.data.plan.retireMonth).toBe('2031-06');
     expect(changes()).toBe(2);
     // 같은 값이면 아무것도 바꾸지 않는다
-    expect(app.setRetirePlan('2031-06')).toBe(true);
+    expect(app.setRetirePlan('2031-06')).toBe('saved');
     expect(changes()).toBe(2);
     for (const bad of ['2030-3', '2030-13', '2030-03-15', '', '2151-01'])
       expect(app.setRetirePlan(bad), bad).toBe(false);
     expect(app.data.plan.retireMonth).toBe('2031-06');
     expect(changes()).toBe(2);
-    expect(app.setRetirePlan(null)).toBe(true);
+    expect(app.setRetirePlan(null)).toBe('unsaved');
     expect(app.data.plan).toEqual({ retireMonth: null });
     expect(changes()).toBe(3);
   });

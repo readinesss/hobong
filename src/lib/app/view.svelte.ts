@@ -386,6 +386,15 @@ class View {
       ? lifetimeSalary(rulesFor, this.profile, this.lifeAsOf, this.lifeEnd.date)
       : null,
   );
+  /**
+   * 정한 달 기준으로 셈할 때, 견줘 보일 정년퇴직일까지의 생애 봉급(추정) 합계. 정년 기준이거나 정년을 계산하지 못하면 null.
+   * 끝나는 날만 다르고 셈은 lifetime 과 같다.
+   */
+  lifeRetirementTotal = $derived(
+    this.lifeEnd.basis === 'plan' && this.retireDate !== null && this.retireDate >= this.today
+      ? (lifetimeSalary(rulesFor, this.profile, this.today, this.retireDate)?.total ?? null)
+      : null,
+  );
   /** 받은·남은 월급날 횟수(날짜만으로 센다 — 봉급이 꺼진 직종도 나온다). 끝나는 날이 없으면 null */
   lifePaydays = $derived(
     this.lifeEnd.date === null

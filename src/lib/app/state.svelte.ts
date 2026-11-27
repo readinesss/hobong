@@ -340,13 +340,14 @@ class AppStore {
   /**
    * 데이터를 바꾸고 저장한다.
    * count가 true면 "마지막 백업 이후 변경"으로 센다(방문 기록 같은 자동 변경은 세지 않는다).
+   * 저장소에 썼으면 true(쓰지 못해도 이 탭의 데이터는 바뀐다 — 화면 위 안내가 알린다).
    */
-  commit(mutate: (data: UserData) => void, count = true): void {
-    if (!this.data) return;
+  commit(mutate: (data: UserData) => void, count = true): boolean {
+    if (!this.data) return false;
     mutate(this.data);
     this.data.meta.updatedAt = new Date().toISOString();
     if (count) this.data.meta.changesSinceBackup += 1;
-    this.#persist();
+    return this.#persist();
   }
 
   // ── 방문 ─────────────────────────────────────────────────────────────
@@ -655,15 +656,17 @@ class AppStore {
    * 퇴직 예정 달('YYYY-MM')을 정하거나 지운다(null = 정년까지). '생애 봉급' 창에서만 쓰는 값이다.
    * 고를 수 있는 달인지(이번 달 ~ 연령정년 퇴직일의 달)는 폼이 본다(checkRetirePlan). 여기서는 형식이
    * 틀린 값만 막는다(false) — 저장한 값이 다음에 열 때 검사에 걸려 저장 자체가 실패하지 않게.
-   * 저장소에 쓰지 못한 경우는 다른 변경과 같이 화면 위 안내(saveFailed)가 알린다.
+   * 'saved': 바꾸고 저장했다(같은 값이면 아무것도 하지 않고 'saved'). 'unsaved': 이 탭에서는 바꿨지만 저장소에
+   * 쓰지 못했다(꽉 참·더 새 버전의 저장본 등). 창은 정했다고만 말하지 않고, 화면 위 안내(saveFailed)도 함께 알린다.
    */
-  setRetirePlan(month: string | null): boolean {
+  setRetirePlan(month: string | null): 'saved' | 'unsaved' | false {
     if (!this.data || !isRetireMonthOrNull(month)) return false;
-    if (this.data.plan.retireMonth === month) return true;
-    this.commit((d) => {
+    // 같은 값이면 바꾸지 않는다. 앞서 저장하지 못한 채라면 그대로 'unsaved'
+    if (this.data.plan.retireMonth === month) return this.saveFailed ? 'unsaved' : 'saved';
+    const saved = this.commit((d) => {
       d.plan.retireMonth = month;
     });
-    return true;
+    return saved ? 'saved' : 'unsaved';
   }
 
   // ── 설정·업적 ────────────────────────────────────────────────────────

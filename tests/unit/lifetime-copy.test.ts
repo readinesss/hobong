@@ -9,7 +9,12 @@ import {
   PLAN_OFFER,
   PLAN_RANK_LIMIT_OFFER,
   PLAN_STORAGE_NOTE,
+  PLAN_MONTH_ONLY,
   PLAN_WHY_MONTH,
+  LIFETIME_SPEAKER,
+  maskedUnhideNote,
+  planReference,
+  planUnsavedAnnouncement,
   assumptions,
   beyondRankLimitNote,
   checkRetirePlan,
@@ -45,7 +50,7 @@ const baseHow: AssumptionInput = {
   retired: false,
   newYears: 22,
   payday: 25,
-  diligenceMonths: [1, 7],
+  diligence: { payMonths: [1, 7], periodMonths: 6, minMonthsToQualify: 1 },
   holidayBonus: true,
   longServiceAddOn: false,
   retireBasis: '국가공무원법 제74조제1항·제4항',
@@ -150,6 +155,29 @@ describe('횟수 줄', () => {
       '1,000번',
     );
   });
+  it('첫 월급 전(신규 임용): 지금까지 0번 대신 다가오는 첫 월급날', () => {
+    const first = { date: '2026-11-25', today: '2026-11-10' };
+    expect(paydayLine({ received: 0, left: 404, todayCounted: false }, false, first)).toEqual({
+      label: '남은 월급날',
+      value: '404번',
+      aside: '첫 월급날 11월 25일',
+    });
+    // 해가 바뀌면 연도를 붙인다
+    expect(
+      paydayLine({ received: 0, left: 404, todayCounted: false }, false, {
+        date: '2027-01-25',
+        today: '2026-12-28',
+      }).aside,
+    ).toBe('첫 월급날 2027년 1월 25일');
+    // 날을 모르면 예전처럼 횟수로
+    expect(paydayLine({ received: 0, left: 404, todayCounted: false }, false).aside).toBe(
+      '지금까지 0번',
+    );
+    // 이미 받았으면 첫 월급날을 말하지 않는다
+    expect(paydayLine({ received: 3, left: 400, todayCounted: false }, false, first).aside).toBe(
+      '지금까지 3번',
+    );
+  });
   it('정기승급: 최고호봉 도달 달 / 퇴직 때 호봉 / 지금 최고호봉 / 퇴직 전 승급 없음', () => {
     const base = { stepNow: 14, stepAtEnd: 31, maxStep: 31 };
     expect(raiseLine({ ...base, raisesLeft: 17, maxStepDate: '2043-07-01' })).toEqual({
@@ -191,8 +219,28 @@ describe('호봉이의 한마디', () => {
       '첫 월급날이 다가오고 있어요.',
     );
     expect(hobongLine(base)).toBe(
-      '기간은 37% 지났는데 봉급은 29% 받았어요. 호봉이 오를수록 뒤쪽 달이 더 두둑해요.',
+      '기간은 37% 지났는데 봉급은 29% 받았어요. 승급할수록 뒤쪽 달이 더 두둑해요.',
     );
+    expect(hobongLine({ ...base, basis: 'plan' })).toBe(
+      '퇴직 예정 달까지 기간은 37% 지났는데 봉급은 29% 받았어요. 승급할수록 뒤쪽 달이 더 두둑해요.',
+    );
+  });
+  it('이름표(호봉이:)와 이어 읽어도 다른 뜻이 되지 않는다', () => {
+    expect(LIFETIME_SPEAKER).toBe('호봉이:');
+    const lines = [
+      hobongLine(base),
+      hobongLine({ ...base, basis: 'plan' }),
+      hobongLine({ ...base, retired: true }),
+      hobongLine({ ...base, paydays: { received: 400, left: 3 } }),
+      hobongLine({ ...base, paydays: { received: 0, left: 415 } }),
+      hobongLine({ ...base, timePercent: 95, moneyPercent: p(92), raisesLeft: 0 }),
+    ];
+    for (const line of lines) {
+      expect(line).not.toBeNull();
+      // '호봉이 정한 달…'(호봉이가 정한), '호봉이 오를수록'(호봉+이)처럼 읽히지 않게
+      expect(`호봉이 ${line}`, line ?? '').not.toMatch(/^호봉이 (정한|호봉)/);
+      expect(line).not.toContain('호봉이');
+    }
   });
   it('더 오를 호봉이 없으면 사실만 말한다', () => {
     expect(hobongLine({ ...base, timePercent: 95, moneyPercent: p(92), raisesLeft: 0 })).toBe(
@@ -246,8 +294,13 @@ describe('자세한 가정', () => {
     expect(textOf(baseHow, '퇴직하는 달')).toContain('정년퇴직일 당일까지 봉급을 셌어요.');
     expect(textOf(baseHow, '퇴직하는 달')).toContain('공무원보수규정 제22조·제24조');
     expect(textOf(baseHow, '월급날 횟수')).toContain('월급날(25일)이 그대로라고 보고 셌어요.');
+    // 당겨진 월급날 때문에 남은 횟수가 하나 줄 수 있다(1~3일 지급): '횟수는 같다'고 말하지 않는다
+    expect(textOf(baseHow, '월급날 횟수')).toContain(
+      '주말·공휴일이면 당겨진 날로 셌어요. 다음 달 월급날이 이번 달로 당겨져 그날이 지났으면 받은 쪽에 들어가요.',
+    );
+    expect(textOf(baseHow, '월급날 횟수')).not.toContain('횟수는 같아요');
     expect(textOf(baseHow, '정근수당 횟수')).toBe(
-      '1월 1일·7월 1일에 재직 중인 것만 셌어요(공무원수당 등에 관한 규정 제7조). 징계·휴직으로 받지 못하는 경우는 넣지 않았어요.',
+      '1월 1일·7월 1일에 재직 중이고 그 앞 6개월 가운데 1개월 이상 봉급을 받은 것만 셌어요(공무원수당 등에 관한 규정 제7조제1항). 징계·휴직으로 받지 못하는 경우는 넣지 않았어요.',
     );
     expect(textOf(baseHow, '근거')).toBe(
       '공무원보수규정 제13조(정기승급)·제20조(보수 지급일)·제22조(보수 계산)·제24조, 공무원수당 등에 관한 규정 제7조, 국가공무원법 제74조제1항·제4항.',
@@ -286,7 +339,7 @@ describe('자세한 가정', () => {
     ).not.toContain('근속가봉');
   });
   it('정년퇴직일이 지났으면 앞날에 관한 말을 뺀다', () => {
-    const done = { ...baseHow, retired: true, newYears: 0, diligenceMonths: null };
+    const done = { ...baseHow, retired: true, newYears: 0, diligence: null };
     expect(textOf(done, '월급날 횟수')).toBe(
       '월급날(25일)이 그대로라고 보고 셌어요. 임용한 달은 임용일이 그 달 월급날보다 뒤면 세지 않았어요. 지난 해의 공휴일은 반영하지 못해 임용한 달은 한 번 다를 수 있어요.',
     );
@@ -296,7 +349,7 @@ describe('자세한 가정', () => {
     const off = {
       ...baseHow,
       lifetime: null,
-      diligenceMonths: null,
+      diligence: null,
       holidayBonus: false,
       retireBasis: '',
     };
@@ -458,6 +511,22 @@ describe('퇴직 예정 달: 안내 문구', () => {
       expect(text).not.toMatch(/지났|뒤예요|앞이에요/);
     }
     expect(LIFETIME_MASKED_ISSUE).toBe('정해 둔 퇴직 예정 달을 확인해 주세요.');
+    // 다시 보는 길: 단추가 실제로 있는 곳만 말한다
+    expect(maskedUnhideNote(true)).toBe(
+      "다시 보려면 '오늘' 창이나 설정의 '화면'에서 금액 가리기를 꺼 주세요.",
+    );
+    expect(maskedUnhideNote(false)).not.toContain('오늘');
+  });
+  it('저장하지 못했을 때는 정했다고만 말하지 않는다', () => {
+    expect(planUnsavedAnnouncement('2032-07', { masked: false })).toBe(
+      '퇴직 예정 달을 2032년 7월로 바꿨지만 이 브라우저에 저장하지 못했어요. 새로 고치면 예전대로 돌아가요.',
+    );
+    expect(planUnsavedAnnouncement('2032-07', { masked: true })).not.toMatch(/\d/);
+    expect(planUnsavedAnnouncement(null, { masked: false })).toContain('저장하지 못했어요');
+  });
+  it('폼의 기준 날 안내(빈 칸에 보기 값을 넣지 않고 글로 알린다)', () => {
+    expect(planReference('2056-06-30', false)).toBe('정년퇴직일은 2056년 6월 30일이에요.');
+    expect(planReference('2040-12-31', true)).toBe('연령정년 퇴직일은 2040년 12월 31일이에요.');
   });
   it('계급정년 뒤를 정했을 때: 사실만 말하고 근무 조건을 단정하지 않는다', () => {
     const text = beyondRankLimitNote('2034-06-30', '계급', true);
@@ -477,6 +546,7 @@ describe('퇴직 예정 달: 안내 문구', () => {
     );
   });
   it('폼 아래 안내: 달로 받는 까닭(조문)과 패키지에 그대로 실린다는 것(암호를 걸면 가려진다)', () => {
+    expect(PLAN_MONTH_ONLY).toBe('날짜가 아니라 달로 받아요.');
     expect(PLAN_WHY_MONTH).toContain('날짜가 아니라 달');
     expect(PLAN_WHY_MONTH).toContain('공무원보수규정 제22조·제24조');
     expect(PLAN_STORAGE_NOTE).toContain('임용정보 패키지');
@@ -510,6 +580,10 @@ describe('말투', () => {
       PLAN_RANK_LIMIT_OFFER,
       PLAN_STORAGE_NOTE,
       PLAN_WHY_MONTH,
+      PLAN_MONTH_ONLY,
+      maskedUnhideNote(true),
+      planReference('2056-06-30', false),
+      planUnsavedAnnouncement('2030-03', { masked: false }),
       planScopeNote(true),
       planPreview('2030-03'),
       planAnnouncement('2030-03', { masked: false, hasRetirement: true }),

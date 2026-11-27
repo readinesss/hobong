@@ -93,21 +93,29 @@ test.describe('퇴직 예정 달 정하기', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const year = page.getByLabel(`${LABEL} 연도`);
     await expect(year).toBeFocused();
-    // 자리 표시는 정년퇴직일의 연·월(값이 아니다)
+    // 빈 칸의 자리 표시는 낱말뿐이다(정년 연·월을 흐리게 넣으면 친 값처럼 보인다). 기준 날은 글로 알린다
     await expect(year).toHaveValue('');
-    await expect(year).toHaveAttribute('placeholder', '2056');
-    await expect(page.getByLabel(`${LABEL} 월`)).toHaveAttribute('placeholder', '6');
+    await expect(year).toHaveAttribute('placeholder', '연도');
+    await expect(page.getByLabel(`${LABEL} 월`)).toHaveAttribute('placeholder', '월');
+    await expect(win.locator('#lifetime-plan-reference')).toHaveText(
+      '정년퇴직일은 2056년 6월 30일이에요.',
+    );
+    expect(await year.getAttribute('aria-describedby')).toContain('lifetime-plan-reference');
     // 날짜가 아니라 달로 받는 까닭, 이 창에서만 쓴다는 것, 임용정보 패키지에 그대로 실린다는 것
     const form = win.locator('#lifetime-plan-form');
     await expect(form).toContainText('날짜가 아니라 달로 받아요');
-    await expect(form).toContainText('공무원보수규정 제22조·제24조');
+    // 까닭(조문)은 '왜 달로 받나요' 펼침 안에 접어 둔다
+    const why = form.locator('#lifetime-plan-why');
+    await expect(why).not.toHaveAttribute('open', '');
+    await why.locator('summary').click();
+    await expect(why).toContainText('공무원보수규정 제22조·제24조');
     await expect(form).toContainText('정한 달은 이 창의 셈에만 써요');
     await expect(form.locator('#lifetime-plan-storage')).toHaveText(
       '정한 달은 이 브라우저에 저장되고, 임용정보 패키지를 내려받으면 그 파일에도 그대로 실려요(패키지에 암호를 걸면 가려져요). 카드에는 들어가지 않아요.',
     );
     await expect(form).not.toContainText('백업');
     // 정한 달이 없으면 되돌리기 버튼은 없다
-    await expect(form.getByRole('button')).toHaveText(['정하기', '닫기']);
+    await expect(form.getByRole('button')).toHaveText(['그 달로 채우기', '정하기', '닫기']);
 
     await year.fill('2030');
     // 연도 네 자리를 치면 월 칸으로 넘어간다
@@ -133,6 +141,13 @@ test.describe('퇴직 예정 달 정하기', () => {
     await expect(win.locator('#lifetime-raises')).toContainText('퇴직 때 9호봉');
     await expect(win.locator('#lifetime-diligence')).toHaveText('8번');
     await expect(win.locator('#lifetime-summary')).toContainText('2030년 12월까지 다닌다면');
+    // 요약은 창(영역)의 설명으로만 읽는다(본문과 두 번 듣지 않게 숨겨 둔다)
+    await expect(win).toHaveAttribute('aria-describedby', 'lifetime-summary');
+    await expect(win.locator('#lifetime-summary')).toBeHidden();
+    // 정년 기준 합계를 사실만 견줘 보인다
+    await expect(win.locator('#lifetime-compare')).toHaveText(
+      '정년퇴직일(2056년 6월 30일)까지 다닌다면 약 12억 3,576만 원이에요.',
+    );
     // 알리는 말과 포커스: 연 버튼(이제 '고치기')으로 돌아간다
     await expect(win.locator('#lifetime-live')).toHaveText(
       '퇴직 예정 달을 2030년 12월로 정했어요.',
@@ -186,8 +201,10 @@ test.describe('퇴직 예정 달 정하기', () => {
     await expect(win.locator('#lifetime-live')).toHaveText('연도와 달을 넣어 주세요.');
     await expect(year).toBeFocused();
     await expect(year).toHaveAttribute('aria-invalid', 'true');
-    // 오류는 연도 칸의 설명으로 이어진다
+    // 오류는 연도 칸의 설명으로, 월 칸에도 이어진다(월 칸에서도 까닭을 듣게)
     expect(await year.getAttribute('aria-describedby')).toContain('lifetime-plan-month-error');
+    await expect(month).toHaveAttribute('aria-invalid', 'true');
+    await expect(month).toHaveAttribute('aria-describedby', 'lifetime-plan-month-error');
 
     // 없는 달(13월)·세 자리 연도
     await fillMonth(page, LABEL, '2030', '13');
@@ -197,9 +214,10 @@ test.describe('퇴직 예정 달 정하기', () => {
     await submit.click();
     await expect(error).toHaveText('연도와 달을 넣어 주세요.');
 
-    // 지난 달: 다 친 순간 바로 알린다
+    // 지난 달: 다 친 순간 바로 알린다. [정하기]로 냈던 지난 오류 알림은 칸을 고치면 지운다
     await fillMonth(page, LABEL, '2026', '10');
     await expect(error).toHaveText('이번 달(2026년 11월)부터 고를 수 있어요.');
+    await expect(win.locator('#lifetime-live')).toHaveText('');
     await expect(win.locator('#lifetime-plan-preview')).toHaveText(
       '그 달 말일까지 다니는 것으로 셈해요.',
     );
@@ -317,9 +335,10 @@ test.describe('퇴직 예정 달 정하기', () => {
     await expect(win.locator('#lifetime-head')).toContainText('2031년 6월까지 다닌다면');
     await expect(open).toBeFocused();
     await expect(open).toHaveText('퇴직 예정 달 고치기');
-    // 되돌리기: 열고 → 월 칸에서 Tab 두 번(정하기 → 정년까지로 되돌리기) → Enter
+    // 되돌리기: 열고 → 연도 칸에서 Tab 네 번(월 → 그 달로 채우기 → 정하기 → 정년까지로 되돌리기) → Enter
     await page.keyboard.press('Enter');
     await expect(page.getByLabel(`${LABEL} 연도`)).toBeFocused();
+    await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
@@ -350,6 +369,81 @@ test.describe('퇴직 예정 달 정하기', () => {
       await expect(page.getByLabel(`${LABEL} 월`), text).toHaveValue('3');
       await expect(win.locator('#lifetime-plan-preview'), text).toContainText('2030년 3월 31일');
     }
+  });
+
+  test('연도를 치고 습관처럼 Tab 을 눌러도 월 칸에 남고, 폼 안에서 친 숫자는 화면을 바꾸지 않는다', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
+    const win = await openSeed(page);
+    await win.locator('#lifetime-plan-open').click();
+    const month = page.getByLabel(`${LABEL} 월`);
+    await page.keyboard.type('2030');
+    await expect(month).toBeFocused();
+    // 저절로 넘어온 직후의 Tab 한 번은 '이미 넘어왔음'으로 본다
+    await page.keyboard.press('Tab');
+    await expect(month).toBeFocused();
+    await page.keyboard.type('3');
+    await expect(month).toHaveValue('3');
+    // 그다음 Tab 은 평소대로 다음 버튼으로 간다. 폼 안의 버튼 위에서 친 숫자도 화면을 바꾸지 않는다
+    await page.keyboard.press('Tab');
+    await expect(win.locator('#lifetime-plan-fill')).toBeFocused();
+    await page.keyboard.type('3');
+    await expect(win.locator('#lifetime-plan-form')).toBeVisible();
+    await expect(page.getByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page');
+    await expect(win.locator('#lifetime-plan-preview')).toContainText('2030년 3월 31일');
+    // Shift+Tab 은 막지 않는다
+    await month.focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByLabel(`${LABEL} 연도`)).toBeFocused();
+    // 폼 밖에서는 숫자 단축키가 그대로다
+    await page.keyboard.press('Escape');
+    await expect(win.locator('#lifetime-plan-open')).toBeFocused();
+    await page.keyboard.type('2');
+    await expect(page.getByRole('link', { name: '연가' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('경정: [그 달로 채우기]가 연령정년 퇴직일의 달을 채운다', async ({ page }) => {
+    const win = await openSeed(page, POLICE);
+    // 첫 줄 아래 안내가 가리키는 날(연령정년 퇴직일)과 폼의 기준 날이 같다
+    await expect(win.locator('#lifetime-rank-limit')).toContainText('2040년 12월 31일');
+    await win.locator('#lifetime-plan-open').click();
+    await expect(win.locator('#lifetime-plan-reference')).toHaveText(
+      '연령정년 퇴직일은 2040년 12월 31일이에요.',
+    );
+    await win.getByRole('button', { name: '그 달로 채우기' }).click();
+    await expect(page.getByLabel(`${LABEL} 연도`)).toHaveValue('2040');
+    await expect(page.getByLabel(`${LABEL} 월`)).toHaveValue('12');
+    await expect(win.locator('#lifetime-plan-preview')).toHaveText(
+      '그 달 말일(2040년 12월 31일)까지 다니는 것으로 셈해요.',
+    );
+    await win.locator('#lifetime-plan-submit').click();
+    await tick(page, 300);
+    expect(await planOf(page)).toBe('2040-12');
+    await expect(win.locator('#lifetime-head')).toContainText('2040년 12월까지 다닌다면');
+    // 정년(여기서는 계급정년) 기준 합계를 견줘 보인다
+    await expect(win.locator('#lifetime-compare')).toContainText(
+      '계급정년 퇴직일(2034년 6월 30일)까지 다닌다면 약 16억 5,620만 원이에요.',
+    );
+  });
+
+  test('저장소에 쓰지 못하면 정했다고만 말하지 않는다(화면 위 안내도 함께)', async ({ page }) => {
+    const win = await openSeed(page, {}, { retireMonth: '2030-03' });
+    // 이 탭의 저장소가 꽉 찬 것처럼: 데이터 키에 쓰면 실패한다
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'hobong.data') throw new DOMException('full', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+    });
+    await setPlan(page, '2032', '7');
+    await expect(win.locator('#lifetime-live')).toHaveText(
+      '퇴직 예정 달을 2032년 7월로 바꿨지만 이 브라우저에 저장하지 못했어요. 새로 고치면 예전대로 돌아가요.',
+    );
+    await expect(page.getByRole('alert').filter({ hasText: '저장하지 못했어요' })).toBeVisible();
+    expect(await planOf(page)).toBe('2030-03');
   });
 });
 
@@ -391,7 +485,9 @@ test.describe('쓸 수 없게 된 정한 달', () => {
     await expect(win.locator('#lifetime-plan-month-error')).toContainText('2056년 6월까지만');
   });
 
-  test('정년퇴직일이 지난 사람은 정한 달이 남아 있어도 화면에 나오지 않는다', async ({ page }) => {
+  test('정년퇴직일이 지난 사람: 남은 정한 달은 셈에 쓰지 않고 달도 말하지 않지만, 지울 수 있다', async ({
+    page,
+  }) => {
     const win = await openSeed(
       page,
       {
@@ -407,9 +503,20 @@ test.describe('쓸 수 없게 된 정한 달', () => {
     await expect(win.locator('#lifetime-head')).toHaveText('정년퇴직일(2026년 6월 30일)까지');
     await expect(win.locator('#lifetime-masked')).toHaveCount(0);
     await expect(win.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
-    await expect(win).not.toContainText(/2027|퇴직 예정 달|정한 달/);
-    await expect(win.getByRole('button')).toHaveCount(0);
+    await expect(win.locator('#lifetime-plan-tag')).toHaveCount(0);
+    await expect(win).not.toContainText('2027');
+    expect(await win.evaluate((el) => el.innerHTML)).not.toMatch(/2027/);
+    // 임용정보 패키지에는 실리므로 지울 길을 둔다(폼을 여는 버튼은 없다)
+    const leftover = win.locator('#lifetime-plan-leftover');
+    await expect(leftover).toContainText('정해 둔 퇴직 예정 달이 남아 있어요.');
+    await expect(win.getByRole('button')).toHaveText(['정한 달 지우기']);
     expect(await planOf(page)).toBe('2027-03');
+    await win.getByRole('button', { name: '정한 달 지우기' }).click();
+    await tick(page, 300);
+    expect(await planOf(page)).toBeNull();
+    await expect(leftover).toHaveCount(0);
+    await expect(win.getByRole('button')).toHaveCount(0);
+    await expect(win.locator('#lifetime-live')).toHaveText('정한 달을 지웠어요.');
   });
 });
 
@@ -419,8 +526,9 @@ test.describe('정한 달과 금액 가리기', () => {
   }) => {
     const errors = collectErrors(page);
     const win = await openSeed(page, {}, { retireMonth: '2030-12', hideAmounts: true });
+    // 다시 보는 길도 알린다
     await expect(win.locator('#lifetime-masked')).toHaveText(
-      '금액 가리기 중이라 퇴직 예정 달과 그에 따른 숫자를 가렸어요.',
+      "금액 가리기 중이라 퇴직 예정 달과 그에 따른 숫자를 가렸어요. 다시 보려면 '오늘' 창이나 설정의 '화면'에서 금액 가리기를 꺼 주세요.",
     );
     expect(await bodyText(page)).not.toMatch(/\d/);
     await expect(win.getByRole('progressbar')).toHaveCount(0);
@@ -446,8 +554,11 @@ test.describe('정한 달과 금액 가리기', () => {
     const month = page.getByLabel(`${LABEL} 월`);
     await expect(year).toHaveValue('');
     await expect(month).toHaveValue('');
-    // 자리 표시는 정년퇴직일의 연·월이라 정한 달을 드러내지 않는다
-    await expect(year).toHaveAttribute('placeholder', '2056');
+    // 자리 표시는 낱말이고, 기준 날은 정년퇴직일이라 정한 달을 드러내지 않는다
+    await expect(year).toHaveAttribute('placeholder', '연도');
+    await expect(win.locator('#lifetime-plan-reference')).toHaveText(
+      '정년퇴직일은 2056년 6월 30일이에요.',
+    );
     await expect(win.locator('#lifetime-plan-preview')).toHaveText(
       '그 달 말일까지 다니는 것으로 셈해요.',
     );
@@ -529,7 +640,7 @@ test.describe('정한 달과 금액 가리기', () => {
   }) => {
     const win = await openSeed(page, {}, { retireMonth: '2026-10', hideAmounts: true });
     await expect(win.locator('#lifetime-masked')).toHaveText(
-      '금액 가리기 중이라 퇴직 예정 달과 그에 따른 숫자를 가렸어요. 정해 둔 퇴직 예정 달을 확인해 주세요.',
+      "금액 가리기 중이라 퇴직 예정 달과 그에 따른 숫자를 가렸어요. 정해 둔 퇴직 예정 달을 확인해 주세요. 다시 보려면 '오늘' 창이나 설정의 '화면'에서 금액 가리기를 꺼 주세요.",
     );
     await expect(win.getByRole('button')).toHaveText(['퇴직 예정 달 고치기', '정한 달 지우기']);
     const text = await bodyText(page);
@@ -611,7 +722,10 @@ test.describe('정한 달: 직종·상태별(E8)', () => {
     const win = await openSeed(page, { ...POLICE, rank: null });
     await expect(win.locator('#lifetime-off')).toContainText('계급을 골라 주세요.');
     await win.getByRole('button', { name: '퇴직 예정 달 정하기' }).click();
-    await expect(page.getByLabel(`${LABEL} 연도`)).toHaveAttribute('placeholder', '2040');
+    await expect(page.getByLabel(`${LABEL} 연도`)).toHaveAttribute('placeholder', '연도');
+    await expect(win.locator('#lifetime-plan-reference')).toHaveText(
+      '연령정년 퇴직일은 2040년 12월 31일이에요.',
+    );
     await fillMonth(page, LABEL, '2041', '1');
     await expect(win.locator('#lifetime-plan-month-error')).toHaveText(
       '연령정년 퇴직일이 2040년 12월 31일이라 2040년 12월까지만 고를 수 있어요.',
@@ -640,6 +754,8 @@ test.describe('정한 달: 직종·상태별(E8)', () => {
     await win.getByRole('button', { name: '퇴직 예정 달 정하기' }).click();
     // 정년을 모르면 자리 표시는 낱말이고, 이 창 밖의 정년을 말하지 않는다
     await expect(page.getByLabel(`${LABEL} 연도`)).toHaveAttribute('placeholder', '연도');
+    await expect(win.locator('#lifetime-plan-reference')).toHaveCount(0);
+    await expect(win.locator('#lifetime-plan-fill')).toHaveCount(0);
     await expect(win.locator('#lifetime-plan-form')).toContainText(
       '정한 달은 이 창의 셈에만 써요.',
     );

@@ -21,33 +21,41 @@
     LIFETIME_MASKED,
     LIFETIME_MASKED_ISSUE,
     LIFETIME_REMAINING_LABEL,
+    LIFETIME_SPEAKER,
     LIFETIME_TITLE,
     LIFETIME_TOTAL_LABEL,
     PAYDAY_HOLIDAY_GAP,
     PLAN_CLOSE,
     PLAN_DISCARD,
     PLAN_EDIT,
+    PLAN_FILL,
     PLAN_LABEL,
+    PLAN_MONTH_ONLY,
     PLAN_OFFER,
     PLAN_OPEN,
     PLAN_RANK_LIMIT_OFFER,
     PLAN_STORAGE_NOTE,
     PLAN_SUBMIT,
+    PLAN_RETIRED_LEFTOVER,
     PLAN_TAG,
     PLAN_WHY_MONTH,
+    PLAN_WHY_SUMMARY,
     assumptions,
     beyondRankLimitNote,
     checkRetirePlan,
     headline,
     hobongLine,
+    maskedUnhideNote,
     notice,
     paydayLine,
     pendingTableNote,
     planAnnouncement,
     planIssueNote,
     planPreview,
+    planReference,
     planResetLabel,
     planScopeNote,
+    planUnsavedAnnouncement,
     raiseLine,
     rankLimitNote,
     sameMonthNote,
@@ -138,6 +146,8 @@
   let announce = $state('');
   /** 그 말에 정한 달이 들어 있는지("…2030년 3월로 정했어요") */
   let announceNamesMonth = $state(false);
+  /** 그 말이 [정하기]로 낸 오류인지(칸을 고치면 지운다 — 고친 뒤에도 지난 오류가 낭독 영역에 남지 않게) */
+  let announceIsError = false;
   /**
    * 화면에 두는 알림 글. 달을 말한 알림이 남아 있는 채로 금액 가리기를 켜면 그 글을 비운다 —
    * 가린 뒤에는 보이지 않는 글(낭독 영역)에도 정한 달이 남지 않게.
@@ -158,12 +168,37 @@
         : null
       : checkRetirePlan(draft, planCheck),
   );
-  /** 자리 표시: 정년퇴직일의 연·월(정한 달이 아니다). 정년을 모르면 낱말만 */
-  const placeholderDate = $derived(view.retireDate ?? view.lifeAgeRetireDate);
+  // 칸을 고쳐 친 값이 바뀌면 지난 오류 알림을 지운다(화면의 오류 글은 draftError 가 새로 맞춘다)
+  $effect(() => {
+    void draft;
+    untrack(() => {
+      if (!announceIsError) return;
+      announce = '';
+      announceIsError = false;
+    });
+  });
+  /**
+   * 폼의 기준 날: 연령정년 퇴직일(고를 수 있는 마지막 달). 빈 칸에 보기 값으로 흐리게 넣지 않고(친 값처럼 보인다)
+   * 글로 알리고, 누르면 그 달로 채우는 버튼을 둔다. 정년 규정이 꺼진 직종은 없다.
+   */
+  const referenceDate = $derived(view.lifeAgeRetireDate);
+  const referenceMonth = $derived(
+    referenceDate !== null && checkRetirePlan(referenceDate.slice(0, 7), planCheck) === null
+      ? referenceDate.slice(0, 7)
+      : null,
+  );
+  /** 창(영역)의 설명으로 잇는 숨긴 낭독 요약이 있는지(가린 갈래에서는 lifetime 을 읽지 않는다) */
+  const summaryOn = $derived(
+    !view.lifeMasked && view.lifeEnd.date !== null && view.lifetime !== null,
+  );
 
   async function focusOpener() {
     await tick();
     document.getElementById('lifetime-plan-open')?.focus();
+  }
+
+  function fillReference() {
+    if (referenceMonth) draft = referenceMonth;
   }
 
   async function openForm() {
@@ -172,6 +207,7 @@
     tried = false;
     announce = '';
     announceNamesMonth = false;
+    announceIsError = false;
     formOpen = true;
     await tick();
     monthInput?.focus();
@@ -183,12 +219,21 @@
     void focusOpener();
   }
 
-  /** 정한 달을 저장하거나(month) 지운다(null). 저장소에 쓰지 못한 경우는 화면 위 안내가 따로 알린다 */
+  /**
+   * 정한 달을 저장하거나(month) 지운다(null). 저장소에 쓰지 못했으면(이 탭에서만 바뀜) 정했다고만 말하지 않는다.
+   * 화면 위 안내(저장하지 못했어요)도 함께 뜬다.
+   */
   function save(month: string | null) {
-    if (!app.setRetirePlan(month)) return;
+    const result = app.setRetirePlan(month);
+    if (!result) return;
     formOpen = false;
-    announce = planAnnouncement(month, { masked: hidden, hasRetirement });
+    announce =
+      result === 'saved'
+        ? // 정년이 지난 뒤 남은 달을 지울 때는 '정년까지로 되돌렸어요'가 아니라 '지웠어요'
+          planAnnouncement(month, { masked: hidden, hasRetirement: hasRetirement && !view.retired })
+        : planUnsavedAnnouncement(month, { masked: hidden });
     announceNamesMonth = month !== null && !hidden;
+    announceIsError = false;
     void focusOpener();
   }
 
@@ -199,6 +244,7 @@
     if (problem) {
       announce = problem;
       announceNamesMonth = false;
+      announceIsError = true;
       monthInput?.focus();
       // 오류 글이 그려진 뒤, 화면 키보드에 가려지지 않게 칸과 함께 보이도록 맞춘다
       void tick().then(() => monthInput?.reveal());
@@ -232,10 +278,22 @@
         label={PLAN_LABEL}
         bind:value={draft}
         error={draftError ?? undefined}
-        yearPlaceholder={placeholderDate ? placeholderDate.slice(0, 4) : undefined}
-        monthPlaceholder={placeholderDate ? String(Number(placeholderDate.slice(5, 7))) : undefined}
-        describedby="lifetime-plan-preview"
+        describedby={referenceDate
+          ? 'lifetime-plan-reference lifetime-plan-preview'
+          : 'lifetime-plan-preview'}
       />
+      {#if referenceDate}
+        <div class="reference">
+          <p class="cap muted" id="lifetime-plan-reference">
+            {planReference(referenceDate, rankLimitRule !== null)}
+          </p>
+          {#if referenceMonth}
+            <button type="button" class="btn small" id="lifetime-plan-fill" onclick={fillReference}>
+              {PLAN_FILL}
+            </button>
+          {/if}
+        </div>
+      {/if}
       <p class="cap muted" id="lifetime-plan-preview">{planPreview(draftError ? '' : draft)}</p>
       <div class="btn-row">
         <button type="submit" class="btn primary" id="lifetime-plan-submit">{PLAN_SUBMIT}</button>
@@ -248,7 +306,11 @@
           {PLAN_CLOSE}
         </button>
       </div>
-      <p class="cap muted">{PLAN_WHY_MONTH}</p>
+      <p class="cap muted" id="lifetime-plan-month-only">{PLAN_MONTH_ONLY}</p>
+      <details class="cap fold" id="lifetime-plan-why">
+        <summary>{PLAN_WHY_SUMMARY}</summary>
+        <p class="muted">{PLAN_WHY_MONTH}</p>
+      </details>
       <p class="cap muted">{planScopeNote(hasRetirement)}</p>
       <p class="cap muted" id="lifetime-plan-storage">{PLAN_STORAGE_NOTE}</p>
     </form>
@@ -282,10 +344,19 @@
   {/if}
 {/snippet}
 
-<Win title={LIFETIME_TITLE} icon="icon-coin" id="lifetime" area="lifetime">
+<Win
+  title={LIFETIME_TITLE}
+  icon="icon-coin"
+  id="lifetime"
+  area="lifetime"
+  describedby={summaryOn ? 'lifetime-summary' : undefined}
+>
   {#snippet aside()}{asideText}{/snippet}
-  <!-- 정하거나 되돌린 결과를 알린다. 갈래가 바뀌어도 남도록 본문 밖에 둔다 -->
-  <p class="sr-only" id="lifetime-live" aria-live="polite">{liveText}</p>
+  <!--
+    정하거나 되돌린 결과를 알린다. 갈래가 바뀌어도 남도록 본문 밖에 둔다. 비어 있을 때 접근성 트리에 빈 문단이
+    잡히지 않게 역할 없는 div 로 둔다
+  -->
+  <div class="sr-only" id="lifetime-live" aria-live="polite">{liveText}</div>
   {#if view.lifeMasked}
     <!--
       금액 가리기 + 저장된 퇴직 예정 달: 달·횟수·막대·한마디·자세한 가정·경고문의 달을 모두 그리지 않는다.
@@ -294,6 +365,8 @@
     <div class="stack wide">
       <p class="note" id="lifetime-masked">
         {view.lifeEnd.planIssue ? `${LIFETIME_MASKED} ${LIFETIME_MASKED_ISSUE}` : LIFETIME_MASKED}
+        <!-- '오늘' 창의 금액 가리기 단추는 봉급을 계산하는 직종에만 있다 -->
+        {maskedUnhideNote(view.salary !== null)}
       </p>
       {@render planControls()}
     </div>
@@ -346,8 +419,7 @@
       retired,
       newYears: view.lifeNewYears,
       payday: view.data.settings.payday,
-      diligenceMonths:
-        diligence !== null && isAvailable(diligenceRule) ? diligenceRule.payMonths : null,
+      diligence: diligence !== null && isAvailable(diligenceRule) ? diligenceRule : null,
       holidayBonus: isAvailable(view.careerRules.allowances.holidayBonus),
       longServiceAddOn:
         isAvailable(view.careerRules.pay) && view.careerRules.pay.longServiceAddOn !== null,
@@ -355,7 +427,10 @@
     })}
     <div class="stack wide">
       {#if life && percent}
-        <p class="sr-only" id="lifetime-summary">
+        <!--
+          낭독 요약: 창(영역)의 설명(aria-describedby)으로만 읽는다. 숨겨 두어 본문을 읽을 때 첫 줄·금액을 두 번 듣지 않게
+        -->
+        <p hidden id="lifetime-summary">
           {hidden
             ? spokenSummaryMasked(head, percent)
             : spokenSummary(head, life.total, life.earned, percent)}
@@ -440,6 +515,18 @@
               </div>
             {/if}
           </dl>
+          {#if plan && view.retire && view.lifeRetirementTotal !== null}
+            <!-- 정한 달 기준일 때 정년 기준 합계를 사실만 견줘 보인다(가린 갈래에서는 여기에 오지 않는다) -->
+            <p class="cap muted" id="lifetime-compare">
+              {headline({
+                basis: 'retirement',
+                date: view.retire.retireDate,
+                cause: view.retire.cause,
+                retired: false,
+              })}
+              <Money value={view.lifeRetirementTotal} short approx />이에요.
+            </p>
+          {/if}
         </div>
       {:else if view.payOff}
         <!-- 정년과 같은 사유로 꺼져 있으면 첫 줄 아래의 '정년·봉급' 한 줄이 이미 말했다 -->
@@ -451,7 +538,14 @@
       {/if}
 
       {#if paydays}
-        {@const pay = paydayLine(paydays, retired)}
+        {@const firstPayday =
+          paydays.received === 0 &&
+          !retired &&
+          view.payday >= view.profile.hireDate &&
+          view.payday <= endDate
+            ? { date: view.payday, today: view.today }
+            : null}
+        {@const pay = paydayLine(paydays, retired, firstPayday)}
         {@const raise = life && !retired ? raiseLine(life) : null}
         <dl class="stack" id="lifetime-counts">
           <div class="kv">
@@ -485,7 +579,8 @@
       {/if}
 
       {#if line}
-        <p class="well cap" id="lifetime-line"><strong>호봉이</strong> {line}</p>
+        <!-- 말하는 이 이름표는 쌍점으로 문장과 나눈다('호봉이 정한 달…'처럼 이어 읽히지 않게) -->
+        <p class="well cap" id="lifetime-line"><strong>{LIFETIME_SPEAKER}</strong> {line}</p>
       {/if}
 
       {#if life}
@@ -511,6 +606,19 @@
 
       {#if !retired}
         {@render planControls()}
+      {:else if view.retirePlanMonth}
+        <!--
+          정년퇴직일이 지난 뒤 저장본에 남은 정한 달: 셈에는 쓰지 않지만 임용정보 패키지에는 실리므로 지울 길을 둔다.
+          달은 말하지 않는다(금액 가리기 중일 수 있다)
+        -->
+        <div class="stack" id="lifetime-plan-leftover">
+          <p class="cap muted">{PLAN_RETIRED_LEFTOVER}</p>
+          <div class="btn-row">
+            <button type="button" class="btn" id="lifetime-plan-discard" onclick={() => save(null)}>
+              {PLAN_DISCARD}
+            </button>
+          </div>
+        </div>
       {/if}
     </div>
   {/if}
@@ -537,7 +645,8 @@
     align-items: baseline;
     gap: 0 6px;
   }
-  #lifetime-how summary {
+  #lifetime-how summary,
+  .fold summary {
     cursor: pointer;
     min-height: 44px;
     display: flex;
@@ -545,17 +654,34 @@
     gap: 6px;
     list-style: none;
   }
-  #lifetime-how summary::-webkit-details-marker {
+  #lifetime-how summary::-webkit-details-marker,
+  .fold summary::-webkit-details-marker {
     display: none;
   }
   /* 펼침 표시(임용정보 패키지 안내의 [자세히]와 같은 모양). 장식이라 낭독하지 않는다 */
-  #lifetime-how summary::before {
+  #lifetime-how summary::before,
+  .fold summary::before {
     content: '▶';
     content: '▶' / '';
   }
-  #lifetime-how[open] summary::before {
+  #lifetime-how[open] summary::before,
+  .fold[open] summary::before {
     content: '▼';
     content: '▼' / '';
+  }
+  .fold > p {
+    padding-bottom: 3px;
+  }
+  /* 기준 날 한 줄과 [그 달로 채우기]: 좁으면 버튼이 아래 줄로 */
+  .reference {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 9px;
+  }
+  .reference > p {
+    flex: 1 1 180px;
+    min-width: 0;
   }
   .how {
     display: grid;

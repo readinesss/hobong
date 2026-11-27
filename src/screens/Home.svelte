@@ -113,8 +113,9 @@
 
 <!--
   좁은 화면: 한 열(칸 순서는 grid-template-areas가 정한다)
-  두 열(720~1099px): [상태창·정년·생애 봉급·지갑] [오늘·승급·연가·다가오는 일정]. 열 묶음(.col)이 각자 위에서부터 쌓여
-    창 높이가 달라도 빈틈이 생기지 않는다.
+  두 열(720~1099px): [상태창·정년·생애 봉급·다가오는 일정] [오늘·승급·연가·지갑]. 열 묶음(.col)이 각자 위에서부터 쌓여
+    창 높이가 달라도 빈틈이 생기지 않는다. 키가 큰 생애 봉급이 있는 왼쪽 열에 낮은 일정을, 오른쪽 열에 높은 지갑을 두어
+    두 열의 끝을 맞춘다(responsive.spec 의 '열 끝 차이' 검사).
   세 열(1100px~): [상태창·정년·생애 봉급] [오늘·승급·연가] [지갑·다가오는 일정]
 -->
 <p class="sr-only" role="status" id="home-arrived">{arrived}</p>
@@ -145,7 +146,7 @@
       <!-- 정년까지의 길(날짜 진행률) 바로 아래에 생애 봉급(금액 진행률): 두 막대를 견줘 본다 -->
       <LifetimeWindow />
     </div>
-    <div class="col c1b"><WalletWindow /></div>
+    <div class="col c1b"><UpcomingWindow /></div>
   </div>
   <div class="col c2">
     <div class="col c2a">
@@ -153,7 +154,7 @@
       <GrowthWindow />
       <LeaveMini />
     </div>
-    <div class="col c2b"><UpcomingWindow /></div>
+    <div class="col c2b"><WalletWindow /></div>
   </div>
 </div>
 
@@ -302,11 +303,12 @@
       grid-column: 2;
       grid-row: 1 / span 2;
     }
-    .c1b {
+    /* 셋째 열은 지갑(.c2b) 위, 다가오는 일정(.c1b) 아래 */
+    .c2b {
       grid-column: 3;
       grid-row: 1;
     }
-    .c2b {
+    .c1b {
       grid-column: 3;
       grid-row: 2;
     }

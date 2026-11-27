@@ -18,6 +18,7 @@
     /**
      * 설명에 더 이을 요소 id(빈칸으로 구분). 주면 설명 전체(이 글 + 도움말 + 오류)를 묶음이 아니라 **연도 칸**에 단다 —
      * 포커스가 연도 칸으로 가는 화면에서 VoiceOver·TalkBack 은 묶음의 설명을 읽지 않는다(DateInput 과 같다).
+     * 월 칸에는 오류 글만 단다(잘못됐다는 표시와 함께 까닭을 듣게).
      */
     describedby?: string;
   }
@@ -40,6 +41,12 @@
   let monthEl = $state<HTMLInputElement>();
 
   let rootEl = $state<HTMLDivElement>();
+  /**
+   * 연도 네 자리를 쳐서 월 칸으로 저절로 넘어온 직후인지. 그때 습관처럼 누른 Tab 한 번은 '이미 넘어왔음'으로 보고
+   * 월 칸에 머문다(그대로 두면 월 칸을 건너 버튼으로 가고, 이어 친 월 숫자가 엉뚱한 데로 간다). 다른 키를 누르거나
+   * 칸을 떠나면 풀린다. Shift+Tab 은 막지 않는다.
+   */
+  let advanced = false;
 
   /** 연도 칸으로 포커스를 옮긴다(폼을 열 때) */
   export function focus(): void {
@@ -114,7 +121,10 @@
     year = digits(el.value, 4);
     el.value = year;
     emit();
-    if (year.length === 4) monthEl?.focus();
+    if (year.length === 4 && document.activeElement !== monthEl) {
+      advanced = month === '';
+      monthEl?.focus();
+    }
   }
 
   function onMonth(event: Event) {
@@ -124,7 +134,13 @@
     emit();
   }
 
-  function onBackspace(event: KeyboardEvent) {
+  function onMonthKey(event: KeyboardEvent) {
+    const justAdvanced = advanced;
+    advanced = false;
+    if (event.key === 'Tab' && !event.shiftKey && justAdvanced && month === '') {
+      event.preventDefault();
+      return;
+    }
     if (event.key === 'Backspace' && month === '') {
       event.preventDefault();
       yearEl?.focus();
@@ -173,11 +189,13 @@
       placeholder={monthPlaceholder}
       maxlength="2"
       aria-label="{label} 월"
+      aria-describedby={describedby && error ? `${id}-error` : undefined}
       aria-invalid={error ? 'true' : undefined}
       value={month}
       oninput={onMonth}
       onpaste={onPaste}
-      onkeydown={onBackspace}
+      onkeydown={onMonthKey}
+      onblur={() => (advanced = false)}
     />
     <span class="unit" aria-hidden="true">월</span>
   </div>

@@ -410,18 +410,51 @@ test.describe('반응형과 조작', () => {
         career: r('#career').bottom,
         lifetimeTop: r('#lifetime').top,
         lifetime: r('#lifetime').bottom,
-        wallet: r('#wallet').top,
-        leave: r('#leave-mini').bottom,
         upcoming: r('#upcoming').top,
+        leave: r('#leave-mini').bottom,
+        wallet: r('#wallet').top,
       };
     });
-    // 두 열: 왼쪽 열은 상태창 · 정년 · 생애 봉급(#30) · 지갑 순서로 빈틈없이 쌓인다
+    // 두 열: 왼쪽 열은 상태창 · 정년 · 생애 봉급(#30) · 다가오는 일정, 오른쪽 열은 오늘 · 승급 · 연가 · 지갑 순서로
+    // 빈틈없이 쌓인다
     expect(home.lifetimeTop - home.career, '정년 ↔ 생애 봉급').toBeLessThanOrEqual(24);
     expect(home.lifetimeTop - home.career, '정년 ↔ 생애 봉급').toBeGreaterThan(0);
-    expect(home.wallet - home.lifetime, '생애 봉급 ↔ 지갑').toBeLessThanOrEqual(24);
-    expect(home.wallet - home.lifetime, '생애 봉급 ↔ 지갑').toBeGreaterThan(0);
-    expect(home.upcoming - home.leave, '연가 ↔ 다가오는 일정').toBeLessThanOrEqual(24);
+    expect(home.upcoming - home.lifetime, '생애 봉급 ↔ 다가오는 일정').toBeLessThanOrEqual(24);
+    expect(home.upcoming - home.lifetime, '생애 봉급 ↔ 다가오는 일정').toBeGreaterThan(0);
+    expect(home.wallet - home.leave, '연가 ↔ 지갑').toBeLessThanOrEqual(24);
+    expect(home.wallet - home.leave, '연가 ↔ 지갑').toBeGreaterThan(0);
   });
+
+  // 생애 봉급 창(#30)이 한 열에만 더해져도 두 열의 끝이 크게 벌어지지 않는다(패키지 안내가 떠 있을 때도)
+  for (const width of [720, 900]) {
+    test(`${width}px 두 열: 홈의 두 열 끝 차이가 작다`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openApp(page, { seed: makeSeedV5() });
+      const ends = () =>
+        page.evaluate(() => {
+          const bottom = (ids: string[]) =>
+            Math.max(
+              ...ids.map((id) => document.getElementById(id)!.getBoundingClientRect().bottom),
+            );
+          return {
+            left: bottom(['status', 'career', 'lifetime', 'upcoming']),
+            right: bottom(['today', 'growth', 'leave-mini', 'wallet']),
+          };
+        });
+      const plain = await ends();
+      expect(Math.abs(plain.left - plain.right), '열 끝 차이').toBeLessThanOrEqual(240);
+      await page.evaluate(() =>
+        window.localStorage.setItem('hobong.prefs', '{"packageGuide":"pending"}'),
+      );
+      await page.reload();
+      await tick(page, 2500);
+      await expect(page.getByRole('button', { name: '패키지 받기' })).toBeVisible();
+      const guided = await ends();
+      expect(Math.abs(guided.left - guided.right), '열 끝 차이(패키지 안내)').toBeLessThanOrEqual(
+        360,
+      );
+    });
+  }
 
   // 올해 결산(#12): 업적 탭의 1년 달력과 카드 화면의 결산을 밝게·어둡게 두 폭에서 본다
   for (const width of [360, 1280]) {
