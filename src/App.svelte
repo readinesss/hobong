@@ -5,12 +5,15 @@
   import { anim } from './lib/app/anim.svelte.ts';
   import { theme } from './lib/app/theme.svelte.ts';
   import { clock } from './lib/app/clock.svelte.ts';
+  import { linkHaptics, setHapticsEnabled } from './lib/app/haptics.ts';
   import { nav, TABS, type TabId } from './lib/app/nav.svelte.ts';
   import { app } from './lib/app/state.svelte.ts';
   import { view } from './lib/app/view.svelte.ts';
   import { trackNameOf } from './lib/app/track.ts';
   import { formatKorean } from './lib/calc/date.ts';
   import { formatDuration } from './lib/calc/today.ts';
+  import { disposeFx } from './lib/fx/core.ts';
+  import { clearSparkles } from './lib/fx/sparkle.ts';
   import Icon from './lib/ui/Icon.svelte';
   import Toasts from './lib/ui/Toasts.svelte';
   import Badges from './screens/Badges.svelte';
@@ -84,7 +87,14 @@
     };
     document.addEventListener('keydown', onKey);
 
+    // 연출 신호(cue)에 진동을 얹는다. 화면은 신호만 낸다
+    const unlinkHaptics = linkHaptics();
+
     return () => {
+      unlinkHaptics();
+      // 효과 층·공용 루프·남은 조각을 거둔다
+      clearSparkles();
+      disposeFx();
       dark.removeEventListener('change', sync);
       reduced.removeEventListener('change', sync);
       document.removeEventListener('focusin', onFocusIn);
@@ -114,6 +124,11 @@
     anim.setReduced(reduced);
   });
 
+  // 진동: 저장된 설정을 따른다. 첫 입력처럼 아직 설정이 없으면 켬(그 화면의 토글이 따로 끌 수 있다)
+  $effect(() => {
+    setHapticsEnabled(app.data?.settings.haptics ?? true);
+  });
+
   // 방문 기록(출근 도장)과 복귀 정산
   $effect(() => {
     const today = clock.today;
@@ -137,9 +152,14 @@
     untrack(() => app.markFormSeen(formId));
   });
 
-  // 업적: 새로 얻은 것을 기록하고 알린다
+  // 홈이 아닌 화면으로 들어섰으면 차례 등장은 하지 않는다(나중에 홈을 열 때 뒤늦게 나오지 않게)
   $effect(() => {
-    if (!app.data) return;
+    if (app.entrance !== null && !app.hatching && nav.tab !== 'home') app.clearEntrance();
+  });
+
+  // 업적: 새로 얻은 것을 기록하고 알린다(알이 깨어나는 동안에는 미뤘다가 홈에서 알린다)
+  $effect(() => {
+    if (!app.data || app.hatching) return;
     const earned = view.earned;
     untrack(() => {
       const stored = app.data?.achievements ?? {};
@@ -173,7 +193,7 @@
   };
   $effect(() => {
     const data = app.data;
-    if (!data) return;
+    if (!data || app.hatching) return;
     if (data.settings.tabTitle !== 'countdown') {
       document.title = TAB_TITLES[nav.tab];
       return;
@@ -198,12 +218,13 @@
 
 {#if !app.ready}
   <div class="boot" aria-hidden="true"></div>
-{:else if !app.data}
+{:else if !app.data || app.hatching}
+  <!-- 알이 깨어나는 동안에는(데이터는 이미 저장됐다) 첫 입력 화면을 그대로 둔다 -->
   <Welcome />
   <Toasts />
 {:else}
   <a class="skip btn primary" href="#main">본문으로 건너뛰기</a>
-  <div class="shell">
+  <div class="shell" class:entering={app.entrance !== null && !reduced}>
     <header class="top no-print">
       <div class="brand">
         <Icon name="icon-tiger" scale={2} />
@@ -293,6 +314,19 @@
     grid-template-areas:
       'top'
       'main';
+  }
+  /* 막 깨어났을 때: 머리띠와 탭이 먼저 서서히 나타나고 홈의 창들이 차례로 뒤따른다(Home.svelte) */
+  @keyframes shell-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .shell.entering .top,
+  .shell.entering .tabs {
+    animation: shell-in 0.2s ease-out both;
   }
   .top {
     grid-area: top;

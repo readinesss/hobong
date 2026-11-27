@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { collectErrors, makeSeedV5, openApp, storedData, tick } from './helpers.ts';
+import { collectErrors, makeSeedV5, openApp, PACKAGE_OPEN, storedData, tick } from './helpers.ts';
 
 /** 7급 14호봉 일반직(깃봉이: 볏이 보이는 형태) */
 const SEED = makeSeedV5({ rank: '7', step: 14, hireDate: '2012-03-02', rankDate: '2020-07-01' });
@@ -34,7 +34,7 @@ function tempFile(name: string, content: string): string {
 }
 
 async function importText(page: Page, text: string): Promise<void> {
-  await page.getByRole('button', { name: '데이터 불러오기' }).click();
+  await page.getByRole('button', { name: PACKAGE_OPEN }).click();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('dialog').getByRole('button', { name: '파일 고르기' }).click();
   await (await chooser).setFiles(tempFile('look.json', text));
@@ -374,7 +374,7 @@ test.describe('호봉이 꾸미기(#17·#16)', () => {
     await tick(page, 6000);
     const [file] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: '데이터 내려받기' }).click(),
+      page.getByRole('button', { name: '패키지 내려받기' }).click(),
     ]);
     const text = readFileSync(await file.path(), 'utf8');
     const envelope = JSON.parse(text);

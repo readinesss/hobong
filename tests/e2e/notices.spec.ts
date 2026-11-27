@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillDate, makeSeed, onboard, openApp, storedData, tick } from './helpers.ts';
+import {
+  fillDate,
+  makeSeed,
+  onboard,
+  openApp,
+  startForm,
+  storedData,
+  tick,
+  wakeEgg,
+} from './helpers.ts';
 
 /**
  * 안내 띠 닫기(#15): 알리기만 하는 띠(정년 이후·공휴일 데이터 없음·내 정보 점검)는 닫을 수 있고
@@ -200,16 +209,14 @@ test.describe('안내 띠 닫기', () => {
     await page.getByRole('dialog').getByRole('button', { name: '모두 지우기' }).click();
     await expect(page.getByRole('button', { name: '새로 시작' })).toBeVisible();
     // 2028년 기준으로 내 정보를 다시 넣는다(다음 승급일은 오늘 뒤)
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByLabel('닉네임').fill('김주무관');
     await fillDate(page, '생년월일', '1996-04-12');
     await fillDate(page, '임용일', '2024-03-04');
     await page.getByLabel('현재 직급').selectOption('9');
     await page.getByLabel('현재 호봉', { exact: true }).fill('4');
     await fillDate(page, '다음 승급일', '2028-03-01');
-    await page.getByRole('button', { name: '알 깨우기' }).click();
-    await tick(page, 6000);
-    await page.getByRole('button', { name: '시작하기' }).click();
+    await wakeEgg(page);
     await tick(page);
     await expect(page.locator('#notice-holidays')).toBeVisible();
   });

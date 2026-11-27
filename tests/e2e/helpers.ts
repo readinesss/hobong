@@ -16,6 +16,11 @@ export interface OpenOptions {
   hash?: string;
   /** localStorage에 미리 넣어 둘 저장본(겉봉 JSON 문자열) */
   seed?: string;
+  /**
+   * 연 뒤 시계를 돌릴 시간(ms). 기본 1200(토스트·첫 계산이 자리 잡게).
+   * 열자마자 시작하는 연출의 첫 장면을 보려면 짧게 준다.
+   */
+  settle?: number;
 }
 
 /** 시계를 고정하고 앱을 연다 */
@@ -29,7 +34,7 @@ export async function openApp(page: Page, options: OpenOptions = {}): Promise<vo
     await page.evaluate((value) => window.localStorage.setItem('hobong.data', value), options.seed);
     await page.reload();
   }
-  await tick(page);
+  await tick(page, options.settle);
 }
 
 /** 고정한 시계를 앞으로 돌려 타이머(시계·토스트·연출)를 진행시킨다 */
@@ -120,19 +125,41 @@ export async function fillDate(page: Page, label: string, ymd: string): Promise<
   await page.getByLabel(`${label} 연도`).fill(ymd.replaceAll('-', ''));
 }
 
-/** 처음 화면에서 내 정보를 넣고 대시보드까지 간다 */
-export async function onboard(page: Page): Promise<void> {
+/** 임용정보 패키지를 여는 버튼: 첫 화면은 '패키지로 이어하기', 설정은 '패키지 불러오기' */
+export const PACKAGE_OPEN = /^패키지(로 이어하기| 불러오기)$/;
+
+/**
+ * 첫 화면에서 '새로 시작' → '한 번에 쓰기'(한 화면 폼)로 간다.
+ * 처음에는 말을 거는 방식이 열리므로 '한 번에 쓰기'를 누르고, 한 번 고른 뒤에는(이 기기에 기억) 폼이 바로 열린다.
+ */
+export async function startForm(page: Page): Promise<void> {
   await page.getByRole('button', { name: '새로 시작' }).click();
+  const form = page.getByRole('heading', { level: 1, name: '내 정보 넣기' });
+  if (!(await form.isVisible())) await page.getByRole('button', { name: '한 번에 쓰기' }).click();
+  await expect(form).toBeVisible();
+}
+
+/**
+ * '알 깨우기'를 누르고 제자리 부화 연출을 건너뛰어 홈까지 간다.
+ * 홈 창들의 차례 등장과 임용정보 패키지 안내 창이 다 나올 때까지 시계를 돌린다.
+ */
+export async function wakeEgg(page: Page): Promise<void> {
+  await page.getByRole('button', { name: '알 깨우기' }).click();
+  await page.getByRole('button', { name: '건너뛰기' }).click();
+  await page.getByRole('button', { name: '바로 시작하기' }).click();
+  await tick(page, 2500);
+}
+
+/** 처음 화면에서 내 정보를 넣고 대시보드까지 간다(한 번에 쓰기 → 알 깨우기 → 건너뛰기) */
+export async function onboard(page: Page): Promise<void> {
+  await startForm(page);
   await page.getByLabel('닉네임').fill('김주무관');
   await fillDate(page, '생년월일', '1996-04-12');
   await fillDate(page, '임용일', '2024-03-04');
   await page.getByLabel('현재 직급').selectOption('9');
   await page.getByLabel('현재 호봉', { exact: true }).fill('3');
   await fillDate(page, '다음 승급일', '2027-03-01');
-  await page.getByRole('button', { name: '알 깨우기' }).click();
-  await tick(page, 6000);
-  await page.getByRole('button', { name: '시작하기' }).click();
-  await tick(page);
+  await wakeEgg(page);
   await expect(page.getByRole('heading', { name: '상태창' })).toBeVisible();
 }
 
@@ -233,7 +260,7 @@ export interface FillProfile {
  * 계급 칸이 없는 직종(교원·준비 중)은 rank 를 비워 둔다.
  */
 export async function onboardTrack(page: Page, p: FillProfile): Promise<void> {
-  await page.getByRole('button', { name: '새로 시작' }).click();
+  await startForm(page);
   await page.getByLabel('닉네임').fill('호봉이집사');
   await fillDate(page, '생년월일', p.birthDate ?? '1975-03-10');
   await fillDate(page, '임용일', p.hireDate ?? '2005-03-02');
@@ -247,10 +274,7 @@ export async function onboardTrack(page: Page, p: FillProfile): Promise<void> {
   }
   await page.getByLabel('현재 호봉', { exact: true }).fill(String(p.step ?? 10));
   await fillDate(page, '다음 승급일', p.nextStepDate ?? '2027-03-01');
-  await page.getByRole('button', { name: '알 깨우기' }).click();
-  await tick(page, 6000);
-  await page.getByRole('button', { name: '시작하기' }).click();
-  await tick(page);
+  await wakeEgg(page);
   await expect(page.getByRole('heading', { name: '상태창' })).toBeVisible();
 }
 

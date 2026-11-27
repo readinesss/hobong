@@ -14,6 +14,8 @@ import {
   makeSeedV4,
   onboardTrack,
   openApp,
+  PACKAGE_OPEN,
+  startForm,
   storedData,
   tick,
 } from './helpers.ts';
@@ -80,7 +82,7 @@ test.describe('직종별 첫 입력 → 홈', () => {
   test('교원: 계급 칸·승진 칸이 없고, 월급날 17일, 62세 정년, 예규 연가 문구', async ({ page }) => {
     const errors = collectErrors(page);
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByRole('radio', { name: '교원', exact: true }).click();
     await expect(page.getByLabel(/^현재 (직급|계급)$/)).toHaveCount(0);
     await expect(page.getByText('임용 후 승진한 적이 있어요')).toHaveCount(0);
@@ -118,7 +120,7 @@ test.describe('직종별 첫 입력 → 홈', () => {
     page,
   }) => {
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByRole('radio', { name: '공안업무 등(별표 4)' }).click();
     await page.getByText('별표 4는 누가 쓰나요?').click();
     await expect(page.locator('#pf-pay-table-special')).toContainText('그 밖의 특정직');
@@ -346,7 +348,7 @@ test.describe('직종 바꾸기·카드·불러오기·근거', () => {
 
   test('불러오기 요약은 직종과 계급·호봉을 보인다', async ({ page }) => {
     await openSeed(page, makeSeedV4(), 'settings');
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const path = join(mkdtempSync(join(tmpdir(), 'hobong-e2e-')), 'police.json');
     writeFileSync(path, fixture('backup-v4-police.json'));
     const chooser = page.waitForEvent('filechooser');
@@ -401,7 +403,7 @@ test.describe('직종 바꾸기·카드·불러오기·근거', () => {
     page,
   }) => {
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     const general = page.getByRole('radio', { name: '일반직', exact: true });
     await general.focus();
     await page.keyboard.press('ArrowRight');

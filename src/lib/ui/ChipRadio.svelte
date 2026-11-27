@@ -16,9 +16,11 @@
     /** 묶음 이름(보이는 제목이 있으면 labelledby 를 쓴다) */
     label?: string;
     labelledby?: string;
+    /** 묶음의 설명으로 이을 요소 id(빈칸으로 구분) */
+    describedby?: string;
   }
 
-  let { options, value, onchange, label, labelledby }: Props = $props();
+  let { options, value, onchange, label, labelledby, describedby }: Props = $props();
 
   let group = $state<HTMLDivElement>();
   const checkedIndex = $derived(options.findIndex((o) => o.value === value));
@@ -54,6 +56,7 @@
   role="radiogroup"
   aria-label={labelledby ? undefined : label}
   aria-labelledby={labelledby}
+  aria-describedby={describedby}
 >
   {#each options as option, i (option.value)}
     <button

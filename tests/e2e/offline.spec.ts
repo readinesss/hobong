@@ -77,7 +77,7 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
     await nav.getByRole('link', { name: '설정' }).click();
     await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: '데이터 내려받기' }).click(),
+      page.getByRole('button', { name: '패키지 내려받기' }).click(),
     ]);
     await tick(page, 800);
     expect(popups).toEqual([]);
@@ -187,10 +187,17 @@ test.describe('서버 없음 · 외부 요청 0건', () => {
     await onboard(page);
     const storage = await page.evaluate(() => ({
       keys: Object.keys(window.localStorage).sort(),
+      prefs: window.localStorage.getItem('hobong.prefs'),
       cookies: document.cookie,
       session: Object.keys(window.sessionStorage),
     }));
-    expect(storage.keys).toEqual(['hobong.data']);
+    // 입력값은 hobong.data 한곳에만 있다. hobong.prefs 는 이 기기의 편의 값(고른 입력 방식·패키지 안내 상태)뿐이고
+    // 입력값은 하나도 들어가지 않는다(정해진 두 낱말만 — 닉네임·날짜·직종 같은 글자가 없다)
+    expect(storage.keys).toEqual(['hobong.data', 'hobong.prefs']);
+    expect(JSON.parse(storage.prefs ?? '{}')).toEqual({
+      onboardMode: 'form',
+      packageGuide: 'pending',
+    });
     expect(storage.cookies).toBe('');
     expect(storage.session).toEqual([]);
   });

@@ -21,6 +21,8 @@ class Nav {
   editProfileRequested = $state(false);
   /** 연가 화면을 열면서 '부여 일수' 대화상자도 바로 열어 달라는 요청(홈 연가 창의 [부여 일수 넣기]) */
   editGrantRequested = $state(false);
+  /** 설정 화면을 열면서 '호봉이 꾸미기' 고르는 창도 바로 열어 달라는 요청(홈 안내 창의 [호봉이 꾸미기]) */
+  lookRequested = $state(false);
 
   start(): void {
     this.tab = fromHash(location.hash);

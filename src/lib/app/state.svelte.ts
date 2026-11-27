@@ -7,7 +7,7 @@ import { Calendar } from '../calc/calendar.ts';
 import { careerOf, careerStepOn } from '../calc/career-profile.ts';
 import { effectiveRetirement, serviceDayOf } from '../calc/retirement.ts';
 import { decideGrowth } from '../character/growth.ts';
-import { formIdFor } from '../character/look.ts';
+import { formIdFor, formIndex } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { careerLookup, rankStepLabel, rulesFor } from '../rules/index.ts';
 import { defaultShowRank, trackNameOf } from './track.ts';
@@ -84,8 +84,12 @@ export interface WelcomeBack {
 }
 
 export interface Celebration {
-  /** step: 같은 계급에서 호봉이 오름 / grow: 형태·계급 순서가 오름 / hatch: 처음 깨어남 */
-  kind: 'step' | 'grow' | 'hatch';
+  /**
+   * step: 같은 계급에서 호봉이 오름 / grow: 재직 연수 등으로 형태·계급 순서가 오름 /
+   * promote: 내 정보에서 승진을 알렸다(계급이 오르고 승진일이 바뀜).
+   * 처음 깨어나는 연출은 대화상자가 아니라 첫 입력 화면 안에서 한다(Welcome 의 제자리 부화).
+   */
+  kind: 'step' | 'grow' | 'promote';
   fromRank: RankKey | null;
   fromStep: number;
   /** 연출 전 형태 id. 마지막 형태를 모르면 지금 형태 */
@@ -95,7 +99,13 @@ export interface Celebration {
   toForm: string;
   /** '7급 12호봉' / '경위 12호봉' / '12호봉'(교원) */
   toLabel: string;
+  /** 승진 전·후의 계급 이름('8급'·'경사'). 승진이 아니거나 이름이 없으면 null. 홈 공개 설정을 끄면 화면이 쓰지 않는다 */
+  fromRankLabel: string | null;
+  toRankLabel: string | null;
 }
+
+/** 홈 창들이 차례로 나타나는 까닭: 막 깨어남(hatch) / 임용정보 패키지로 이어함(import) */
+export type Entrance = 'hatch' | 'import';
 
 /**
  * today 기준 이 프로필의 호봉·형태·계급 이름(연출 기준을 맞추는 데 쓴다).
@@ -162,6 +172,13 @@ class AppStore {
   upgradedFromV3 = $state(false);
   /** 내 정보에서 직종을 바꿔 저장한 뒤의 안내(월급날 기본값·카드 계급 이름). 띠를 닫으면 null */
   trackChange = $state<TrackChange | null>(null);
+  /**
+   * 첫 입력 화면에서 알이 깨어나는 중이다. 데이터는 이미 저장됐지만(연출 중에 새로 고쳐도 남는다)
+   * 연출이 끝날 때까지 첫 화면을 그대로 둔다(App.svelte).
+   */
+  hatching = $state(false);
+  /** 홈에 막 들어섰다: 창들이 차례로 나타난다(한 번). 홈이 다 보인 뒤 null 로 돌린다 */
+  entrance = $state<Entrance | null>(null);
 
   #store: KeyValueStore | null = null;
   #toastSeq = 0;
@@ -361,8 +378,17 @@ class AppStore {
 
   // ── 프로필 ───────────────────────────────────────────────────────────
 
-  createProfile(profile: Profile, settings?: Partial<Settings>): void {
-    if (!this.canWrite) return;
+  /**
+   * 첫 입력을 마쳐 새 데이터를 만든다. 깨어나는 연출은 첫 입력 화면이 맡으므로 여기서는 저장만 한다.
+   * hatch 를 주면 연출이 끝날 때(finishHatch)까지 첫 화면을 유지한다. 저장했으면 true.
+   */
+  createProfile(
+    profile: Profile,
+    settings?: Partial<Settings>,
+    look?: CharacterLook,
+    options: { hatch?: boolean } = {},
+  ): boolean {
+    if (!this.canWrite) return false;
     const now = new Date();
     const today = todayYmd(now);
     const rules = rulesFor(yearOf(today));
@@ -378,27 +404,38 @@ class AppStore {
       },
       now.toISOString(),
       today,
+      look,
     );
     data.character.lastStep = mark.step;
     data.character.lastForm = mark.form;
+    this.hatching = options.hatch === true;
+    this.celebration = null;
     this.data = data;
     this.#persist();
-    this.celebration = {
-      kind: 'hatch',
-      fromRank: profile.rank,
-      fromStep: mark.step,
-      fromForm: mark.form,
-      toRank: profile.rank,
-      toStep: mark.step,
-      toForm: mark.form,
-      toLabel: mark.label,
-    };
+    return true;
   }
 
-  updateProfile(profile: Profile): void {
+  /** 깨어나는 연출이 끝났다(또는 건너뛰었다): 홈으로 넘어가 창들이 차례로 나타난다 */
+  finishHatch(): void {
+    if (!this.hatching) return;
+    this.hatching = false;
+    this.entrance = 'hatch';
+  }
+
+  /** 홈의 차례 등장이 끝났다 */
+  clearEntrance(): void {
+    this.entrance = null;
+  }
+
+  /**
+   * 내 정보를 고쳐 저장한다. celebrate 를 주면(고치는 화면의 '승진했어요') 같은 사다리에서 계급 순서가 오르고
+   * 승진일이 뒤로 바뀐 경우에만 승진 연출을 띄운다. 틀린 값을 바로잡는 것(승진일 그대로·계급을 내림)은 조용히 맞춘다.
+   */
+  updateProfile(profile: Profile, options: { celebrate?: boolean } = {}): void {
     const today = todayYmd(new Date());
     const mark = growthMarkOf(profile, today);
     const before = this.data ? careerOf(rulesFor, this.data.profile, yearOf(today)) : null;
+    const promoted = options.celebrate === true ? this.#promotionFrom(profile, mark, today) : null;
     const trackChanged = before !== null && before.sel.track !== profile.track;
     // 일반직 사다리(1~9급)와 다른 사다리 사이를 오가면 카드의 계급 이름 기본값을 다시 맞춘다(Q2)
     const showRank = defaultShowRank(mark.career);
@@ -429,6 +466,39 @@ class AppStore {
             cardShowRank: cardReset ? showRank : null,
           }
         : null;
+    if (promoted) this.celebration = promoted;
+  }
+
+  /** 지금 저장된 내 정보에서 profile 로 바꾸는 것이 승진이면 그 연출 정보, 아니면 null */
+  #promotionFrom(
+    profile: Profile,
+    mark: ReturnType<typeof growthMarkOf>,
+    today: Ymd,
+  ): Celebration | null {
+    const old = this.data?.profile;
+    if (!old || old.rank === null || profile.rank === null) return null;
+    const was = growthMarkOf(old, today);
+    const ranks = mark.career.ladder?.ranks ?? null;
+    // 같은 사다리(직종·봉급표가 같다)에서만
+    if (!ranks || was.career.ladderId !== mark.career.ladderId) return null;
+    const from = ranks.findIndex((r) => r.key === old.rank);
+    const to = ranks.findIndex((r) => r.key === profile.rank);
+    if (from < 0 || to <= from) return null;
+    if (!(profile.rankDate > old.rankDate)) return null;
+    // 모습이 작아지는 연출은 그리지 않는다
+    if (formIndex(characterRules, mark.form) < formIndex(characterRules, was.form)) return null;
+    return {
+      kind: 'promote',
+      fromRank: old.rank,
+      fromStep: was.step,
+      fromForm: was.form,
+      toRank: profile.rank,
+      toStep: mark.step,
+      toForm: mark.form,
+      toLabel: mark.label,
+      fromRankLabel: ranks[from]?.label ?? null,
+      toRankLabel: ranks[to]?.label ?? null,
+    };
   }
 
   /** 직종을 바꾼 뒤 안내 띠의 '그 날로 바꾸기' */
@@ -480,6 +550,8 @@ class AppStore {
         toStep: step,
         toForm: form,
         toLabel: rankStepLabel(c, step),
+        fromRankLabel: null,
+        toRankLabel: null,
       };
     } else if (decision.kind === 'record') {
       // 계급이 바뀌었거나 호봉·형태가 내려간 경우(직접 수정·규칙 변경)는 조용히 맞춘다.
@@ -683,6 +755,9 @@ class AppStore {
     // 불러온 직후에는 승급 연출 대신 조용히 기준만 맞춘다.
     this.welcomeBack = null;
     this.celebration = null;
+    this.hatching = false;
+    // 첫 화면에서 임용정보 패키지로 이어하면 부화 연출 없이 홈 창들만 차례로 나타난다
+    this.entrance = replacing ? null : 'import';
     this.#persist();
     return replacing ? 'replaced' : 'imported';
   }
@@ -713,6 +788,8 @@ class AppStore {
     this.celebration = null;
     this.upgradedFromV3 = false;
     this.trackChange = null;
+    this.hatching = false;
+    this.entrance = null;
   }
 
   dismissCorruptNotice(): void {

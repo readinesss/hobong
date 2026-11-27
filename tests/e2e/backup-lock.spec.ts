@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { decryptBackup, encryptBackup } from '../../src/lib/store/crypto.ts';
-import { allowClipboard, makeSeed, openApp, storedData, tick } from './helpers.ts';
+import { allowClipboard, makeSeed, openApp, PACKAGE_OPEN, storedData, tick } from './helpers.ts';
 
 const SEED = makeSeed(
   { nickname: '백업이', hireDate: '2020-01-01', grade: 8, gradeDate: '2024-07-01', step: 6 },
@@ -40,7 +40,7 @@ async function importFile(page: Page, path: string): Promise<void> {
 /** '암호 걸기'를 켜고 '데이터 내려받기'로 암호 파일을 받는다 */
 async function lockedDownload(page: Page): Promise<{ path: string; name: string; text: string }> {
   await page.getByRole('checkbox', { name: /암호 걸기/ }).check();
-  await page.getByRole('button', { name: '데이터 내려받기' }).click();
+  await page.getByRole('button', { name: '패키지 내려받기' }).click();
   const dialog = page.getByRole('dialog', { name: '암호 걸어 내려받기' });
   await expect(dialog.getByLabel('암호', { exact: true })).toBeFocused();
   await dialog.getByLabel('암호', { exact: true }).fill(PASSWORD);
@@ -94,7 +94,7 @@ test.describe('백업 파일 암호', () => {
     await expect(page.getByRole('checkbox', { name: /암호 걸기/ })).not.toBeChecked();
 
     const file = await lockedDownload(page);
-    expect(file.name).toBe('hobong-backup-20261125-locked.json');
+    expect(file.name).toBe('hobong-package-20261125-locked.json');
     expect(file.text).not.toContain('백업이');
     expect(file.text).not.toContain('가족 여행');
     expect(file.text).not.toContain(PASSWORD);
@@ -110,7 +110,7 @@ test.describe('백업 파일 암호', () => {
     // 알림에는 암호 없이 파일 이름과 주의만 적는다
     const toast = page.locator('.toasts');
     await expect(toast).toContainText('암호를 걸어 내려받기를 시작했어요');
-    await expect(toast).toContainText('hobong-backup-20261125-locked.json');
+    await expect(toast).toContainText('hobong-package-20261125-locked.json');
     await expect(toast).not.toContainText(PASSWORD);
     await expectNoPasswordLeft(page);
 
@@ -126,11 +126,11 @@ test.describe('백업 파일 암호', () => {
     expect(await storedData(page)).toBeNull();
 
     // 첫 화면에서 불러오기 → 암호를 묻는다
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, file.path);
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('암호가 걸린 백업이에요');
-    await expect(dialog).toContainText('hobong-backup-20261125-locked.json');
+    await expect(dialog).toContainText('암호가 걸린 패키지예요');
+    await expect(dialog).toContainText('hobong-package-20261125-locked.json');
     const pw = dialog.getByLabel('암호', { exact: true });
     await expect(pw).toHaveAttribute('type', 'password');
     await expect(pw).toBeFocused();
@@ -174,7 +174,7 @@ test.describe('백업 파일 암호', () => {
     await tick(page, 6000);
     const before = await storedData(page);
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, path);
     const dialog = page.getByRole('dialog');
     const pw = dialog.getByLabel('암호', { exact: true });
@@ -205,7 +205,7 @@ test.describe('백업 파일 암호', () => {
     await requireWebCrypto(page);
     await tick(page, 3000);
     await page.getByRole('checkbox', { name: /암호 걸기/ }).check();
-    await page.getByRole('button', { name: '데이터 내려받기' }).click();
+    await page.getByRole('button', { name: '패키지 내려받기' }).click();
     const dialog = page.getByRole('dialog', { name: '암호 걸어 내려받기' });
     await expect(dialog).toContainText('잊으면 아무도(호봉도) 이 파일을 되살릴 수 없어요');
     const pw1 = dialog.getByLabel('암호', { exact: true });
@@ -235,7 +235,7 @@ test.describe('백업 파일 암호', () => {
     await dialog.getByRole('button', { name: '취소' }).click();
     await expect(dialog).toHaveCount(0);
     await expectNoPasswordLeft(page);
-    await page.getByRole('button', { name: '데이터 내려받기' }).click();
+    await page.getByRole('button', { name: '패키지 내려받기' }).click();
     await expect(pw1).toHaveValue('');
     await expect(pw2).toHaveValue('');
     await page.keyboard.press('Escape');
@@ -248,7 +248,7 @@ test.describe('백업 파일 암호', () => {
       page.waitForEvent('download'),
       page.getByRole('dialog').getByRole('button', { name: '먼저 내려받기' }).click(),
     ]);
-    expect(file.suggestedFilename()).toBe('hobong-backup-20261125.json');
+    expect(file.suggestedFilename()).toBe('hobong-package-20261125.json');
   });
 
   test('글자로 보기(암호)를 불러오기에 붙여넣고 암호를 넣으면 열린다', async ({ page }) => {
@@ -262,7 +262,7 @@ test.describe('백업 파일 암호', () => {
     await lockDialog.getByLabel('암호 확인').fill(PASSWORD);
     await lockDialog.getByRole('button', { name: '암호 걸고 글자로 보기' }).click();
 
-    const textDialog = page.getByRole('dialog', { name: '백업 내용(글자)' });
+    const textDialog = page.getByRole('dialog', { name: '패키지 내용(글자)' });
     await expect(textDialog).toContainText('암호가 걸린 내용이에요');
     const text = await textDialog.locator('textarea').inputValue();
     expect(JSON.parse(text).format).toBe('hobong-encrypted');
@@ -271,14 +271,14 @@ test.describe('백업 파일 암호', () => {
     await expectNoPasswordLeft(page);
     const before = await storedData(page);
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const dialog = page.getByRole('dialog');
     await dialog
       .getByRole('button', { name: '파일을 고를 수 없나요? 글자로 붙여넣기', exact: true })
       .click();
     await dialog.locator('textarea').fill(text);
     await dialog.getByRole('button', { name: '확인하기' }).click();
-    await expect(dialog).toContainText('암호가 걸린 백업이에요');
+    await expect(dialog).toContainText('암호가 걸린 패키지예요');
     await expect(dialog).toContainText('붙여넣은 글자');
     await dialog.getByLabel('암호', { exact: true }).fill(PASSWORD);
     await dialog.getByRole('button', { name: '열기' }).click();
@@ -301,7 +301,7 @@ test.describe('백업 파일 암호', () => {
     }, sealed.text);
     await page.dispatchEvent('main.welcome', 'drop', { dataTransfer: data });
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('암호가 걸린 백업이에요');
+    await expect(dialog).toContainText('암호가 걸린 패키지예요');
     await dialog.getByLabel('암호', { exact: true }).fill(PASSWORD);
     await dialog.getByRole('button', { name: '열기' }).click();
     await dialog.getByRole('button', { name: '불러오기', exact: true }).click();
@@ -324,7 +324,7 @@ test.describe('백업 파일 암호', () => {
     await requireWebCrypto(page);
     await tick(page, 3000);
     const before = await storedData(page);
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const dialog = page.getByRole('dialog');
 
     await importFile(page, weak);
@@ -354,7 +354,7 @@ test.describe('백업 파일 암호', () => {
       };
     });
     await page.getByRole('checkbox', { name: /암호 걸기/ }).check();
-    await page.getByRole('button', { name: '데이터 내려받기' }).click();
+    await page.getByRole('button', { name: '패키지 내려받기' }).click();
     const dialog = page.getByRole('dialog', { name: '암호 걸어 내려받기' });
     await dialog.getByLabel('암호', { exact: true }).fill(PASSWORD);
     await dialog.getByLabel('암호 확인').fill(PASSWORD);
@@ -409,7 +409,7 @@ test.describe('백업 파일 암호', () => {
     expect((await storedData(page))?.meta.changesSinceBackup).toBe(1);
 
     await page.locator('.toasts').getByRole('button', { name: '파일이 안 생겼어요' }).click();
-    const textDialog = page.getByRole('dialog', { name: '백업 내용(글자)' });
+    const textDialog = page.getByRole('dialog', { name: '패키지 내용(글자)' });
     await expect(textDialog.locator('#backup-text-stale')).toContainText('바뀐 내용이 있어요');
     // 보여 준 것은 내려받은 그 파일이다
     expect(await textDialog.locator('textarea').inputValue()).toBe(file.text);
@@ -443,11 +443,11 @@ test.describe('백업 파일 암호', () => {
     // 암호 없는 내려받기는 그대로 된다
     const [file] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: '데이터 내려받기' }).click(),
+      page.getByRole('button', { name: '패키지 내려받기' }).click(),
     ]);
-    expect(file.suggestedFilename()).toBe('hobong-backup-20261125.json');
+    expect(file.suggestedFilename()).toBe('hobong-package-20261125.json');
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, path);
     await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
       '이 브라우저에서는 암호가 걸린 파일을 열 수 없어요',

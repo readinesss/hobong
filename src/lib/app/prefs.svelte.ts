@@ -1,0 +1,96 @@
+/**
+ * 이 기기에서만 기억하는 편의 값(localStorage 'hobong.prefs'). 사용자 데이터(hobong.data)와 따로 둔다:
+ * 임용정보 패키지에 담기지 않고, 다른 기기로 옮겨 가지 않으며, 입력값은 하나도 들어가지 않는다.
+ *
+ * - onboardMode: 첫 입력을 어떤 방식으로 했는지('talk' 하나씩 묻기 / 'form' 한 번에 쓰기). 다음에 같은 방식으로 연다.
+ * - packageGuide: 임용정보 패키지 안내 창의 상태.
+ *   'pending' 첫 입력을 마쳐 안내를 보일 차례 / 'later' '나중에'를 눌렀다(다시 묻지 않는다) / 'done' 받았다.
+ *   값이 없으면(예전부터 쓰던 사람·패키지로 이어한 사람) 안내 창을 띄우지 않는다.
+ *
+ * 저장소를 쓸 수 없으면(사생활 보호 창·정책) 이 탭의 메모리에만 둔다. 읽기·쓰기 실패는 조용히 넘긴다.
+ */
+export const PREFS_KEY = 'hobong.prefs';
+
+export type OnboardMode = 'talk' | 'form';
+export type PackageGuide = 'pending' | 'later' | 'done';
+
+export interface Prefs {
+  onboardMode?: OnboardMode;
+  packageGuide?: PackageGuide;
+}
+
+const MODES: readonly string[] = ['talk', 'form'];
+const GUIDES: readonly string[] = ['pending', 'later', 'done'];
+
+/** 저장된 글자를 읽어 아는 값만 남긴다(모르는 값·형식은 버린다) */
+export function parsePrefs(raw: string | null): Prefs {
+  if (!raw) return {};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const dict = value as Record<string, unknown>;
+    const out: Prefs = {};
+    if (typeof dict.onboardMode === 'string' && MODES.includes(dict.onboardMode))
+      out.onboardMode = dict.onboardMode as OnboardMode;
+    if (typeof dict.packageGuide === 'string' && GUIDES.includes(dict.packageGuide))
+      out.packageGuide = dict.packageGuide as PackageGuide;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function storage(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** 저장된 값을 읽는다(읽지 못하면 빈 값) */
+function readStored(): Prefs {
+  try {
+    return parsePrefs(storage()?.getItem(PREFS_KEY) ?? null);
+  } catch {
+    return {};
+  }
+}
+
+class PrefsStore {
+  /** 앱이 뜰 때 한 번 읽어 둔다(화면이 그리는 도중에 읽어 상태를 바꾸지 않게) */
+  value = $state<Prefs>(readStored());
+
+  get onboardMode(): OnboardMode | undefined {
+    return this.value.onboardMode;
+  }
+
+  get packageGuide(): PackageGuide | undefined {
+    return this.value.packageGuide;
+  }
+
+  set(patch: Prefs): void {
+    this.value = { ...this.value, ...patch };
+    this.#save();
+  }
+
+  /** 데이터를 모두 지울 때: 패키지 안내 상태는 처음으로, 고른 입력 방식은 기기 편의라 남긴다 */
+  resetForNewStart(): void {
+    const { onboardMode } = this.value;
+    this.value = onboardMode ? { onboardMode } : {};
+    this.#save();
+  }
+
+  #save(): void {
+    try {
+      const store = storage();
+      if (!store) return;
+      if (Object.keys(this.value).length === 0) store.removeItem(PREFS_KEY);
+      else store.setItem(PREFS_KEY, JSON.stringify(this.value));
+    } catch {
+      // 저장소가 막혀 있으면 이 탭에서만 기억한다
+    }
+  }
+}
+
+export const prefs = new PrefsStore();

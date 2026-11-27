@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { emitCue } from '../lib/fx/cues.ts';
+  import { TALK } from '../lib/talk.ts';
   import { tick } from 'svelte';
   import { nav } from '../lib/app/nav.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
@@ -19,6 +21,7 @@
   } from '../lib/store/crypto.ts';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
+  import ShareNote from './share/ShareNote.svelte';
 
   interface Props {
     onclose: () => void;
@@ -168,7 +171,7 @@
     const outcome = app.importData(ok.data, ok.exportedAt);
     if (outcome === 'failed') {
       app.toast(
-        '지금 데이터를 되돌릴 수 있게 보관하지 못해 불러오지 않았어요. 먼저 설정에서 데이터를 내려받아 주세요.',
+        '지금 데이터를 되돌릴 수 있게 보관하지 못해 불러오지 않았어요. 먼저 설정에서 임용정보 패키지를 내려받아 주세요.',
         'warn',
         'icon-warn',
         8000,
@@ -177,12 +180,13 @@
       return;
     }
     if (outcome === 'imported') nav.go('home');
+    emitCue('package-loaded');
     app.toast(
       outcome === 'replaced'
-        ? '데이터를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.'
-        : '데이터를 불러왔어요. 다시 만나서 반가워요!',
+        ? '패키지를 불러왔어요. 설정에서 이전 상태로 되돌릴 수 있어요.'
+        : '패키지를 불러왔어요. 다시 만나서 반가워요!',
       'good',
-      'icon-upload',
+      'icon-package',
     );
     onclose();
   }
@@ -197,7 +201,7 @@
   }
 </script>
 
-<Modal title="데이터 불러오기" icon="icon-upload" {onclose}>
+<Modal title="임용정보 패키지 불러오기" icon="icon-package" {onclose}>
   {#if ok}
     <div class="stack wide">
       <p>이 파일을 불러올까요?</p>
@@ -251,7 +255,7 @@
     <div class="stack wide" id="import-locked">
       <p class="locked-head">
         <Icon name="icon-lock" />
-        <span>암호가 걸린 백업이에요. 내려받을 때 정한 암호를 넣어 주세요.</span>
+        <span>암호가 걸린 패키지예요. 내려받을 때 정한 암호를 넣어 주세요.</span>
       </p>
       <dl class="well stack">
         <div class="kv">
@@ -316,7 +320,11 @@
         ondrop={onDrop}
       >
         <Icon name="icon-upload" scale={2} />
-        <p>내려받아 둔 <span class="nowrap">hobong-backup-….json</span> 파일을 골라 주세요.</p>
+        <p>
+          받아 둔 임용정보 패키지(<span class="nowrap">hobong-package-….json</span>) 파일을 골라
+          주세요.
+        </p>
+        <p class="cap muted" id="import-old-name">{TALK.package.oldName}</p>
         <button
           type="button"
           class="btn primary"
@@ -352,7 +360,7 @@
             <p>
               {source === 'file'
                 ? '내려받은 파일을 그대로 골랐는지 확인해 주세요.'
-                : '백업 내용을 처음부터 끝까지 빠짐없이 붙여넣었는지 확인해 주세요.'}
+                : '패키지 내용을 처음부터 끝까지 빠짐없이 붙여넣었는지 확인해 주세요.'}
             </p>
           {/if}
           <p>지금 데이터는 그대로예요. 아무것도 바뀌지 않았어요.</p>
@@ -370,7 +378,7 @@
       </button>
       {#if showPaste}
         <div class="stack">
-          <label for="import-paste" class="cap muted">백업 내용을 통째로 붙여넣어 주세요.</label>
+          <label for="import-paste" class="cap muted">패키지 내용을 통째로 붙여넣어 주세요.</label>
           <textarea
             id="import-paste"
             class="input"
@@ -390,6 +398,9 @@
           </div>
         </div>
       {/if}
+
+      <hr class="rule" />
+      <ShareNote variant={2} inline />
     </div>
   {/if}
 </Modal>

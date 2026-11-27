@@ -417,7 +417,7 @@
             aria-describedby="leave-memo-hint"
           />
           <span class="hint cap" id="leave-memo-hint">
-            이름이나 민감한 내용은 적지 마세요. 백업 파일에 그대로 담겨요.
+            이름이나 민감한 내용은 적지 마세요. 임용정보 패키지 파일에 그대로 담겨요.
           </span>
         </div>
         {#if message}<p class="note warn" role="alert">{message}</p>{/if}

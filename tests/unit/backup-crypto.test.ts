@@ -115,7 +115,7 @@ describe('암호 걸기 → 풀기', () => {
     expect(opened).toEqual({ ok: true, plain: PLAIN });
   });
 
-  it('푼 평문은 parseBackup 을 지나 원래 데이터와 같고, 컨테이너 자체는 "암호가 걸린 백업"으로 알아본다', async () => {
+  it('푼 평문은 parseBackup 을 지나 원래 데이터와 같고, 컨테이너 자체는 "암호가 걸린 패키지"로 알아본다', async () => {
     const text = await locked();
     const opened = await decryptBackup(text, PASSWORD);
     if (!opened.ok) throw new Error(opened.code);
@@ -125,7 +125,7 @@ describe('암호 걸기 → 풀기', () => {
 
     const direct = parseBackup(text, ctx);
     expect(direct).toMatchObject({ ok: false, code: 'encrypted' });
-    if (!direct.ok) expect(direct.reason).toContain('암호가 걸린 백업');
+    if (!direct.ok) expect(direct.reason).toContain('암호가 걸린 패키지');
   });
 
   it('예전(v3) 앱이 암호를 건 백업도 풀린 뒤 같은 변환을 거쳐 지금 버전으로 열린다', async () => {
@@ -197,8 +197,8 @@ describe('암호 걸기 → 풀기', () => {
   });
 
   it('잠근 파일 이름은 -locked.json 이다(불러오기의 .json 필터를 그대로 지난다)', () => {
-    expect(backupFileName(TODAY, true)).toBe('hobong-backup-20261125-locked.json');
-    expect(backupFileName(TODAY)).toBe('hobong-backup-20261125.json');
+    expect(backupFileName(TODAY, true)).toBe('hobong-package-20261125-locked.json');
+    expect(backupFileName(TODAY)).toBe('hobong-package-20261125.json');
   });
 });
 

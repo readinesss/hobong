@@ -19,7 +19,7 @@ const engines = new Set(
 
 const wide = { width: 1280, height: 900 };
 // 계산·저장 로직은 화면 폭과 무관하므로 모바일에서는 화면·조작 검증만 돈다.
-const mobileOnly = /(responsive|onboarding|leave)\.spec\.ts/;
+const mobileOnly = /(responsive|onboarding|leave|talk)\.spec\.ts/;
 
 const projects: Project[] = [];
 if (engines.has('chromium')) {

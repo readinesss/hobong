@@ -1,36 +1,83 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { ProfileDraft } from '../lib/app/draft.svelte.ts';
+  import { prefs, type OnboardMode } from '../lib/app/prefs.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { clock } from '../lib/app/clock.svelte.ts';
   import { downloadText } from '../lib/app/files.ts';
   import { formatInstant } from '../lib/app/format.ts';
+  import { view } from '../lib/app/view.svelte.ts';
   import { yearOf } from '../lib/calc/date.ts';
+  import { eggStageFor } from '../lib/character/egg.ts';
+  import { resolveLook } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
+  import { emitCue } from '../lib/fx/cues.ts';
   import { rulesFor } from '../lib/rules/index.ts';
-  import type { Profile } from '../lib/store/schema.ts';
+  import { defaultLook } from '../lib/store/defaults.ts';
+  import type { CharacterLook, Profile } from '../lib/store/schema.ts';
+  import { newTalkSeed, TALK } from '../lib/talk.ts';
   import Icon from '../lib/ui/Icon.svelte';
   import Sprite from '../lib/ui/Sprite.svelte';
   import ImportDialog from './ImportDialog.svelte';
   import ProfileForm from './ProfileForm.svelte';
+  import EggStage from './onboarding/EggStage.svelte';
+  import Hatch from './onboarding/Hatch.svelte';
+  import Talk from './onboarding/Talk.svelte';
 
-  let step = $state<'intro' | 'form'>('intro');
-  /** 폼을 한 번 열었으면 계속 그려 둔다('뒤로'를 눌러도 입력한 값이 남는다) */
+  /**
+   * intro 첫 화면 / talk 말을 거는 첫 입력 / form 한 번에 쓰기 / hatch 알이 깨어나는 중(데이터는 이미 저장됨).
+   * 새로 고친 뒤처럼 깨어나는 중에 이 화면이 새로 뜨는 일은 없다(저장돼 있으면 홈이 뜬다).
+   */
+  let step = $state<'intro' | 'talk' | 'form' | 'hatch'>('intro');
+  /** 폼·대화를 한 번 열었으면 계속 그려 둔다('뒤로'를 눌러도 입력한 값·덜 채운 날짜가 남는다) */
   let formOpened = $state(false);
+  let talkOpened = $state(false);
   let startBtn = $state<HTMLButtonElement>();
   let formHeading = $state<HTMLHeadingElement>();
 
-  // 화면이 바뀐 것을 제목으로도 알린다
+  /** 두 입력 방식이 함께 쓰는 초안과 첫 입력에서 고르는 것들 */
+  const draft = new ProfileDraft();
+  let look = $state<CharacterLook>(defaultLook());
+  let showIdentity = $state(true);
+  let haptics = $state(true);
+  const seed = newTalkSeed();
+
+  // 화면이 바뀐 것을 제목으로도 알린다(대화·부화 화면은 스스로 정한다)
   $effect(() => {
-    document.title = step === 'form' ? '내 정보 넣기 · 호봉' : '호봉 — 공무원 상태창';
+    if (step === 'form') document.title = '내 정보 넣기 · 호봉';
+    else if (step === 'intro') document.title = '호봉 — 공무원 상태창';
+    else if (step === 'hatch') document.title = `${TALK.hatch.title} · 호봉`;
   });
+
+  /** 고른 입력 방식을 이 기기에 기억한다(다음에 같은 방식으로 연다) */
+  function remember(mode: OnboardMode) {
+    prefs.set({ onboardMode: mode });
+  }
 
   /** 폼으로: 누른 버튼이 사라지므로 새 화면의 제목으로 포커스를 옮긴다 */
   async function goForm() {
     formOpened = true;
     step = 'form';
+    remember('form');
     await tick();
     window.scrollTo(0, 0);
     formHeading?.focus({ preventScroll: true });
+  }
+
+  /** 말을 거는 첫 입력으로 */
+  async function goTalk() {
+    talkOpened = true;
+    step = 'talk';
+    remember('talk');
+    await tick();
+    window.scrollTo(0, 0);
+    document.getElementById('talk-title')?.focus({ preventScroll: true });
+  }
+
+  /** 새로 시작: 지난번에 고른 방식으로(처음이면 말을 거는 방식) */
+  function start() {
+    if (prefs.onboardMode === 'form') void goForm();
+    else void goTalk();
   }
 
   /** 첫 화면으로: '새로 시작' 버튼으로 포커스를 되돌린다 */
@@ -45,8 +92,61 @@
 
   const rules = $derived(rulesFor(yearOf(clock.today)));
 
-  function create(profile: Profile, payday: number) {
-    app.createProfile(profile, { payday });
+  /**
+   * 알을 깨운다: 저장을 먼저 끝내고(연출 중에 새로 고쳐도 남는다) 이 화면 안에서 부화 연출을 한다.
+   * 연출이 끝나면 홈으로 넘어가 창들이 차례로 나타난다(app.finishHatch).
+   */
+  async function create(profile: Profile, payday: number) {
+    const base = app.context().defaultSettings;
+    const ok = app.createProfile(
+      profile,
+      {
+        payday,
+        haptics,
+        identity: { ...base.identity, showSeriesHome: showIdentity },
+      },
+      look,
+      { hatch: true },
+    );
+    if (!ok) {
+      app.toast('지금은 저장할 수 없어요. 새로 고친 뒤 다시 해 주세요.', 'warn', 'icon-warn');
+      return;
+    }
+    // 임용정보 패키지 안내를 홈에서 한 번 보일 차례다
+    prefs.set({ packageGuide: 'pending' });
+    emitCue('hatch-start');
+    step = 'hatch';
+    await tick();
+    window.scrollTo(0, 0);
+  }
+
+  /** 깨어난 모습(근무 중). 저장된 뒤에만 읽는다 */
+  const hatchedLook = $derived(
+    step === 'hatch' && app.data
+      ? resolveLook(
+          characterRules,
+          view.formId,
+          view.step,
+          'work',
+          view.characterLook,
+          view.propOwner,
+        )
+      : null,
+  );
+
+  // ── 한 번에 쓰기의 작은 알: 칸에서 포커스가 나갈 때, 채운 칸이 늘었으면 한 번 반응한다 ──
+  const FORM_KEYS = ['nickname', 'birthDate', 'hireDate', 'nextStepDate'] as const;
+  const formFilled = $derived(FORM_KEYS.filter((key) => !draft.errors[key]).length);
+  const formStage = $derived(eggStageFor(formFilled, FORM_KEYS.length));
+  let formEgg = $state<ReturnType<typeof EggStage>>();
+  let seenFilled = 0;
+  function onFormFocusOut() {
+    const filled = formFilled;
+    if (filled > seenFilled) {
+      formEgg?.react(filled === FORM_KEYS.length ? 'hop' : 'tap');
+      emitCue(filled === FORM_KEYS.length ? 'egg-ready' : 'egg-crack');
+    }
+    seenFilled = filled;
   }
 
   // 읽지 못해 따로 옮겨 둔 데이터: 내려받거나 글자로 볼 수 있게 한다.
@@ -91,7 +191,7 @@
   }}
   ondrop={onDrop}
 >
-  <div class="inner">
+  <div class="inner" class:top={step === 'talk' || step === 'hatch'}>
     {#if step === 'intro'}
       <section class="win hero" id="welcome-intro">
         <header class="win-title">
@@ -167,7 +267,8 @@
                   {/each}
                 {/if}
                 <p class="cap muted">
-                  내려받아 둔 백업 파일이 있다면 "데이터 불러오기"로 이어서 쓸 수 있어요.
+                  받아 둔 임용정보 패키지(백업 파일)가 있다면 "패키지로 이어하기"로 이어서 쓸 수
+                  있어요.
                 </p>
               </div>
             {/if}
@@ -188,21 +289,19 @@
             {/if}
 
             <div class="choices">
-              <button
-                type="button"
-                class="btn primary choice"
-                bind:this={startBtn}
-                onclick={goForm}
-              >
+              <button type="button" class="btn primary choice" bind:this={startBtn} onclick={start}>
                 <Icon name="icon-egg" scale={2} />
                 <span>새로 시작</span>
               </button>
               <button type="button" class="btn choice" onclick={() => (importing = true)}>
-                <Icon name="icon-upload" scale={2} />
-                <span>데이터 불러오기</span>
+                <Icon name="icon-package" scale={2} />
+                <span>패키지로 이어하기</span>
               </button>
             </div>
-            <p class="cap muted center fine-only">백업 파일을 이 화면에 끌어다 놓아도 돼요.</p>
+            <p class="cap muted center">{TALK.package.welcome}</p>
+            <p class="cap muted center fine-only">
+              임용정보 패키지 파일을 이 화면에 끌어다 놓아도 돼요.
+            </p>
           {/if}
 
           <ul class="facts cap">
@@ -222,11 +321,25 @@
           {#if !app.persistent}
             <p class="note warn">
               이 브라우저는 저장소를 쓸 수 없는 상태예요(사생활 보호 창이거나 정책으로 막힘). 창을
-              닫으면 내용이 사라지니 데이터 내려받기로 보관해 주세요.
+              닫으면 내용이 사라지니 임용정보 패키지를 내려받아 보관해 주세요.
             </p>
           {/if}
         </div>
       </section>
+    {/if}
+    {#if talkOpened}
+      <div hidden={step !== 'talk'}>
+        <Talk
+          {draft}
+          bind:look
+          bind:showIdentity
+          bind:haptics
+          active={step === 'talk'}
+          onform={goForm}
+          onhatch={() => create(draft.toProfile(), draft.payday)}
+          onexit={goIntro}
+        />
+      </div>
     {/if}
     {#if formOpened}
       <div hidden={step !== 'form'}>
@@ -236,9 +349,32 @@
               <Icon name="icon-chevron-left" /> 뒤로
             </button>
             <h1 id="welcome-form-title" tabindex="-1" bind:this={formHeading}>내 정보 넣기</h1>
+            <button
+              type="button"
+              class="btn ghost small mode"
+              onclick={goTalk}
+              title={TALK.modes.talkHint}
+            >
+              <Icon name="icon-chat" />
+              {TALK.modes.talk}
+            </button>
           </header>
-          <div class="win-body">
-            <ProfileForm askPayday submitLabel="알 깨우기" onsubmit={create} />
+          <div class="mini-stage" aria-hidden="true">
+            <EggStage
+              bind:this={formEgg}
+              stage={formStage}
+              ready={formFilled === FORM_KEYS.length}
+              scale={2}
+              rows={30}
+            />
+          </div>
+          <div class="win-body" onfocusout={onFormFocusOut}>
+            <ProfileForm
+              {draft}
+              askPayday
+              submitLabel="알 깨우기"
+              onsubmit={(profile, payday) => create(profile, payday)}
+            />
           </div>
         </section>
         <p class="cap muted center foot">
@@ -246,6 +382,14 @@
           일부, 군무원과 그 밖의 특정직은 준비 중이에요. 입력한 값은 설정에서 언제든 고칠 수 있어요.
         </p>
       </div>
+    {/if}
+    {#if step === 'hatch' && hatchedLook}
+      <Hatch
+        look={hatchedLook}
+        nickname={view.profile.nickname}
+        {seed}
+        onend={() => app.finishHatch()}
+      />
     {/if}
   </div>
 </main>
@@ -280,6 +424,10 @@
   .inner {
     width: min(480px, 100%);
     margin: auto 0;
+  }
+  /* 대화·부화 화면은 위에 붙인다(질문마다 창 높이가 달라 가운데에 두면 위아래로 튄다) */
+  .inner.top {
+    margin: 0;
   }
   .stage {
     display: flex;
@@ -328,9 +476,30 @@
   .foot {
     margin-top: 12px;
   }
-  .back {
+  .back,
+  .mode {
     flex: none;
     color: var(--title-ink);
+  }
+  .back {
     margin: 0 0 0 -6px;
+  }
+  .mode {
+    margin: 0 -6px 0 auto;
+  }
+  /* 한 번에 쓰기의 작은 알: 폼을 내려도 위에 붙어 반응이 보인다 */
+  .mini-stage {
+    position: sticky;
+    top: var(--safe-t);
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    background: linear-gradient(
+      var(--stage) 0 calc(100% - 12px),
+      var(--stage-ground) calc(100% - 12px) 100%
+    );
+    box-shadow: 0 var(--u) 0 0 var(--line);
+    overflow: hidden;
   }
 </style>

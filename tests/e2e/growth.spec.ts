@@ -1,5 +1,15 @@
-import { expect, test } from '@playwright/test';
-import { fillDate, makeSeed, makeSeedV4, openApp, storedData, tick } from './helpers.ts';
+import { expect, test, type Page } from '@playwright/test';
+import {
+  fillDate,
+  makeSeed,
+  makeSeedV4,
+  makeSeedV5,
+  openApp,
+  startForm,
+  storedData,
+  tick,
+  wakeEgg,
+} from './helpers.ts';
 
 test.describe('승급과 시간의 흐름', () => {
   test('승급일이 지나면 호봉이 오르고 승급 연출이 한 번 나온다', async ({ page }) => {
@@ -39,7 +49,7 @@ test.describe('승급과 시간의 흐름', () => {
 
   test('미뤄진 승급일(1년보다 먼 날)을 넣어도 지금 호봉은 넣은 값 그대로다', async ({ page }) => {
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByLabel('닉네임').fill('김주무관');
     await fillDate(page, '생년월일', '1996-04-12');
     await fillDate(page, '임용일', '2022-09-01');
@@ -47,9 +57,7 @@ test.describe('승급과 시간의 흐름', () => {
     await page.getByLabel('현재 호봉', { exact: true }).fill('5');
     // 휴직으로 승급이 밀렸다: 13개월 뒤
     await fillDate(page, '다음 승급일', '2027-12-01');
-    await page.getByRole('button', { name: '알 깨우기' }).click();
-    await tick(page, 6000);
-    await page.getByRole('button', { name: '시작하기' }).click();
+    await wakeEgg(page);
     await tick(page);
 
     await expect(page.locator('#status')).toContainText('9급 5호봉');
@@ -117,7 +125,7 @@ test.describe('승급과 시간의 흐름', () => {
 
   test('최고호봉이면 다음 승급일 대신 최고호봉이 된 날을 묻는다', async ({ page }) => {
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByLabel('닉네임').fill('왕고참');
     await fillDate(page, '생년월일', '1968-03-02');
     await fillDate(page, '임용일', '1993-03-02');
@@ -132,9 +140,7 @@ test.describe('승급과 시간의 흐름', () => {
     await expect(page.locator('#pf-next-error')).toContainText('최고호봉이 된 날');
     await expect(page.getByRole('alert')).toContainText('고칠 곳이 1군데');
     await fillDate(page, '최고호봉이 된 날', '2024-03-01');
-    await page.getByRole('button', { name: '알 깨우기' }).click();
-    await tick(page, 6000);
-    await page.getByRole('button', { name: '시작하기' }).click();
+    await wakeEgg(page);
     await tick(page);
     await expect(page.locator('#status')).toContainText('9급 31호봉');
     // "30호봉이 2024-03-01 전날까지"로 저장된다 → 그날부터 31호봉
@@ -320,5 +326,197 @@ test.describe('승급과 시간의 흐름', () => {
     await page.getByRole('radio', { name: '야근 모드' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     expect((await storedData(page))?.achievements['evt-night']).toEqual({ at: '2026-11-25' });
+  });
+});
+
+/** 연출을 움직임 그대로 보는 저장본(기본 저장본은 움직임 줄이기가 켜져 있다) */
+function moving(seed: string): string {
+  const env = JSON.parse(seed) as { data: { settings: { reduceMotion: boolean } } };
+  env.data.settings.reduceMotion = false;
+  return JSON.stringify(env);
+}
+
+/** 설정에서 내 정보를 고쳐 8급 → 7급 승진(승진일 2026-07-01)을 넣는다 */
+async function promote(page: Page): Promise<void> {
+  await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+  const form = page.getByRole('dialog', { name: '내 정보 고치기' });
+  await form.getByLabel('현재 직급').selectOption('7');
+  await fillDate(page, '현 직급 임용일(승진일)', '2026-07-01');
+}
+
+const EIGHT = { hireDate: '2019-03-04', rank: '8', rankDate: '2022-07-01', step: 6 };
+
+test.describe('승급·승진 연출', () => {
+  test('승급 연출: 건너뛰기가 첫 포커스이고, 끝 장면 전에는 닫히지 않으며, 결과는 한 번만 읽힌다', async ({
+    page,
+  }) => {
+    // 연출의 첫 장면(숫자판이 구르기 전)을 보려고 연 뒤 시계를 조금만 돌린다
+    await openApp(page, {
+      seed: moving(makeSeed()),
+      time: '2027-01-04T09:30:00+09:00',
+      settle: 100,
+    });
+    const dialog = page.getByRole('dialog', { name: '승급했어요' });
+    const skip = dialog.getByRole('button', { name: '건너뛰기' });
+    await expect(skip).toBeFocused();
+    // 연출 중: 닫기 버튼도 결과 글도 없다(숫자판·꼬리표는 장식)
+    await expect(dialog.getByRole('button', { name: '닫기' })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toHaveCount(0);
+    await expect(dialog.locator('.over')).toHaveAttribute('aria-hidden', 'true');
+    await expect(dialog.locator('.over')).toContainText('5호봉');
+    // 시간이 흐르면 숫자판이 6으로 구른다
+    await tick(page, 1000);
+    await expect(dialog.locator('.over')).toContainText('6호봉');
+    // 예전의 무대 배경 깜빡임은 없다
+    await expect(dialog.locator('.stage.flash')).toHaveCount(0);
+    await skip.click();
+    const result = dialog.getByRole('status');
+    await expect(result).toHaveCount(1);
+    await expect(result).toContainText('9급 6호봉');
+    await expect(result).toContainText('5호봉에서 6호봉으로 올랐어요. 깃이 하나 더 자랐어요.');
+    await expect(result).toContainText('안경');
+    // 새 소품이 생겼으니 전 → 후 그림 두 장
+    await expect(dialog.locator('#celebration-pair').getByRole('img')).toHaveCount(2);
+    await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
+    await dialog.getByRole('button', { name: '확인' }).click();
+    // 연출 창은 닫힌다(오랜만에 열었으므로 이어서 '다시 만나서 반가워요'가 뜬다)
+    await expect(dialog).toHaveCount(0);
+    expect((await storedData(page))?.character).toMatchObject({ lastRank: '9', lastStep: 6 });
+  });
+
+  test('연출은 끝까지 두면 스스로 끝 장면에 이르고, Esc 로도 건너뛴다', async ({ page }) => {
+    await openApp(page, { seed: moving(makeSeed()), time: '2027-01-04T09:30:00+09:00' });
+    const dialog = page.getByRole('dialog', { name: '승급했어요' });
+    await expect(dialog.getByRole('button', { name: '건너뛰기' })).toBeVisible();
+    await tick(page, 4000);
+    await expect(dialog.getByRole('status')).toContainText('9급 6호봉');
+    await dialog.getByRole('button', { name: '확인' }).click();
+
+    // 다시 열어(다음 해) Esc 로 건너뛴다. 끝 장면에서 한 번 더 누르면 닫힌다
+    await page.clock.setFixedTime(new Date('2028-01-04T09:30:00+09:00'));
+    await page.reload();
+    await tick(page);
+    const again = page.getByRole('dialog', { name: '승급했어요' });
+    await expect(again.getByRole('button', { name: '건너뛰기' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(again.getByRole('status')).toContainText('9급 7호봉');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: '승급했어요' })).toHaveCount(0);
+  });
+
+  test("내 정보에서 승진을 넣으면 '승진했어요' 스위치가 나오고, 저장하면 진화 연출이 뜬다", async ({
+    page,
+  }) => {
+    await openApp(page, { seed: moving(makeSeedV4(EIGHT)), hash: 'settings' });
+    await promote(page);
+    const form = page.getByRole('dialog', { name: '내 정보 고치기' });
+    const toggle = form.getByRole('checkbox', { name: '승진했어요 (축하 연출 보기)' });
+    await expect(toggle).toBeChecked();
+    await form.getByRole('button', { name: '저장' }).click();
+
+    const dialog = page.getByRole('dialog', { name: '승진했어요' });
+    const skip = dialog.getByRole('button', { name: '건너뛰기' });
+    await expect(skip).toBeFocused();
+    // 이름판: 옛 계급 이름(공개 설정이 켜져 있다)
+    await expect(dialog.locator('.over')).toContainText('8급');
+    await expect(dialog.getByRole('status')).toHaveCount(0);
+    // 진화 장면을 지나 끝 장면으로(3.3초)
+    await tick(page, 1500);
+    await expect(skip).toBeVisible();
+    await tick(page, 2500);
+    const result = dialog.getByRole('status');
+    await expect(result).toHaveCount(1);
+    await expect(result).toContainText('7급이 되었어요. 축하해요!');
+    await expect(result).toContainText('솜봉이에서 깃봉이로 자랐어요.');
+    const pair = dialog.locator('#celebration-pair');
+    await expect(pair.getByRole('img', { name: '전: 솜봉이' })).toBeVisible();
+    await expect(pair.getByRole('img', { name: '후: 깃봉이' })).toBeVisible();
+    await dialog.getByRole('button', { name: '확인' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const data = await storedData(page);
+    expect(data?.profile).toMatchObject({ rank: '7', rankDate: '2026-07-01' });
+    expect(data?.character).toMatchObject({ lastRank: '7', lastForm: 'fledgling' });
+    // 새로 고쳐도 다시 뜨지 않는다
+    await page.reload();
+    await tick(page);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('승진 연출을 건너뛰면 바로 끝 장면이다', async ({ page }) => {
+    await openApp(page, { seed: moving(makeSeedV4(EIGHT)), hash: 'settings' });
+    await promote(page);
+    await page
+      .getByRole('dialog', { name: '내 정보 고치기' })
+      .getByRole('button', { name: '저장' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: '승진했어요' });
+    await dialog.getByRole('button', { name: '건너뛰기' }).click();
+    await expect(dialog.getByRole('status')).toContainText('7급이 되었어요');
+    await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
+  });
+
+  test('움직임 줄이기면 연출 없이 전 → 후 정지 그림 두 장과 글만 보인다', async ({ page }) => {
+    // 기본 저장본은 움직임 줄이기가 켜져 있다
+    await openApp(page, { seed: makeSeedV4(EIGHT), hash: 'settings' });
+    await promote(page);
+    await page
+      .getByRole('dialog', { name: '내 정보 고치기' })
+      .getByRole('button', { name: '저장' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: '승진했어요' });
+    await expect(dialog.getByRole('button', { name: '건너뛰기' })).toHaveCount(0);
+    await expect(dialog.locator('.over')).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toContainText('7급이 되었어요. 축하해요!');
+    await expect(dialog.locator('#celebration-pair').getByRole('img')).toHaveCount(2);
+    await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
+  });
+
+  test("'승진했어요'를 끄거나 승진일을 그대로 두면 조용히 고친다(틀린 값 바로잡기)", async ({
+    page,
+  }) => {
+    await openApp(page, { seed: makeSeedV4(EIGHT), hash: 'settings' });
+    // 승진일은 그대로, 계급만 고친다: 스위치가 나오지 않는다
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+    let form = page.getByRole('dialog', { name: '내 정보 고치기' });
+    await form.getByLabel('현재 직급').selectOption('7');
+    await expect(form.locator('#pf-promote')).toHaveCount(0);
+    await form.getByRole('button', { name: '저장' }).click();
+    await tick(page);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect((await storedData(page))?.profile.rank).toBe('7');
+
+    // 계급이 오르고 승진일도 바뀌었지만 스위치를 끈다
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+    form = page.getByRole('dialog', { name: '내 정보 고치기' });
+    await form.getByLabel('현재 직급').selectOption('6');
+    await fillDate(page, '현 직급 임용일(승진일)', '2026-09-01');
+    await form.getByRole('checkbox', { name: '승진했어요 (축하 연출 보기)' }).uncheck();
+    await form.getByRole('button', { name: '저장' }).click();
+    await tick(page);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect((await storedData(page))?.character).toMatchObject({ lastRank: '6', lastForm: 'bird' });
+  });
+
+  test('홈에 직렬·계급 이름 보이기를 껐으면 승진 연출에도 계급 이름을 쓰지 않는다', async ({
+    page,
+  }) => {
+    // 공개 설정은 v5 저장본에 있다(v4 저장본은 열 때 기본값 '켬'으로 채워진다)
+    const seed = moving(makeSeedV5(EIGHT, { showSeriesHome: false }));
+    await openApp(page, { seed, hash: 'settings' });
+    await promote(page);
+    await page
+      .getByRole('dialog', { name: '내 정보 고치기' })
+      .getByRole('button', { name: '저장' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: '승진했어요' });
+    // 이름판은 형태 이름
+    await expect(dialog.locator('.over')).toContainText('솜봉이');
+    await expect(dialog.locator('.over')).not.toContainText('급');
+    await dialog.getByRole('button', { name: '건너뛰기' }).click();
+    const result = dialog.getByRole('status');
+    await expect(result).toContainText('승진을 축하해요!');
+    await expect(result).toContainText('솜봉이에서 깃봉이로 자랐어요.');
+    await expect(result).not.toContainText('7급');
+    await expect(result).not.toContainText('8급');
   });
 });

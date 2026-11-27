@@ -192,7 +192,7 @@ describe('내보내기 → 초기화 → 불러오기', () => {
   });
 
   it('파일 이름', () => {
-    expect(backupFileName('2026-11-25')).toBe('hobong-backup-20261125.json');
+    expect(backupFileName('2026-11-25')).toBe('hobong-package-20261125.json');
   });
 });
 

@@ -11,6 +11,8 @@
     hint?: string;
     error?: string;
     onchange?: (value: number) => void;
+    /** 설명에 더 이을 요소 id(빈칸으로 구분) */
+    describedby?: string;
   }
 
   let {
@@ -23,6 +25,7 @@
     hint,
     error,
     onchange,
+    describedby,
   }: Props = $props();
 
   function set(next: number) {
@@ -67,7 +70,7 @@
       oninput={onInput}
       onblur={onBlur}
       aria-invalid={error ? 'true' : undefined}
-      aria-describedby={[hint ? `${id}-hint` : '', error ? `${id}-error` : '']
+      aria-describedby={[describedby ?? '', hint ? `${id}-hint` : '', error ? `${id}-error` : '']
         .filter(Boolean)
         .join(' ') || undefined}
     />

@@ -18,6 +18,10 @@
      * 비어 있거나 덜 채운 상태는 '' 이다(그때는 바깥의 "넣어 주세요" 안내가 맡는다).
      */
     problem?: string;
+    /** 묶음의 이름을 다른 요소(말풍선의 질문 문장)로 바꾼다. 세 칸의 이름('… 연도')은 label 그대로 */
+    labelledby?: string;
+    /** 설명에 더 이을 요소 id(빈칸으로 구분). 맞장구·알 상태처럼 칸 밖에 있는 글 */
+    describedby?: string;
   }
 
   let {
@@ -31,6 +35,8 @@
     max,
     required = false,
     problem = $bindable(''),
+    labelledby,
+    describedby,
   }: Props = $props();
 
   let year = $state('');
@@ -176,7 +182,9 @@
   }
 
   const describedBy = $derived(
-    [hint ? `${id}-hint` : '', message ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined,
+    [describedby ?? '', hint ? `${id}-hint` : '', message ? `${id}-error` : '']
+      .filter(Boolean)
+      .join(' ') || undefined,
   );
 </script>
 
@@ -185,7 +193,12 @@
     {label}
     {#if required}<span class="cap muted">필수</span>{/if}
   </span>
-  <div class="date" role="group" aria-labelledby="{id}-label" aria-describedby={describedBy}>
+  <div
+    class="date"
+    role="group"
+    aria-labelledby={labelledby ?? `${id}-label`}
+    aria-describedby={describedBy}
+  >
     <input
       bind:this={yearEl}
       {id}

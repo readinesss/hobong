@@ -28,7 +28,7 @@
     mismatch: '두 암호가 서로 달라요.',
     'too-short': `암호를 ${MIN_PASSWORD_LENGTH}자 이상 넣어 주세요.`,
     unsupported: '이 브라우저에서는 암호를 걸 수 없어요.',
-    format: '백업 내용이 너무 커서 암호를 걸지 못했어요.',
+    format: '패키지 내용이 너무 커서 암호를 걸지 못했어요.',
   } as const;
 
   function clear() {

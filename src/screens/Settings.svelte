@@ -1,7 +1,11 @@
 <script lang="ts">
+  import { emitCue } from '../lib/fx/cues.ts';
+  import { prefs } from '../lib/app/prefs.svelte.ts';
+  import { TALK } from '../lib/talk.ts';
   import { tick } from 'svelte';
   import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
+  import { hapticsSupported } from '../lib/app/haptics.ts';
   import { formatInstant } from '../lib/app/format.ts';
   import { PAY_TABLE_SHORT, trackStatusText } from '../lib/app/track.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
@@ -22,6 +26,7 @@
   import Modal from '../lib/ui/Modal.svelte';
   import Win from '../lib/ui/Win.svelte';
   import ImportDialog from './ImportDialog.svelte';
+  import ShareNote from './share/ShareNote.svelte';
   import ProfileForm from './ProfileForm.svelte';
   import ContactWindow from './settings/ContactWindow.svelte';
   import DreamsWindow from './settings/DreamsWindow.svelte';
@@ -58,9 +63,11 @@
   let showLicenses = $state(false);
 
   const hosted = typeof location !== 'undefined' && location.protocol !== 'file:';
+  const canVibrate = hapticsSupported();
 
-  function saveProfile(next: Profile) {
-    app.updateProfile(next);
+  function saveProfile(next: Profile, _payday: number, options: { celebrate: boolean }) {
+    // '승진했어요'를 켜 두었으면 저장한 뒤 승진 연출이 뜬다(조건은 updateProfile 이 다시 본다)
+    app.updateProfile(next, { celebrate: options.celebrate });
     editing = false;
     app.toast('내 정보를 고쳤어요.', 'good', 'icon-check');
   }
@@ -155,6 +162,7 @@
           run: () => lastLocked && showText(lastLocked.text, lastLocked.at, lastLocked.stamp, true),
         };
         if (app.markBackedUp(at, stamp)) {
+          emitCue('package-saved');
           app.toast(
             `암호를 걸어 내려받기를 시작했어요. ${fileName} 파일이 생겼는지 확인해 주세요. 암호를 잊으면 되살릴 수 없어요.`,
             'good',
@@ -187,7 +195,7 @@
     const { text, at, stamp } = app.exportBackup();
     const fileName = backupFileName(view.today);
     if (caps.download && downloadText(text, fileName)) {
-      app.markBackedUp(at, stamp);
+      if (app.markBackedUp(at, stamp)) emitCue('package-saved');
       // 브라우저는 저장이 끝났는지 알려 주지 않는다. 단정하지 않고 확인을 부탁한다.
       if (inDialog) {
         resetFileName = fileName;
@@ -236,7 +244,7 @@
       if (app.markBackedUp(backupAt, backupStamp)) {
         copyResult = {
           ok: true,
-          text: '백업 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
+          text: '패키지 내용을 복사했어요. 메모장 등에 붙여넣어 보관해 주세요.',
         };
       } else {
         backupStale = true;
@@ -262,6 +270,8 @@
     app.reset();
     // 이 탭에서만 기억하던 화면 상태(닫은 안내 띠·카드 종류)도 처음으로
     session.reset();
+    // 임용정보 패키지 안내 상태도 처음으로(고른 입력 방식은 이 기기의 편의라 남긴다)
+    prefs.resetForNewStart();
     nav.go('home');
   }
 </script>
@@ -396,9 +406,9 @@
             가려져요. 직종 이름(화면 맨 아래 기준 줄)은 그대로 보여요.
           </p>
           <p>
-            직렬은 이 브라우저에만 저장해요(내려받은 백업 파일에는 들어가요). 카드에는 기본으로 넣지
-            않아요. 직렬 이름을 숨겨도 호봉이가 들고 있는 소품으로 직렬이 짐작될 수 있어요. 소품은
-            '호봉이 꾸미기'에서 바꿀 수 있어요.
+            직렬은 이 브라우저에만 저장해요(내려받은 임용정보 패키지에는 들어가요). 카드에는
+            기본으로 넣지 않아요. 직렬 이름을 숨겨도 호봉이가 들고 있는 소품으로 직렬이 짐작될 수
+            있어요. 소품은 '호봉이 꾸미기'에서 바꿀 수 있어요.
           </p>
         </div>
       </div>
@@ -406,12 +416,9 @@
 
     <LookWindow />
 
-    <Win title="데이터" icon="icon-save" id="set-data">
+    <Win title="임용정보 패키지" icon="icon-package" id="set-data">
       <div class="stack wide">
-        <p>
-          입력한 내용은 이 브라우저에만 있어요. 파일로 내려받아 두면 다른 PC·브라우저에서나 저장소가
-          지워진 뒤에도 그대로 이어서 쓸 수 있어요.
-        </p>
+        <p>입력한 내용은 이 브라우저에만 있어요. {TALK.package.intro}</p>
         <dl class="well stack">
           <div class="kv">
             <dt>마지막 내려받기</dt>
@@ -435,14 +442,14 @@
         {/if}
         <div class="btn-row stretch data-btns">
           <button type="button" class="btn primary" onclick={() => download()}>
-            <Icon name="icon-download" /> 데이터 내려받기
+            <Icon name="icon-download" /> 패키지 내려받기
           </button>
           <button type="button" class="btn" onclick={() => (importing = true)}>
-            <Icon name="icon-upload" /> 데이터 불러오기
+            <Icon name="icon-upload" /> 패키지 불러오기
           </button>
         </div>
         <p class="note warn">
-          백업 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에
+          패키지 파일에는 생년월일·임용일·호봉 같은 인사 정보가 들어 있어요. 공용 PC나 공유 폴더에
           두지 말고, 메신저로 보낼 때도 주의해 주세요.
         </p>
         {#if !hosted}
@@ -455,6 +462,10 @@
         <button type="button" class="btn small ghost link" onclick={openBackupText}>
           파일 저장이 안 되나요? 글자로 보기
         </button>
+        <p class="cap muted" id="set-old-name">{TALK.package.oldName}</p>
+        <div class="well" id="set-share">
+          <ShareNote variant={1} />
+        </div>
 
         {#if app.corruptKept}
           <div class="well stack" id="set-corrupt">
@@ -649,6 +660,20 @@
               기기 설정에서 움직임 줄이기가 켜져 있어 늘 멈춰 있어요.
             </p>
           {/if}
+          {#if canVibrate}
+            <!-- 진동을 지원하는 기기에서만 보인다(아이폰 Safari·데스크톱 대부분은 지원하지 않는다) -->
+            <label class="switch" id="set-haptics">
+              <input
+                type="checkbox"
+                checked={settings.haptics}
+                onchange={(e) => app.updateSettings({ haptics: e.currentTarget.checked }, false)}
+              />
+              <span class="box" aria-hidden="true"></span>
+              <span>
+                진동 <span class="cap muted">승급·승진 연출에서 짧게 울려요</span>
+              </span>
+            </label>
+          {/if}
           <label class="switch">
             <input
               type="checkbox"
@@ -791,7 +816,7 @@
 {/if}
 
 {#if showBackupText}
-  <Modal title="백업 내용(글자)" icon="icon-text" wide onclose={() => (showBackupText = false)}>
+  <Modal title="패키지 내용(글자)" icon="icon-text" wide onclose={() => (showBackupText = false)}>
     <div class="stack wide">
       {#if backupStale}
         <p class="note warn" id="backup-text-stale">
@@ -851,10 +876,10 @@
         이 브라우저에 있는 내 정보, 연가 기록, 업적을 모두 지우고 첫 화면으로 돌아가요. 지운 뒤에는
         되돌릴 수 없어요.
       </p>
-      <p class="note">먼저 데이터를 내려받아 두면 나중에 다시 불러올 수 있어요.</p>
+      <p class="note">먼저 임용정보 패키지를 내려받아 두면 나중에 다시 불러올 수 있어요.</p>
       {#if lock && canLock}
         <p class="cap muted" id="reset-plain-note">
-          여기서는 암호 없이 내려받아요. 암호를 걸려면 닫고 데이터 내려받기를 눌러 주세요.
+          여기서는 암호 없이 내려받아요. 암호를 걸려면 닫고 패키지 내려받기를 눌러 주세요.
         </p>
       {/if}
       {#if resetDownloaded}
@@ -870,7 +895,7 @@
         <label class="switch">
           <input type="checkbox" bind:checked={resetConfirmed} />
           <span class="box" aria-hidden="true"></span>
-          <span>백업 파일이 저장된 것을 확인했어요</span>
+          <span>패키지 파일이 저장된 것을 확인했어요</span>
         </label>
       {/if}
     </div>

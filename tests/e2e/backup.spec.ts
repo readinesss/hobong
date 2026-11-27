@@ -8,6 +8,7 @@ import {
   makeSeed,
   makeSeedV4,
   openApp,
+  PACKAGE_OPEN,
   storedData,
   tick,
 } from './helpers.ts';
@@ -38,7 +39,7 @@ function tempFile(name: string, content: string): string {
 async function download(page: Page): Promise<{ path: string; name: string; text: string }> {
   const [file] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: '데이터 내려받기' }).click(),
+    page.getByRole('button', { name: '패키지 내려받기' }).click(),
   ]);
   const text = readFileSync(await file.path(), 'utf8');
   return { path: tempFile(file.suggestedFilename(), text), name: file.suggestedFilename(), text };
@@ -57,7 +58,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     await tick(page, 6000);
 
     const file = await download(page);
-    expect(file.name).toBe('hobong-backup-20261125.json');
+    expect(file.name).toBe('hobong-package-20261125.json');
     const envelope = JSON.parse(file.text);
     expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 5, appVersion: '0.1.0' });
     expect(typeof envelope.exportedAt).toBe('string');
@@ -82,7 +83,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(await storedData(page)).toBeNull();
 
     // 불러오기
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, file.path);
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('백업이');
@@ -100,7 +101,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(await storedData(page)).toEqual(envelope.data);
     expect(await page.evaluate(() => localStorage.getItem('hobong.undo'))).toBeNull();
     // 되살린 뒤에도 백업 알림이 뜨지 않고, 설정에 마지막 내려받기 시각이 보인다
-    await expect(page.getByText('아직 데이터를 내려받은 적이 없어요.')).toHaveCount(0);
+    await expect(page.getByText('아직 임용정보 패키지를 받은 적이 없어요.')).toHaveCount(0);
     await page
       .getByRole('navigation', { name: '화면 이동' })
       .getByRole('link', { name: '설정' })
@@ -122,7 +123,7 @@ test.describe('데이터 내려받기·불러오기', () => {
       dialog.getByRole('button', { name: '먼저 내려받기' }).click(),
     ]);
     await expect(dialog.getByRole('button', { name: '모두 지우기' })).toBeDisabled();
-    await dialog.getByRole('checkbox', { name: '백업 파일이 저장된 것을 확인했어요' }).check();
+    await dialog.getByRole('checkbox', { name: '패키지 파일이 저장된 것을 확인했어요' }).check();
     await expect(dialog.getByRole('button', { name: '모두 지우기' })).toBeEnabled();
   });
 
@@ -138,7 +139,7 @@ test.describe('데이터 내려받기·불러오기', () => {
       JSON.stringify({ ...JSON.parse(SEED), schemaVersion: 99 }),
     );
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const dialog = page.getByRole('dialog');
 
     await importFile(page, broken);
@@ -161,7 +162,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     await openApp(page, { seed: newer });
     await expect(page.locator('#welcome-newer')).toContainText('더 새 버전의 호봉');
     await expect(page.getByRole('button', { name: '새로 시작' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '데이터 불러오기' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: PACKAGE_OPEN })).toHaveCount(0);
     await page.reload();
     await tick(page);
     expect(await page.evaluate(() => localStorage.getItem('hobong.data'))).toBe(newer);
@@ -226,7 +227,7 @@ test.describe('데이터 내려받기·불러오기', () => {
       ['teacher.json', fixture('backup-v4-teacher.json')],
       ['other.json', fixture('backup-v4-other.json')],
     ] as const) {
-      await page.getByRole('button', { name: '데이터 불러오기' }).click();
+      await page.getByRole('button', { name: PACKAGE_OPEN }).click();
       await importFile(page, tempFile(name, text));
       const dialog = page.getByRole('dialog');
       await dialog.getByRole('button', { name: /불러오기$/ }).click();
@@ -327,7 +328,7 @@ test.describe('데이터 내려받기·불러오기', () => {
 
   test('구버전(v1) 파일은 자동으로 변환해 불러온다', async ({ page }) => {
     await openApp(page);
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, tempFile('backup-v1.json', fixture('backup-v1.json')));
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('예전 형식(버전 1)');
@@ -386,7 +387,7 @@ test.describe('데이터 내려받기·불러오기', () => {
 
     const incoming = tempFile('incoming.json', makeSeed({ nickname: '새사람', grade: 7, step: 3 }));
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await importFile(page, incoming);
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText('지금 이 브라우저에 있는 데이터는 불러온 내용으로 바뀌어요');
@@ -425,7 +426,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(JSON.parse(text).data.profile.nickname).toBe('백업이');
     await page.getByRole('dialog').getByRole('button', { name: '닫기' }).click();
 
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const dialog = page.getByRole('dialog');
     await dialog
       .getByRole('button', { name: '파일을 고를 수 없나요? 글자로 붙여넣기', exact: true })
@@ -439,8 +440,8 @@ test.describe('데이터 내려받기·불러오기', () => {
     const seed = JSON.parse(SEED);
     seed.data.meta.changesSinceBackup = 9;
     await openApp(page, { seed: JSON.stringify(seed) });
-    await expect(page.getByText('아직 데이터를 내려받은 적이 없어요.')).toBeVisible();
+    await expect(page.getByText('아직 임용정보 패키지를 받은 적이 없어요.')).toBeVisible();
     await page.getByRole('button', { name: '나중에' }).click();
-    await expect(page.getByText('아직 데이터를 내려받은 적이 없어요.')).toHaveCount(0);
+    await expect(page.getByText('아직 임용정보 패키지를 받은 적이 없어요.')).toHaveCount(0);
   });
 });

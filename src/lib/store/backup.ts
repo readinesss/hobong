@@ -17,9 +17,13 @@ export function serializeBackup(envelope: Envelope): string {
   return `${JSON.stringify(envelope, null, 2)}\n`;
 }
 
-/** hobong-backup-YYYYMMDD.json, 암호를 걸었으면 hobong-backup-YYYYMMDD-locked.json */
+/**
+ * 임용정보 패키지(= 백업 파일)의 이름: hobong-package-YYYYMMDD.json, 암호를 걸었으면 …-locked.json.
+ * ASCII 만 쓴다(업무망 파일 서버·메신저 호환). 예전 이름(hobong-backup-…)의 파일도 그대로 불러온다 —
+ * 불러오기는 파일 이름이 아니라 내용(겉봉의 app·schemaVersion)만 본다.
+ */
 export function backupFileName(today: Ymd, locked = false): string {
-  return `hobong-backup-${today.replace(/-/g, '')}${locked ? '-locked' : ''}.json`;
+  return `hobong-package-${today.replace(/-/g, '')}${locked ? '-locked' : ''}.json`;
 }
 
 export interface ParseContext extends ProfileContext {
@@ -47,7 +51,7 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   if (text.length > MAX_BACKUP_BYTES) {
     return {
       ok: false,
-      reason: '파일이 너무 커요. 호봉 백업 파일이 맞는지 확인해 주세요.',
+      reason: '파일이 너무 커요. 임용정보 패키지 파일이 맞는지 확인해 주세요.',
       details: [],
     };
   }
@@ -73,7 +77,7 @@ export function parseBackup(text: string, ctx: ParseContext): ParseResult {
   ) {
     return {
       ok: false,
-      reason: '암호가 걸린 백업이에요. 불러오기에서 암호를 넣어 열어 주세요.',
+      reason: '암호가 걸린 패키지예요. 불러오기에서 암호를 넣어 열어 주세요.',
       details: [],
       code: 'encrypted',
     };

@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { closeDialogs, makeSeed, makeSeedV4, makeSeedV5, openApp, tick } from './helpers.ts';
+import {
+  closeDialogs,
+  makeSeed,
+  makeSeedV4,
+  makeSeedV5,
+  openApp,
+  PACKAGE_OPEN,
+  startForm,
+  tick,
+} from './helpers.ts';
 
 const TABS = [
   { hash: 'home', label: '홈' },
@@ -176,14 +185,14 @@ test.describe('반응형과 조작', () => {
     await dialog.getByLabel('암호 확인').fill('hobong-pass-1');
     await dialog.getByRole('button', { name: '암호 걸고 글자로 보기' }).click();
     const text = await page
-      .getByRole('dialog', { name: '백업 내용(글자)' })
+      .getByRole('dialog', { name: '패키지 내용(글자)' })
       .locator('textarea')
       .inputValue();
     expect(await page.evaluate(smallTargets), '암호 글자 대화상자').toEqual([]);
     await page.getByRole('dialog').getByRole('button', { name: '닫기' }).click();
 
     // 불러오기에서 암호를 묻는 화면(틀린 암호 오류가 보이는 상태)
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     await dialog.getByRole('button', { name: /글자로 붙여넣기/ }).click();
     await dialog.locator('textarea').fill(text);
     await dialog.getByRole('button', { name: '확인하기' }).click();
@@ -198,7 +207,7 @@ test.describe('반응형과 조작', () => {
     await page.setViewportSize({ width: 360, height: 760 });
     await openApp(page);
     expect(await page.evaluate(smallTargets), '첫 화면').toEqual([]);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByRole('button', { name: /예외가 있어요/ }).click();
     expect(await page.evaluate(smallTargets), '입력 폼').toEqual([]);
   });
@@ -264,10 +273,10 @@ test.describe('반응형과 조작', () => {
   }) => {
     test.skip(!!isMobile, '키보드 조작은 데스크톱에서 확인한다');
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
-    await page.getByRole('button', { name: '데이터 불러오기' }).click();
+    await page.getByRole('button', { name: PACKAGE_OPEN }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: /글자로 붙여넣기/ }).click();
-    await dialog.getByLabel('백업 내용을 통째로 붙여넣어 주세요.').fill(makeSeed());
+    await dialog.getByLabel('패키지 내용을 통째로 붙여넣어 주세요.').fill(makeSeed());
     await dialog.getByRole('button', { name: '확인하기' }).click();
     // 누른 버튼이 사라져도 포커스는 BODY 로 떨어지지 않고 '불러오기'로 간다
     await expect(dialog.getByRole('button', { name: /불러오기$/ })).toBeFocused();
@@ -318,7 +327,7 @@ test.describe('반응형과 조작', () => {
     test(`${width}px: 내 정보 폼과 고치기 대화상자가 가로로 넘치지 않는다`, async ({ page }) => {
       await page.setViewportSize({ width, height: 760 });
       await openApp(page);
-      await page.getByRole('button', { name: '새로 시작' }).click();
+      await startForm(page);
       await page.getByRole('button', { name: /예외가 있어요/ }).click();
       const doc = await page.evaluate(() => [
         document.documentElement.scrollWidth,
@@ -555,7 +564,7 @@ test.describe('반응형과 조작', () => {
   }) => {
     await page.setViewportSize({ width: 320, height: 760 });
     await openApp(page);
-    await page.getByRole('button', { name: '새로 시작' }).click();
+    await startForm(page);
     await page.getByText('별표 4는 누가 쓰나요?').click();
     await page.getByRole('button', { name: /예외가 있어요/ }).click();
     const check = async (what: string) => {

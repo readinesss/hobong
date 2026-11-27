@@ -83,16 +83,17 @@
 {:else if !app.persistent}
   <p class="note warn banner" role="status">
     이 브라우저에서는 저장이 되지 않아요(사생활 보호 창이거나 정책으로 막힘). 창을 닫기 전에
-    설정에서 데이터를 내려받아 주세요.
+    설정에서 임용정보 패키지를 내려받아 주세요.
   </p>
 {:else if !app.writable}
   <p class="note warn banner" role="alert">
-    저장 공간이 가득 찼거나 쓰기가 막혀 있어 바꾼 내용이 저장되지 않아요. 설정에서 데이터를 내려받아
-    보관해 주세요.
+    저장 공간이 가득 찼거나 쓰기가 막혀 있어 바꾼 내용이 저장되지 않아요. 설정에서 임용정보 패키지를
+    내려받아 보관해 주세요.
   </p>
 {:else if app.saveFailed}
   <p class="note warn banner" role="alert">
-    방금 바꾼 내용을 저장하지 못했어요(저장 공간 부족 등). 설정에서 데이터를 내려받아 보관해 주세요.
+    방금 바꾼 내용을 저장하지 못했어요(저장 공간 부족 등). 설정에서 임용정보 패키지를 내려받아
+    보관해 주세요.
   </p>
 {/if}
 
@@ -192,13 +193,13 @@
   <div class="note banner nudge" role="status">
     <p>
       {neverBackedUp
-        ? '아직 데이터를 내려받은 적이 없어요.'
-        : `마지막으로 내려받은 뒤 ${changes}번 바뀌었어요.`}
+        ? '아직 임용정보 패키지를 받은 적이 없어요.'
+        : `패키지를 받은 뒤 ${changes}번 바뀌었어요.`}
       업무용 PC는 브라우저 저장소가 지워질 수 있으니 파일로 보관해 두세요.
     </p>
     <div class="btn-row">
       <button type="button" class="btn small primary" onclick={() => nav.go('settings')}>
-        내려받으러 가기
+        패키지 받으러 가기
       </button>
       <button
         type="button"

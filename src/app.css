@@ -768,6 +768,31 @@ textarea.input {
   scroll-behavior: auto !important;
 }
 
+/* ── 효과 층(src/lib/fx/core.ts) ──────────────────────────────────────
+ * 화면 위에 고정된 한 장. 누르는 것을 가로채지 않고(pointer-events: none) 낭독기에도 없다(aria-hidden).
+ * 대화상자(z-index 100~)·알림(110)·머리띠(200)보다 위. 인쇄(.no-print)와 고대비에서는 숨긴다.
+ */
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+.fx-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+@media (forced-colors: active) {
+  .fx-layer {
+    display: none;
+  }
+}
+
 /* 마우스로 끌어다 놓는 안내는 터치 기기에서 숨긴다 */
 @media (pointer: coarse) {
   .fine-only {

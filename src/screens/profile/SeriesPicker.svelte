@@ -8,9 +8,13 @@
   interface Props {
     value: string | null;
     onchange: (value: string | null) => void;
+    /** id 앞머리. 한 화면에 둘이 있어도(첫 입력의 대화와 폼) id 가 겹치지 않게 */
+    idPrefix?: string;
+    /** 찾는 칸의 설명에 더 이을 요소 id(빈칸으로 구분). 말을 거는 첫 입력의 맞장구·알 상태 */
+    describedby?: string;
   }
 
-  let { value, onchange }: Props = $props();
+  let { value, onchange, idPrefix = 'pf', describedby }: Props = $props();
 
   let query = $state('');
   const needle = $derived(query.trim().replace(/\s+/g, ''));
@@ -69,11 +73,11 @@
   }
 </script>
 
-<div class="field series" id="pf-series-field">
-  <label for="pf-series">직렬</label>
+<div class="field series" id="{idPrefix}-series-field">
+  <label for="{idPrefix}-series">직렬</label>
   <div class="find">
     <input
-      id="pf-series-find"
+      id="{idPrefix}-series-find"
       class="input"
       type="search"
       enterkeyhint="search"
@@ -81,13 +85,13 @@
       spellcheck="false"
       placeholder="글자로 찾기 (예: 간호)"
       aria-label="직렬 찾기"
-      aria-describedby="pf-series-found"
-      aria-controls="pf-series"
+      aria-describedby="{describedby ? `${describedby} ` : ''}{idPrefix}-series-found"
+      aria-controls="{idPrefix}-series"
       bind:value={query}
       onkeydown={onFindKey}
     />
   </div>
-  <p class="cap muted" id="pf-series-found" role="status">
+  <p class="cap muted" id="{idPrefix}-series-found" role="status">
     {needle === ''
       ? ''
       : found === 0
@@ -96,10 +100,10 @@
   </p>
   <select
     bind:this={select}
-    id="pf-series"
+    id="{idPrefix}-series"
     class="input"
     value={unknown ? (value ?? '') : (current ?? '')}
-    aria-describedby="pf-series-hint"
+    aria-describedby="{idPrefix}-series-hint"
     onchange={(e) => {
       const next = e.currentTarget.value;
       onchange(next === '' ? null : next);
@@ -117,10 +121,10 @@
       <option {value}>{value} (목록에 없는 저장값)</option>
     {/if}
   </select>
-  <span class="hint cap stack" id="pf-series-hint">
+  <span class="hint cap stack" id="{idPrefix}-series-hint">
     <span> 선택 사항이에요. 고르면 호봉이가 어울리는 소품을 들어요. 계산에는 쓰지 않아요. </span>
     <span>
-      직렬은 이 브라우저에만 저장해요(내려받은 백업 파일에는 들어가요). 홈에 보일지는 설정 '내
+      직렬은 이 브라우저에만 저장해요(내려받은 임용정보 패키지에는 들어가요). 홈에 보일지는 설정 '내
       정보'에서, 카드에 넣을지는 카드 화면에서 정해요(카드는 기본으로 넣지 않아요).
     </span>
     <span>직렬 이름을 숨겨도 호봉이가 들고 있는 소품으로 직렬이 짐작될 수 있어요.</span>

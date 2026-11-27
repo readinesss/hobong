@@ -342,12 +342,12 @@ export function achievementViews(
   views.push({
     id: 'evt-backup',
     title: '꼼꼼한 백업',
-    desc: '데이터를 파일로 내려받았어요.',
+    desc: '임용정보 패키지를 내려받았어요.',
     icon: 'icon-save',
     tier: 'bronze',
     group: 'habit',
     at: at('evt-backup'),
-    hint: at('evt-backup') ? null : '데이터를 내려받으면',
+    hint: at('evt-backup') ? null : '임용정보 패키지를 내려받으면',
   });
   for (const [id, def] of Object.entries(EVENT_BADGES)) {
     views.push({

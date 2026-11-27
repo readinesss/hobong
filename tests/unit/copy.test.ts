@@ -44,10 +44,9 @@ const profile: Profile = {
 
 describe('표기 통일', () => {
   const sources = sourceFiles().map((path) => ({ path, text: readFileSync(path, 'utf8') }));
-  const data = ['data/lines.json', 'data/character.json', 'data/site.json'].map((path) => ({
-    path,
-    text: read(path),
-  }));
+  const data = ['data/lines.json', 'data/character.json', 'data/site.json', 'data/talk.json'].map(
+    (path) => ({ path, text: read(path) }),
+  );
 
   it("'뱃지'가 아니라 표준 표기 '배지'", () => {
     for (const { path, text } of [...sources, ...data]) expect(text, path).not.toContain('뱃지');
@@ -146,5 +145,61 @@ describe('캐릭터 문구', () => {
   it("틀린 높임 '-실게요'를 쓰지 않는다", () => {
     for (const group of Object.values(lines.lines))
       for (const line of group) expect(line).not.toContain('실게요');
+  });
+});
+
+describe('첫 만남의 대사(data/talk.json)', () => {
+  // 말투·금지어·변형 수의 자세한 검사는 tests/unit/onboarding.test.ts 에 있다. 여기서는 화면 문구와 함께 보는 표기를 지킨다
+  const talk = JSON.parse(read('data/talk.json')) as Record<string, unknown>;
+  const lines: { at: string; text: string }[] = [];
+  const walk = (value: unknown, at: string) => {
+    if (at === 'notes') return;
+    if (typeof value === 'string') lines.push({ at, text: value });
+    else if (Array.isArray(value)) value.forEach((v, i) => walk(v, `${at}[${i}]`));
+    else if (value && typeof value === 'object')
+      for (const [k, v] of Object.entries(value)) walk(v, at ? `${at}.${k}` : k);
+  };
+  walk(talk, '');
+
+  it("조사를 '은(는)'처럼 뭉뚱그리지 않고, 자리표시자 뒤에 조사를 고정하지 않는다", () => {
+    for (const { at, text } of lines) {
+      expect(text, at).not.toMatch(/\((은|는|이|가|을|를|과|와|으로)\)/);
+      // {nick} 뒤에는 '님'이 온다. {nounEul} 은 코드가 조사를 붙여 넣는다(josa).
+      // 긴 날짜({date}: '2027년 4월 1일')는 늘 '일'로 끝나므로 '{date}로'만 받아들인다
+      expect(text.replaceAll('{date}로', ''), at).not.toMatch(
+        /\{(?!nounEul)[A-Za-z]+\}(은|는|이|가|을|를|과|와|으로|로)(?![가-힣])/,
+      );
+    }
+  });
+  it("해요체다(합쇼체 '-습니다·-ㅂ니다'를 섞지 않는다)", () => {
+    for (const { at, text } of lines) expect(text, at).not.toMatch(/니다([.!?\s]|$)/);
+  });
+  it('숫자·날짜·직급·직렬·나이를 품평하지 않는다', () => {
+    for (const { at, text } of lines)
+      expect(text, at).not.toMatch(/빠르|빨리|젊|벌써|늦|어리|대단|높으시|낮으시/);
+  });
+  it("파일은 늘 '임용정보 패키지'로 부르고, '백업'은 예전 이름을 잇는 두 곳에만 쓴다", () => {
+    const withBackup = lines.filter((l) => l.text.includes('백업')).map((l) => l.at);
+    expect(withBackup.sort()).toEqual(['package.intro', 'package.oldName']);
+    // 처음 소개하는 글과 첫 화면의 안내는 줄이지 않은 이름을 쓴다
+    for (const at of ['package.intro', 'package.welcome', 'package.body[0]'])
+      expect(lines.find((l) => l.at === at)?.text, at).toContain('임용정보 패키지');
+  });
+  it("로그인·정보 저장은 '준비 중'이라고만 말한다(기한을 약속하지 않는다)", () => {
+    const wit = lines.filter((l) => l.at.startsWith('wit['));
+    expect(wit.length).toBeGreaterThanOrEqual(2);
+    for (const { at, text } of wit) {
+      expect(text, at).toMatch(/준비 중|부화 전/);
+      expect(text, at).not.toMatch(/\d|곧|머지않|올해|내년|출시|예정|약속/);
+    }
+  });
+  it('화면은 첫 만남의 대사를 talk.json 에서만 가져온다(질문 문장을 화면 코드에 적어 두지 않는다)', () => {
+    const questions = talk.questions as Record<string, { ask: string }>;
+    const screens = sourceFiles().filter((f) => f.endsWith('.svelte'));
+    for (const path of screens) {
+      const text = readFileSync(path, 'utf8');
+      for (const [id, q] of Object.entries(questions))
+        if (!q.ask.includes('{')) expect(text, `${path}: ${id}`).not.toContain(q.ask);
+    }
   });
 });

@@ -6,6 +6,7 @@
   import { lookName, sameLook } from '../../lib/character/customize.ts';
   import { resolveLook } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
+  import { nav } from '../../lib/app/nav.svelte.ts';
   import { app } from '../../lib/app/state.svelte.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { defaultLook } from '../../lib/store/defaults.ts';
@@ -33,6 +34,13 @@
   function close() {
     editing = false;
   }
+  // 홈 안내 창의 [호봉이 꾸미기]로 들어오면 고르는 창을 바로 연다
+  $effect(() => {
+    if (nav.lookRequested) {
+      nav.lookRequested = false;
+      open();
+    }
+  });
   function save() {
     // 고른 것이 저장값과 같으면 저장하지 않는다(백업 뒤 바뀐 횟수를 늘리지 않게)
     if (sameLook(draft, view.characterLook)) {
