@@ -741,7 +741,13 @@
         <!-- [알 깨우기]는 화면 아래에 붙어 있다(답 목록이 길어도 늘 보인다) -->
         <div class="wake">
           {#if hatchProblem}<p class="note warn" role="alert">{hatchProblem}</p>{/if}
-          <button type="button" class="btn primary hatch" onclick={hatch}>
+          <p class="cap muted later" id="tk-later">{TALK.summary.later}</p>
+          <button
+            type="button"
+            class="btn primary hatch"
+            aria-describedby="tk-later"
+            onclick={hatch}
+          >
             <Icon name="icon-egg" />
             {TALK.summary.hatch}
           </button>
@@ -1296,6 +1302,10 @@
     padding: 9px 12px calc(9px + var(--safe-b));
     background: var(--panel);
     box-shadow: 0 calc(var(--u) * -1) 0 0 var(--line);
+  }
+  .later {
+    margin: 0;
+    text-align: center;
   }
   .hatch {
     width: 100%;

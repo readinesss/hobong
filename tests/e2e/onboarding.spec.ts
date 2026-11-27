@@ -10,6 +10,36 @@ import {
 } from './helpers.ts';
 
 test.describe('첫 화면과 입력 폼', () => {
+  test("한 번에 쓰기의 호봉 칸은 나중에 고칠 수 있다고 알리고, 설정의 '내 정보'에서는 그 말을 하지 않는다", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await startForm(page);
+    const step = page.getByLabel('현재 호봉', { exact: true });
+    const later = page.getByText("저장한 뒤에도 설정의 '내 정보'에서 언제든 고칠 수 있어요");
+    await expect(later).toBeVisible();
+    expect((await step.getAttribute('aria-describedby')) ?? '').toContain('pf-step-hint');
+    await expect(page.locator('#pf-step-hint')).toContainText('헷갈리면 아는 만큼만 넣어도 돼요');
+
+    // 이미 쓰고 있는 사람이 설정에서 고칠 때는 같은 화면이므로 되풀이하지 않는다
+    await page.getByLabel('닉네임').fill('김주무관');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await fillDate(page, '임용일', '2024-03-04');
+    await page.getByLabel('현재 직급').selectOption('9');
+    await step.fill('3');
+    await fillDate(page, '다음 승급일', '2027-03-01');
+    await page.getByRole('button', { name: '알 깨우기' }).click();
+    await page.getByRole('button', { name: '건너뛰기' }).click();
+    await page.getByRole('button', { name: '바로 시작하기' }).click();
+    await tick(page, 3500);
+    await page.goto(page.url().replace(/#.*$/, '') + '#settings');
+    await tick(page, 600);
+    await page.locator('#set-profile').getByRole('button', { name: '고치기' }).click();
+    const form = page.getByRole('dialog', { name: '내 정보 고치기' });
+    await expect(form.getByLabel('현재 호봉', { exact: true })).toBeVisible();
+    await expect(later).toHaveCount(0);
+  });
+
   test('"새로 시작"과 "패키지로 이어하기"가 나란히 있다', async ({ page }) => {
     await openApp(page);
     const start = page.getByRole('button', { name: '새로 시작' });

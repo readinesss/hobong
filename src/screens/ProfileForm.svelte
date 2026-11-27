@@ -5,6 +5,7 @@
   import { GENERAL_PAY_TABLE_LABEL, trackChipLabel } from '../lib/app/track.ts';
   import { TRACK_IDS } from '../lib/rules/index.ts';
   import { GENERAL_PAY_TABLES, LIMITS, type Profile } from '../lib/store/schema.ts';
+  import { TALK } from '../lib/talk.ts';
   import type { ProfileErrors } from '../lib/store/validate.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
@@ -266,7 +267,9 @@
       max={d.maxStep}
       unit="호봉"
       hint={d.raises
-        ? undefined
+        ? initial
+          ? undefined
+          : TALK.questions.step.later
         : '인사기록의 호봉을 넣어 주세요. 승급은 자동으로 계산하지 않아요.'}
       error={shown.step}
     />

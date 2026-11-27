@@ -48,6 +48,41 @@ async function fromRankToSummary(page: Page): Promise<void> {
 }
 
 test.describe('말을 거는 첫 입력', () => {
+  test('헷갈리는 칸은 나중에 고칠 수 있다고 알려 준다(호봉 질문과 확인 화면)', async ({ page }) => {
+    await openApp(page);
+    await untilTrack(page);
+    await fromTrackToSeries(page);
+    // 직렬은 고르지 않고 넘어간다 → 계급 질문
+    await next(page).click();
+    await expect(bubble(page)).toContainText('골라 주세요');
+    await next(page).click();
+    // 호봉 질문: 입력 칸의 설명으로 이어져 낭독된다
+    const step = page.getByLabel('현재 호봉', { exact: true });
+    await expect(step).toBeVisible();
+    const hint = page
+      .locator('#welcome-talk')
+      .getByText("설정의 '내 정보'에서 언제든 고칠 수 있어요");
+    await expect(hint).toBeVisible();
+    const hintId = await hint.getAttribute('id');
+    expect(hintId, '안내에 id 가 있어야 입력 칸의 설명으로 이을 수 있다').toBeTruthy();
+    expect((await step.getAttribute('aria-describedby')) ?? '').toContain(hintId as string);
+    await step.fill('3');
+    await next(page).click();
+    await fillDate(page, '다음 승급일', '2027-03-01');
+    await next(page).click();
+    await expect(bubble(page)).toContainText('월급날은 며칠이에요?');
+    await next(page).click();
+    // 확인 화면: [알 깨우기]의 설명으로 한 번 더 알린다
+    await expect(
+      page.getByRole('heading', { level: 1, name: '이대로 깨워 볼까요?' }),
+    ).toBeFocused();
+    const wake = page.getByRole('button', { name: '알 깨우기' });
+    await expect(page.locator('#tk-later')).toHaveText(
+      "깨운 뒤에도 설정의 '내 정보'에서 언제든 고칠 수 있어요.",
+    );
+    await expect(wake).toHaveAttribute('aria-describedby', 'tk-later');
+  });
+
   test('"새로 시작"을 누르면 알이 인사하고, 진행 막대와 "한 번에 쓰기"가 있다', async ({
     page,
   }) => {
