@@ -67,14 +67,18 @@ test.describe('첫 화면과 입력 폼', () => {
     await expect(skip).toBeFocused();
     // 연출 중에는 아무것도 읽지 않는다
     await expect(page.locator('#welcome-hatch [role="status"]')).toHaveCount(0);
-    // 끝까지 두면 스스로 끝 장면에 이르고(2초), 잠깐 머문 뒤 홈으로 넘어간다
+    // 끝까지 두면 스스로 끝 장면에 이른다(2초). 끝 장면은 누를 때까지 머문다(저절로 넘어가지 않는다)
     await tick(page, 2100);
     const result = page.locator('#hatch-result');
-    await expect(result).toHaveAttribute('role', 'status');
     await expect(result).toContainText('알봉이');
     await expect(result).toContainText('김주무관님');
-    await expect(page.getByRole('button', { name: '바로 시작하기' })).toBeFocused();
-    await tick(page, 1500);
+    const go = page.getByRole('button', { name: '바로 시작하기' });
+    await expect(go).toBeFocused();
+    // 인사는 그 버튼의 설명으로 한 번만 읽힌다
+    await expect(go).toHaveAccessibleDescription(/알봉이.*김주무관님/);
+    await tick(page, 6000);
+    await expect(result).toBeVisible();
+    await go.click();
     await expect(page.locator('#status-title')).toBeFocused();
     await tick(page, 2500);
     await expect(page.locator('#status')).toContainText('9급 3호봉');

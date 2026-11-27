@@ -17,9 +17,19 @@ import {
   drawEvolve,
   rimOf,
   silhouetteColor,
+  silhouetteRim,
   stepped,
 } from '../../src/lib/fx/evolve.ts';
-import { blit, clearStage, createStage, dim, disc, put, sprite } from '../../src/lib/fx/stage.ts';
+import {
+  blit,
+  clearStage,
+  createStage,
+  dim,
+  disc,
+  put,
+  ring,
+  sprite,
+} from '../../src/lib/fx/stage.ts';
 
 const W = 48;
 const at = (pixels: Uint8Array, x: number, y: number) => pixels[y * W + x] as number;
@@ -195,6 +205,19 @@ describe('연출 무대(픽셀 판)', () => {
         expect(a).toBe(stage.data[(y * 41 + (40 - x)) * 4 + 3]);
         expect(a).toBe(stage.data[((40 - y) * 41 + x) * 4 + 3]);
       }
+    // 빛 고리: 테두리만(가운데는 비어 있다), 좌우·위아래가 같다
+    clearStage(stage);
+    ring(stage, 20, 20, 10, 4, 2);
+    expect(stage.data[(20 * 41 + 20) * 4 + 3]).toBe(0);
+    expect(stage.data[(20 * 41 + 30) * 4 + 3]).toBe(255);
+    expect(stage.data[(20 * 41 + 29) * 4 + 3]).toBe(255);
+    expect(stage.data[(20 * 41 + 27) * 4 + 3]).toBe(0);
+    expect(stage.data[(20 * 41 + 31) * 4 + 3]).toBe(0);
+    for (let y = 0; y < 41; y += 1)
+      for (let x = 0; x < 41; x += 1)
+        expect(stage.data[(y * 41 + x) * 4 + 3]).toBe(
+          stage.data[((40 - y) * 41 + (40 - x)) * 4 + 3],
+        );
     const arrow = getSprite('fxc-spot-arrow')!;
     clearStage(stage);
     sprite(stage, arrow, 20, 20);
@@ -277,6 +300,55 @@ describe('모습이 바뀌는 장면', () => {
       const same = [0, 1, 2].every((c) => half[i * 4 + c] === end[i * 4 + c]);
       if (y < 24) expect(same).toBe(true);
     }
+  });
+
+  it('밝은 무대의 실루엣에는 먹색 외곽선 1px 을 두른다: 서서히 생기고, 모양을 따라가고, 색이 돌아온 줄에서는 사라진다', () => {
+    expect(silhouetteRim(false)).toBe(0);
+    expect(silhouetteRim(true)).toBeUndefined();
+    const withRim = (phase: 'silhouette' | 'dissolve' | 'reveal', t: number) => {
+      clearStage(stage);
+      drawEvolve(stage, before, after, 0, 0, phase, t, { color: 12, order, rim: 0 });
+      return Uint8ClampedArray.from(stage.data);
+    };
+    const ink = [26, 28, 44];
+    const isInk = (data: Uint8ClampedArray, i: number) =>
+      alpha(data, i) === 255 && [0, 1, 2].every((c) => data[i * 4 + c] === ink[c]);
+    // 실루엣: 외곽선은 그림 밖 1px 에만, t 에 따라 서서히(처음엔 없다)
+    const edge = rimOf(before, 0);
+    const start = withRim('silhouette', 0);
+    const mid = withRim('silhouette', 0.5);
+    const full = withRim('silhouette', 1);
+    for (let i = 0; i < W * W; i += 1) {
+      if (edge.pixels[i] === TRANSPARENT) continue;
+      expect(alpha(start, i)).toBe(0);
+      expect(alpha(mid, i)).toBeGreaterThan(100);
+      expect(alpha(mid, i)).toBeLessThan(160);
+      expect(isInk(full, i)).toBe(true);
+    }
+    // 외곽선은 실루엣 칸을 덮지 않는다(외곽선이 없을 때와 같은 칸은 같은 색)
+    const plain = shot('silhouette', 1);
+    for (let i = 0; i < W * W; i += 1)
+      if (before.pixels[i] !== TRANSPARENT)
+        expect(Array.from(full.slice(i * 4, i * 4 + 4))).toEqual(
+          Array.from(plain.slice(i * 4, i * 4 + 4)),
+        );
+    // 녹아 바뀜: 그 순간의 모양 둘레에 외곽선이 있다(끝나면 새 실루엣의 둘레)
+    const end = withRim('dissolve', 1);
+    const afterEdge = rimOf(after, 0);
+    for (let i = 0; i < W * W; i += 1)
+      if (afterEdge.pixels[i] !== TRANSPARENT) expect(isInk(end, i)).toBe(true);
+    // 색 드러남: 끝나면 외곽선 없이 새 모습 그대로
+    const revealed = withRim('reveal', 1);
+    clearStage(stage);
+    blit(stage, after, 0, 0);
+    expect(Array.from(revealed)).toEqual(Array.from(stage.data));
+    // 부화 직후의 판(실루엣 없이 제 색으로 섞는다)에는 외곽선을 두르지 않는다
+    clearStage(stage);
+    drawEvolve(stage, before, after, 0, 0, 'dissolve', 0.5, { color: -1, order, rim: 0 });
+    const own = Uint8ClampedArray.from(stage.data);
+    clearStage(stage);
+    drawEvolve(stage, before, after, 0, 0, 'dissolve', 0.5, { color: -1, order });
+    expect(Array.from(own)).toEqual(Array.from(stage.data));
   });
 
   it('금빛 테는 그림 밖 1px 에만 생긴다', () => {

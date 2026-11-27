@@ -22,7 +22,7 @@ import {
 } from '../../src/lib/onboarding/questions.ts';
 import { careerLookup, rulesFor } from '../../src/lib/rules/index.ts';
 import { checkProfile } from '../../src/lib/store/validate.ts';
-import { fillLine, pickLine, TALK } from '../../src/lib/talk.ts';
+import { fillLine, nickStem, pickLine, TALK } from '../../src/lib/talk.ts';
 
 const general = { track: 'general', askRank: true, series: null, hasProp: false };
 
@@ -160,6 +160,10 @@ describe('대사(data/talk.json)', () => {
     ...TALK.hatch.greet,
     ...TALK.summary.lines,
     ...TALK.egg.stage,
+    ...TALK.egg.crack.flat(),
+    ...Object.values(TALK.egg.move).flat(),
+    ...TALK.share.leads,
+    TALK.share.card,
     ...Object.values(TALK.questions).flatMap((q) => [
       q.ask,
       ...q.ack,
@@ -235,6 +239,58 @@ describe('대사(data/talk.json)', () => {
         for (const line of q.ack) expect(line, id).not.toMatch(/\{[A-Za-z]+\}/);
     }
     for (const line of TALK.questions.nickname.ack) expect(line).toContain('{nick}님');
+  });
+
+  it('맞장구는 그림과 맞춘다: 질문의 맞장구는 금·몸짓을 말하지 않고, 금 대사는 오른 단계마다, 몸짓 대사는 몸짓마다 있다', () => {
+    // 질문의 맞장구(받았다는 말)는 알의 금·움직임을 말하지 않는다. 그 말은 금 단계·몸짓에 맞춰 코드가 잇는다
+    const eggTalk = /금이|금 사이|흔들|갸웃|까딱|콩콩|폴짝|톡 하고|통 하고|반짝했|두근/;
+    for (const [id, q] of Object.entries(TALK.questions)) {
+      const lines = [
+        ...q.ack,
+        ...('skip' in q ? q.skip : []),
+        ...('ackPending' in q ? q.ackPending : []),
+        ...('ackMax' in q ? q.ackMax : []),
+      ];
+      for (const line of lines) expect(line, id).not.toMatch(eggTalk);
+    }
+    // 금 대사: S1~S4 마다 변형 둘 이상(S0 은 오를 수 없는 단계라 비어 있다). 움직임 줄이기에서도 쓰므로 몸짓을 말하지 않는다
+    expect(TALK.egg.crack).toHaveLength(5);
+    expect(TALK.egg.crack[0]).toEqual([]);
+    for (const lines of TALK.egg.crack.slice(1)) {
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      for (const line of lines) expect(line).not.toMatch(/흔들|갸웃|까딱|콩콩|폴짝|움직/);
+    }
+    // '조금만 더'는 끝이 가까운 단계(S3)에서만 말한다
+    for (const lines of [TALK.egg.crack[1], TALK.egg.crack[2]])
+      for (const line of lines ?? []) expect(line).not.toMatch(/조금만 더|거의 다/);
+    // 몸짓 대사: 알이 반응할 때 쓰는 몸짓(EggStage REACTION_MOVE 의 값)마다 변형 둘 이상
+    for (const move of ['tap', 'shake', 'tilt', 'hop', 'nudge'] as const)
+      expect(TALK.egg.move[move].length, move).toBeGreaterThanOrEqual(2);
+  });
+
+  it("닉네임이 '님'으로 끝나면 '님'을 덧붙이지 않는다('…님님' 금지)", () => {
+    expect(nickStem('김주무관')).toBe('김주무관');
+    expect(nickStem('  열두글자임님 ')).toBe('열두글자임');
+    for (const line of [...TALK.questions.nickname.ack, ...TALK.hatch.greet]) {
+      const said = fillLine(line, { nick: nickStem('호봉님') });
+      expect(said).toContain('호봉님');
+      expect(said).not.toContain('님님');
+    }
+  });
+
+  it('인사말은 언제 저장되는지 사실대로 말한다(깨우기 전에는 저장하지 않는다)', () => {
+    expect(TALK.greeting.note).toContain('알을 깨울 때');
+    expect(TALK.greeting.note).toContain('어디로도 보내지 않아요');
+  });
+
+  it('알리기 권유는 변형이 둘 이상이고 위트와 같은 차례로 짝을 이룬다. 실제와 다른 숫자를 약속하지 않는다', () => {
+    expect(TALK.share.leads.length).toBeGreaterThanOrEqual(2);
+    expect(TALK.share.leads).toHaveLength(TALK.wit.length);
+    expect(new Set(TALK.share.leads).size).toBe(TALK.share.leads.length);
+    for (const line of [...TALK.share.leads, TALK.share.card]) expect(line).not.toMatch(/\{|\d/);
+    // '3초 만에' 같은 숫자는 실제 절차(파일 고르기 → 확인 → 암호)와 맞지 않는다
+    expect(TALK.package.lead).not.toMatch(/\d/);
+    expect(TALK.package.lead).toContain('질문 없이 바로');
   });
 
   it("로그인·정보 저장은 '준비 중'이라고만 한다(기한·약속을 말하지 않는다)", () => {

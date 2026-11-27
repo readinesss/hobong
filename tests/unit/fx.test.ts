@@ -110,9 +110,12 @@ function fakeDocument(init: Partial<FakeDocument> = {}): FakeDocument {
   return state;
 }
 
-function fakeNavigator(options: { vibrate?: boolean; active?: boolean | null } = {}) {
+function fakeNavigator(
+  options: { vibrate?: boolean; active?: boolean | null; touch?: boolean } = {},
+) {
   const vibrate = vi.fn((_pattern: number | number[]) => true);
-  const value: Record<string, unknown> = {};
+  // 기본은 터치 기기(휴대폰). touch: false 면 데스크톱처럼 터치 점이 없다
+  const value: Record<string, unknown> = { maxTouchPoints: (options.touch ?? true) ? 5 : 0 };
   if (options.vibrate ?? true) value.vibrate = vibrate;
   if (options.active !== null) value.userActivation = { hasBeenActive: options.active ?? true };
   vi.stubGlobal('navigator', value);
@@ -825,9 +828,9 @@ describe('몸짓', () => {
       expect(moveAt(move, moveDuration(move))).toEqual({ dx: 0, dy: 0 });
       expect(moveAt(move, -1)).toEqual({ dx: 0, dy: 0 });
     }
-    expect(moveAt(MOVES.shake, 0)).toEqual({ dx: 1, dy: 0 });
-    expect(moveAt(MOVES.shake, 70)).toEqual({ dx: -1, dy: 0 });
-    expect(moveAt(MOVES.tap, 30)).toEqual({ dx: 0, dy: -2 });
+    expect(moveAt(MOVES.shake, 0)).toEqual({ dx: 2, dy: 0 });
+    expect(moveAt(MOVES.shake, 70)).toEqual({ dx: -2, dy: 0 });
+    expect(moveAt(MOVES.tap, 30)).toEqual({ dx: 0, dy: -3 });
   });
 
   it('값을 고쳐야 할 때의 움찔이 가장 짧고 작다(혼내는 느낌이 나지 않게)', () => {
@@ -990,6 +993,21 @@ describe('진동', () => {
     expect(haptic('tick')).toBe(false);
   });
 
+  it('데스크톱 Chrome·Edge 처럼 vibrate 함수만 있고 터치가 없는 기기는 지원하지 않는 것으로 본다(버튼·스위치를 숨긴다)', () => {
+    fakeDocument();
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    fakeNavigator({ touch: false });
+    expect(hapticsSupported()).toBe(false);
+    // 터치 점은 없어도 주 입력이 손가락이면(pointer: coarse) 지원한다고 본다
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(pointer: coarse)' }));
+    expect(hapticsSupported()).toBe(true);
+    // matchMedia 가 없거나 던져도 조용히 '지원 안 함'
+    vi.stubGlobal('matchMedia', () => {
+      throw new Error('no');
+    });
+    expect(hapticsSupported()).toBe(false);
+  });
+
   it('화면이 가려져 있으면 부르지 않는다', () => {
     const doc = fakeDocument({ hidden: true });
     const vibrate = fakeNavigator();
@@ -1080,14 +1098,23 @@ describe('신호에 진동 얹기', () => {
     expect(vibrate).toHaveBeenCalledTimes(3);
   });
 
-  it('값을 고쳐야 할 때·저장·공유 신호에는 울리지 않는다', () => {
+  it('값을 고쳐야 할 때·불러오기·공유 신호에는 울리지 않는다', () => {
     fakeDocument();
     const vibrate = fakeNavigator();
     const unlink = linkHaptics();
-    for (const name of ['egg-flinch', 'package-saved', 'package-loaded', 'share'] as const)
-      emitCue(name);
+    for (const name of ['egg-flinch', 'package-loaded', 'share'] as const) emitCue(name);
     expect(vibrate).not.toHaveBeenCalled();
     expect(CUE_HAPTICS['egg-flinch']).toBeUndefined();
+    unlink();
+  });
+
+  it('임용정보 패키지를 받으면 짧게 한 번 울린다(보따리가 통 튀는 그림과 함께)', () => {
+    fakeDocument();
+    const vibrate = fakeNavigator();
+    const unlink = linkHaptics();
+    emitCue('package-saved');
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    expect(vibrate).toHaveBeenLastCalledWith([...HAPTIC_PATTERNS.tick]);
     unlink();
   });
 

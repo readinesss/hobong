@@ -12,9 +12,15 @@
     idPrefix?: string;
     /** 찾는 칸의 설명에 더 이을 요소 id(빈칸으로 구분). 말을 거는 첫 입력의 맞장구·알 상태 */
     describedby?: string;
+    /**
+     * 말을 거는 첫 입력: 도움말을 이 한 줄로 줄이고 나머지(어디에 저장하고 어디에 보이는지)는 [자세히]에 접는다.
+     * 주지 않으면 도움말을 모두 펼쳐 보인다(한 번에 쓰기·설정).
+     */
+    brief?: string;
   }
 
-  let { value, onchange, idPrefix = 'pf', describedby }: Props = $props();
+  let { value, onchange, idPrefix = 'pf', describedby, brief }: Props = $props();
+  let more = $state(false);
 
   let query = $state('');
   const needle = $derived(query.trim().replace(/\s+/g, ''));
@@ -121,17 +127,39 @@
       <option {value}>{value} (목록에 없는 저장값)</option>
     {/if}
   </select>
-  <span class="hint cap stack" id="{idPrefix}-series-hint">
-    <span> 선택 사항이에요. 고르면 호봉이가 어울리는 소품을 들어요. 계산에는 쓰지 않아요. </span>
+  {#snippet privacy()}
     <span>
       직렬은 이 브라우저에만 저장해요(내려받은 임용정보 패키지에는 들어가요). 홈에 보일지는 설정 '내
       정보'에서, 카드에 넣을지는 카드 화면에서 정해요(카드는 기본으로 넣지 않아요).
     </span>
     <span>직렬 이름을 숨겨도 호봉이가 들고 있는 소품으로 직렬이 짐작될 수 있어요.</span>
+  {/snippet}
+  <span class="hint cap stack" id="{idPrefix}-series-hint">
+    {#if brief}
+      <span>{brief}</span>
+    {:else}
+      <span> 선택 사항이에요. 고르면 호봉이가 어울리는 소품을 들어요. 계산에는 쓰지 않아요. </span>
+      {@render privacy()}
+    {/if}
     {#if unknown}
       <span>저장된 직렬이 지금 목록에 없어 소품과 이름을 보이지 않아요. 그대로 두어도 돼요.</span>
     {/if}
   </span>
+  {#if brief}
+    <button
+      type="button"
+      class="btn ghost small more"
+      aria-expanded={more}
+      aria-controls="{idPrefix}-series-more"
+      onclick={() => (more = !more)}
+    >
+      <span aria-hidden="true">{more ? '▼' : '▶'}</span>
+      <span>자세히</span>
+    </button>
+    {#if more}
+      <span class="hint cap stack" id="{idPrefix}-series-more">{@render privacy()}</span>
+    {/if}
+  {/if}
 </div>
 
 <style>
@@ -142,5 +170,9 @@
   .find .input {
     flex: 1 1 auto;
     min-width: 0;
+  }
+  .more {
+    justify-content: flex-start;
+    width: fit-content;
   }
 </style>

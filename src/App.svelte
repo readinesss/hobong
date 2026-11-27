@@ -55,6 +55,8 @@
       if (!isTyping(event.target)) return;
       document.documentElement.setAttribute('data-typing', '');
       const el = event.target as HTMLElement;
+      // 말을 거는 첫 입력은 스스로 맞춘다(알 반응 도중에 화면이 뒤늦게 밀리지 않게: data-own-scroll)
+      if (el.closest('[data-own-scroll]')) return;
       if (window.matchMedia('(max-width: 719px)').matches) {
         setTimeout(() => {
           if (document.activeElement === el)
@@ -145,6 +147,11 @@
     untrack(() => app.checkGrowth(rank, step, form));
   });
 
+  // 승급·승진 연출이 닫히면 그동안 미뤄 둔 알림(새 배지·'내 정보를 고쳤어요')을 띄운다
+  $effect(() => {
+    if (app.celebration === null) untrack(() => app.releaseToasts());
+  });
+
   // 도감 등록
   $effect(() => {
     if (!app.data) return;
@@ -157,30 +164,48 @@
     if (app.entrance !== null && !app.hatching && nav.tab !== 'home') app.clearEntrance();
   });
 
-  // 업적: 새로 얻은 것을 기록하고 알린다(알이 깨어나는 동안에는 미뤘다가 홈에서 알린다)
+  // 업적: 새로 얻은 것을 기록하고 알린다. 알이 깨어나는 동안과 홈의 창들이 차례로 나타나는 동안에는 미뤘다가,
+  // 등장이 끝나고 조금 뒤(BADGE_AFTER_ENTRANCE_MS)에 알린다(막 나타나는 화면을 알림이 덮지 않게).
+  const BADGE_AFTER_ENTRANCE_MS = 1500;
+  let badgeHeld = false;
+  let badgeTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
     if (!app.data || app.hatching) return;
+    if (app.entrance !== null) {
+      badgeHeld = true;
+      return;
+    }
     const earned = view.earned;
     untrack(() => {
       const stored = app.data?.achievements ?? {};
       const fresh = freshAchievements(stored, earned);
       const removed = Object.keys(stored).some((id) => !(id in earned));
+      const wait = badgeHeld ? BADGE_AFTER_ENTRANCE_MS : 0;
+      badgeHeld = false;
       if (fresh.length === 0 && !removed) return;
       app.recordAchievements(earned);
-      if (fresh.length > 3) {
-        app.toast(
-          `배지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`,
-          'good',
-          'icon-medal',
-          5000,
-        );
-      } else {
-        for (const id of fresh) {
-          const badge = view.badges.find((b) => b.id === id);
-          if (badge) app.toast(`새 배지: ${badge.title}`, 'good', badge.icon, 4500);
+      const announce = () => {
+        badgeTimer = null;
+        if (fresh.length > 3) {
+          app.toast(
+            `배지 ${fresh.length}개를 받았어요. 업적에서 확인해 보세요.`,
+            'good',
+            'icon-medal',
+            5000,
+          );
+        } else {
+          for (const id of fresh) {
+            const badge = view.badges.find((b) => b.id === id);
+            if (badge) app.toast(`새 배지: ${badge.title}`, 'good', badge.icon, 4500);
+          }
         }
-      }
+      };
+      if (wait > 0) badgeTimer = setTimeout(announce, wait);
+      else announce();
     });
+  });
+  onMount(() => () => {
+    if (badgeTimer) clearTimeout(badgeTimer);
   });
 
   // 탭 제목: 보고 있는 화면 이름을 앞에 붙인다(첫 화면의 제목은 Welcome 이 정한다)

@@ -1,14 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import { formatDday, josa } from '../../lib/app/format.ts';
   import { nav } from '../../lib/app/nav.svelte.ts';
+  import { app } from '../../lib/app/state.svelte.ts';
   import { lookName } from '../../lib/character/customize.ts';
+  import { resolveLook } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean } from '../../lib/calc/date.ts';
   import Progress from '../../lib/ui/Progress.svelte';
   import Sprite from '../../lib/ui/Sprite.svelte';
   import Win from '../../lib/ui/Win.svelte';
+
+  interface Props {
+    /** 무대 바로 아래(호봉이의 한마디 자리)에 끼울 것: 임용정보 패키지 안내 */
+    nudge?: Snippet;
+  }
+  let { nudge }: Props = $props();
 
   let scale = $state(4);
 
@@ -22,7 +30,32 @@
     return () => wide.removeEventListener('change', update);
   });
 
-  const look = $derived(view.look);
+  /**
+   * 승급·승진 연출이 끝 장면에 닿기 전에는 오르기 전 호봉·모습을 보여 준다
+   * (대화상자 뒤로 비치는 상태창이 결과를 먼저 알려 주지 않게). 끝 장면에 닿으면 새 값으로 바뀐다.
+   */
+  const pending = $derived(app.celebration && !app.celebrationRevealed ? app.celebration : null);
+  const look = $derived(
+    pending
+      ? resolveLook(
+          characterRules,
+          pending.fromForm,
+          pending.fromStep,
+          view.look.mood,
+          view.characterLook,
+          view.propOwner,
+        )
+      : view.look,
+  );
+  const shownStep = $derived(pending ? pending.fromStep : view.step);
+  const shownLabel = $derived.by(() => {
+    const label = view.homeRankStepLabel;
+    if (!pending) return label;
+    let before = label.replace(`${pending.toStep}호봉`, `${pending.fromStep}호봉`);
+    if (pending.fromRankLabel && pending.toRankLabel)
+      before = before.replace(pending.toRankLabel, pending.fromRankLabel);
+    return before;
+  });
   /** '직급'·'계급'·'직무등급' */
   const rankNoun = $derived(view.careerRules.ladder?.noun ?? '계급');
   const raise = $derived(view.raiseProgress);
@@ -46,6 +79,8 @@
       <Sprite {look} {scale} label="호봉이. {lookName(characterRules, look)}, {look.moodLabel}" />
     </div>
 
+    {#if nudge}{@render nudge()}{/if}
+
     <div class="stack wide info">
       <div class="stack">
         <p class="row wrap">
@@ -57,9 +92,7 @@
           <p class="cap" id="status-series">{view.seriesName} 직렬</p>
         {/if}
         <p class="big level">
-          {view.homeRankStepLabel}{#if !view.raisesAutomatically}<span class="cap muted">
-              (입력값)
-            </span>{/if}
+          {shownLabel}{#if !view.raisesAutomatically}<span class="cap muted"> (입력값) </span>{/if}
         </p>
         <p class="cap muted">{look.form.blurb}</p>
       </div>
@@ -89,12 +122,12 @@
       {#if view.maxStep !== null}
         {@const maxStep = view.maxStep}
         <div class="stack">
-          <div class="pips" role="img" aria-label="호봉 {view.step}, 최고 {maxStep}호봉">
+          <div class="pips" role="img" aria-label="호봉 {shownStep}, 최고 {maxStep}호봉">
             {#each { length: maxStep } as _, i (i)}
-              <i class:on={i < view.step}></i>
+              <i class:on={i < shownStep}></i>
             {/each}
           </div>
-          <p class="cap muted">깃 {view.step} / {maxStep}{wearing ? ` · ${wearing}` : ''}</p>
+          <p class="cap muted">깃 {shownStep} / {maxStep}{wearing ? ` · ${wearing}` : ''}</p>
         </div>
       {:else if wearing}
         <p class="cap muted">{wearing}</p>

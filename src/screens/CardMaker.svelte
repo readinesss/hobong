@@ -38,11 +38,13 @@
   import { characterRules } from '../lib/character/rules.ts';
   import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/config.ts';
   import type { CardRatio, CardSettings } from '../lib/store/schema.ts';
+  import { TALK } from '../lib/talk.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
   import Win from '../lib/ui/Win.svelte';
   import RecapOptions from './card/RecapOptions.svelte';
+  import ShareNote from './share/ShareNote.svelte';
 
   const caps = detectCapabilities();
   const card = $derived(view.data.settings.card);
@@ -602,6 +604,11 @@
         </button>
       </div>
       <p class="cap muted">이미지를 붙일 수 없는 메신저용이에요. 금액은 넣지 않아요.</p>
+      <hr class="rule" />
+      <!-- 카드(내 정보가 담긴다)와 달리 사이트 주소만 전하는 알리기 -->
+      <div id="card-tell">
+        <ShareNote wit={false} lead={TALK.share.card} />
+      </div>
     </div>
   </Win>
 </div>

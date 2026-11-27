@@ -369,10 +369,22 @@ test.describe('승급·승진 연출', () => {
     await expect(dialog.locator('.over')).toContainText('6호봉');
     // 예전의 무대 배경 깜빡임은 없다
     await expect(dialog.locator('.stage.flash')).toHaveCount(0);
+    // 대화상자 뒤의 상태창은 아직 오르기 전 호봉이다(결과를 연출보다 먼저 보이지 않는다)
+    await expect(page.locator('#status .level')).toContainText('9급 5호봉');
+    await expect(page.locator('#status .pips i.on')).toHaveCount(5);
+    // 연출이 떠 있는 동안에는 알림(새 배지 등)을 띄우지 않는다
+    await expect(page.locator('.toast')).toHaveCount(0);
     await skip.click();
     const result = dialog.getByRole('status');
     await expect(result).toHaveCount(1);
     await expect(result).toContainText('9급 6호봉');
+    // 끝 장면에 닿으면 뒤의 상태창도 새 호봉으로 바뀐다
+    await expect(page.locator('#status .level')).toContainText('9급 6호봉');
+    await expect(page.locator('#status .pips i.on')).toHaveCount(6);
+    // 연출을 본 뒤의 결과는 새로 생긴 알림 영역이 한 번 읽는다([확인]에 같은 설명을 또 달지 않는다)
+    await expect(dialog.getByRole('button', { name: '확인' })).not.toHaveAttribute(
+      'aria-describedby',
+    );
     await expect(result).toContainText('5호봉에서 6호봉으로 올랐어요. 깃이 하나 더 자랐어요.');
     await expect(result).toContainText('안경');
     // 새 소품이 생겼으니 전 → 후 그림 두 장
@@ -450,9 +462,16 @@ test.describe('승급·승진 연출', () => {
       .getByRole('button', { name: '저장' })
       .click();
     const dialog = page.getByRole('dialog', { name: '승진했어요' });
+    // '내 정보를 고쳤어요' 알림은 연출 위에 겹치지 않게 미뤘다가, 연출을 닫은 뒤에 띄운다
+    await expect(dialog.getByRole('button', { name: '건너뛰기' })).toBeFocused();
+    await expect(page.locator('.toast')).toHaveCount(0);
     await dialog.getByRole('button', { name: '건너뛰기' }).click();
     await expect(dialog.getByRole('status')).toContainText('7급이 되었어요');
     await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
+    await expect(page.locator('.toast')).toHaveCount(0);
+    await dialog.getByRole('button', { name: '확인' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.toast').filter({ hasText: '내 정보를 고쳤어요.' })).toBeVisible();
   });
 
   test('움직임 줄이기면 연출 없이 전 → 후 정지 그림 두 장과 글만 보인다', async ({ page }) => {
@@ -466,8 +485,15 @@ test.describe('승급·승진 연출', () => {
     const dialog = page.getByRole('dialog', { name: '승진했어요' });
     await expect(dialog.getByRole('button', { name: '건너뛰기' })).toHaveCount(0);
     await expect(dialog.locator('.over')).toHaveCount(0);
-    await expect(dialog.getByRole('status')).toContainText('7급이 되었어요. 축하해요!');
+    const result = dialog.locator('#celebration-result');
+    await expect(result).toContainText('7급이 되었어요. 축하해요!');
     await expect(dialog.locator('#celebration-pair').getByRole('img')).toHaveCount(2);
+    // 끝 장면이 처음부터 떠 있으면 알림 영역이어도 저절로 읽히지 않는다: 포커스가 가는 [확인]의 설명으로 한 번 읽힌다
+    // (알림 영역과 겹쳐 두 번 읽지 않게 role=status 는 두지 않는다)
+    const ok = dialog.getByRole('button', { name: '확인' });
+    await expect(ok).toBeFocused();
+    await expect(ok).toHaveAccessibleDescription(/7급 6호봉.*7급이 되었어요\. 축하해요!/);
+    await expect(dialog.getByRole('status')).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
   });
 

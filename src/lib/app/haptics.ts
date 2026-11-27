@@ -4,7 +4,8 @@
  * 울리지 않는 때(하나라도 해당하면 navigator.vibrate 를 부르지 않는다)
  * - 설정에서 진동을 껐다(settings.haptics). 첫 입력처럼 아직 설정이 없으면 켬으로 본다.
  * - 움직임 줄이기(앱 설정 또는 기기 설정).
- * - 기기가 진동을 지원하지 않는다(아이폰 Safari·데스크톱 대부분). 같은 정보는 화면 그림과 글로 전한다.
+ * - 기기가 진동을 지원하지 않는다(아이폰 Safari·데스크톱). 같은 정보는 화면 그림과 글로 전한다.
+ *   데스크톱 Chrome·Edge 처럼 vibrate 함수만 있고 울리지 않는 곳에서는 진동 버튼·스위치를 보이지 않는다(hapticsSupported).
  * - 화면이 가려져 있다(document.hidden).
  * - 아직 사용자가 화면을 누른 적이 없다(브라우저가 막고 경고를 남긴다).
  *
@@ -19,7 +20,7 @@ import { onCue, type CueName } from '../fx/cues.ts';
  * 일부 안드로이드 기기는 20ms 보다 짧은 진동을 무시해서, 가장 짧은 울림을 20ms 로 잡았다.
  */
 export const HAPTIC_PATTERNS = {
-  /** 칸 하나 완료·호봉 오름: 짧게 한 번 */
+  /** 칸 하나 완료·호봉 오름·임용정보 패키지를 받음: 짧게 한 번 */
   tick: [20],
   /** 알의 금 단계가 오름: 두 번 */
   crack: [20, 40, 20],
@@ -47,6 +48,8 @@ export const CUE_HAPTICS: Readonly<Partial<Record<CueName, HapticName>>> = {
   'step-up': 'tick',
   promotion: 'gather',
   evolve: 'evolve',
+  // 임용정보 패키지를 받았다: 보따리가 통 튀는 그림과 함께 짧게 한 번
+  'package-saved': 'tick',
 };
 
 /** 한 번에 울릴 수 있는 가장 긴 무늬(ms)와 마디 수. 잘못 만든 무늬가 오래 울리지 않게 */
@@ -75,9 +78,24 @@ function nav(): VibrateNavigator | null {
   return typeof navigator === 'undefined' ? null : (navigator as VibrateNavigator);
 }
 
-/** 이 기기·브라우저가 진동을 지원하는지(설정 화면이 스위치를 보일지 정할 때도 쓴다) */
+/** 손으로 누르는 기기인지(터치 점이 있거나 주 입력이 손가락) */
+function touchDevice(n: VibrateNavigator): boolean {
+  if ((n.maxTouchPoints ?? 0) > 0) return true;
+  try {
+    return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 이 기기·브라우저가 진동을 지원하는지(첫 입력의 진동 버튼과 설정의 스위치를 보일지 정한다).
+ * 데스크톱 Chrome·Edge 는 navigator.vibrate 가 함수로 있지만 울리지 않는다. 눌러도 아무 일 없는 스위치를
+ * 보이지 않도록 터치 기기일 때만 지원한다고 본다.
+ */
 export function hapticsSupported(): boolean {
-  return typeof nav()?.vibrate === 'function';
+  const n = nav();
+  return n !== null && typeof n.vibrate === 'function' && touchDevice(n);
 }
 
 function clean(pattern: readonly number[]): number[] {

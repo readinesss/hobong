@@ -141,13 +141,14 @@ export async function startForm(page: Page): Promise<void> {
 
 /**
  * '알 깨우기'를 누르고 제자리 부화 연출을 건너뛰어 홈까지 간다.
- * 홈 창들의 차례 등장과 임용정보 패키지 안내 창이 다 나올 때까지 시계를 돌린다.
+ * 홈 창들의 차례 등장과 임용정보 패키지 안내, 미뤄 둔 새 배지 알림이 다 나올 때까지 시계를 돌린다.
  */
 export async function wakeEgg(page: Page): Promise<void> {
   await page.getByRole('button', { name: '알 깨우기' }).click();
   await page.getByRole('button', { name: '건너뛰기' }).click();
   await page.getByRole('button', { name: '바로 시작하기' }).click();
-  await tick(page, 2500);
+  // 차례 등장(약 1.4초) → 패키지 안내 → 새 배지 알림(등장 끝 + 1.5초)까지
+  await tick(page, 3500);
 }
 
 /** 처음 화면에서 내 정보를 넣고 대시보드까지 간다(한 번에 쓰기 → 알 깨우기 → 건너뛰기) */

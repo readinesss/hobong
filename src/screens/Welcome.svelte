@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { ProfileDraft } from '../lib/app/draft.svelte.ts';
   import { prefs, type OnboardMode } from '../lib/app/prefs.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
@@ -34,6 +34,7 @@
   let talkOpened = $state(false);
   let startBtn = $state<HTMLButtonElement>();
   let formHeading = $state<HTMLHeadingElement>();
+  let talk = $state<ReturnType<typeof Talk>>();
 
   /** 두 입력 방식이 함께 쓰는 초안과 첫 입력에서 고르는 것들 */
   const draft = new ProfileDraft();
@@ -54,10 +55,77 @@
     prefs.set({ onboardMode: mode });
   }
 
+  // ── 브라우저의 뒤로 가기와 새로 고침 ─────────────────────────────────────
+  /**
+   * 첫 입력(대화·폼) 중에는 기록(history)에 자리 하나를 끼워 둔다. 뒤로 가기(안드로이드의 버튼·제스처 포함)를 누르면
+   * 사이트를 떠나는 대신 '이전 질문'(폼이면 첫 화면)으로 가고, 아직 첫 입력 중이면 자리를 다시 끼운다.
+   * 첫 화면으로 돌아오거나 저장을 마치면 끼워 둔 자리를 거둔다(뒤로 가기가 한 번 헛돌지 않게).
+   * 주소는 바꾸지 않는다(file:// 에서도 되게 상태만 얹는다). 입력값은 어디에도 저장하지 않는다.
+   */
+  let guarded = false;
+  let ignorePop = false;
+  function guard() {
+    if (guarded) return;
+    try {
+      history.pushState({ hobongOnboarding: true }, '');
+      guarded = true;
+    } catch {
+      // 기록을 쓸 수 없는 환경에서는 예전처럼 둔다
+    }
+  }
+  function unguard() {
+    if (!guarded) return;
+    guarded = false;
+    ignorePop = true;
+    try {
+      history.back();
+    } catch {
+      ignorePop = false;
+    }
+  }
+  function onPopState() {
+    if (ignorePop) {
+      ignorePop = false;
+      return;
+    }
+    if (!guarded) return;
+    guarded = false;
+    // 대화상자가 열려 있으면 그것부터 닫는다(Esc 와 같은 길)
+    if (document.documentElement.hasAttribute('data-modal')) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    } else if (step === 'talk') talk?.back();
+    else if (step === 'form') void goIntro({ viaHistory: true });
+    if (step !== 'intro') guard();
+  }
+  /** 넣은 값이 있는데 아직 저장하지 않았으면, 새로 고침·창 닫기 전에 브라우저가 한 번 묻게 한다 */
+  const dirty = $derived(
+    (step === 'talk' || step === 'form') &&
+      (draft.nickname.trim() !== '' ||
+        draft.birthDate !== '' ||
+        draft.hireDate !== '' ||
+        draft.nextStepDate !== '' ||
+        Object.values(draft.dateProblems).some(Boolean)),
+  );
+  onMount(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      // 일부 브라우저는 returnValue 를 채워야 묻는다(문구는 브라우저가 정한다)
+      event.returnValue = '';
+    };
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  });
+
   /** 폼으로: 누른 버튼이 사라지므로 새 화면의 제목으로 포커스를 옮긴다 */
   async function goForm() {
     formOpened = true;
     step = 'form';
+    guard();
     remember('form');
     await tick();
     window.scrollTo(0, 0);
@@ -68,6 +136,7 @@
   async function goTalk() {
     talkOpened = true;
     step = 'talk';
+    guard();
     remember('talk');
     await tick();
     window.scrollTo(0, 0);
@@ -81,8 +150,10 @@
   }
 
   /** 첫 화면으로: '새로 시작' 버튼으로 포커스를 되돌린다 */
-  async function goIntro() {
+  async function goIntro(options: { viaHistory?: boolean } = {}) {
     step = 'intro';
+    // 화면의 [뒤로]로 왔으면 끼워 둔 기록 자리를 거둔다(뒤로 가기로 왔으면 이미 빠졌다)
+    if (!options.viaHistory) unguard();
     await tick();
     startBtn?.focus();
   }
@@ -112,6 +183,8 @@
       app.toast('지금은 저장할 수 없어요. 새로 고친 뒤 다시 해 주세요.', 'warn', 'icon-warn');
       return;
     }
+    // 저장을 마쳤다: 끼워 둔 기록 자리를 거둔다(홈에서 뒤로 가기가 헛돌지 않게)
+    unguard();
     // 임용정보 패키지 안내를 홈에서 한 번 보일 차례다
     prefs.set({ packageGuide: 'pending' });
     emitCue('hatch-start');
@@ -330,6 +403,7 @@
     {#if talkOpened}
       <div hidden={step !== 'talk'}>
         <Talk
+          bind:this={talk}
           {draft}
           bind:look
           bind:showIdentity
@@ -337,7 +411,7 @@
           active={step === 'talk'}
           onform={goForm}
           onhatch={() => create(draft.toProfile(), draft.payday)}
-          onexit={goIntro}
+          onexit={() => goIntro({ viaHistory: !guarded })}
         />
       </div>
     {/if}
@@ -345,7 +419,7 @@
       <div hidden={step !== 'form'}>
         <section class="win" id="welcome-form" aria-labelledby="welcome-form-title">
           <header class="win-title">
-            <button type="button" class="btn ghost small back" onclick={goIntro}>
+            <button type="button" class="btn ghost small back" onclick={() => goIntro()}>
               <Icon name="icon-chevron-left" /> 뒤로
             </button>
             <h1 id="welcome-form-title" tabindex="-1" bind:this={formHeading}>내 정보 넣기</h1>

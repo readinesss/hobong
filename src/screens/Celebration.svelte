@@ -5,8 +5,12 @@
    * - 시간표는 scenes.ts(호봉 오름 stepUpScene, 승진·성장 promoteScene). 무대 캔버스 한 장에 캐릭터·입자·빛을 그린다.
    *   예전의 무대 배경 깜빡임과 실루엣 번갈아 보이기는 쓰지 않는다(번쩍임 안전: 부록 G4).
    * - [건너뛰기]가 첫 포커스이고 Esc 로도 끝 장면으로 간다. 끝 장면 전에는 닫히지 않는다.
-   * - 끝 장면의 결과 문장은 role=status 로 한 번만 읽힌다(연출 중에는 아무것도 읽지 않는다).
+   * - 끝 장면의 결과 문장은 한 번만 읽힌다(연출 중에는 아무것도 읽지 않는다): 연출을 본 뒤에는 role=status 로
+   *   (새로 생긴 글이라 저절로 읽힌다), 움직임 줄이기로 끝 장면이 처음부터 떠 있을 때는 [확인]의 설명으로
+   *   (이미 있는 글은 알림 영역이어도 읽히지 않는다 — 포커스가 가는 버튼에 이어 읽게 한다. 둘을 겹치지 않는다).
    * - 움직임 줄이기면 연출 없이 끝 장면만: '전 → 후' 정지 그림 두 장과 글.
+   * - 연출이 떠 있는 동안 알림(새 배지 등)은 미룬다(app.toast). 뒤의 홈은 끝 장면에 닿은 뒤에 새 호봉으로 바뀐다
+   *   (app.revealCelebration). 색종이·깃이 터지는 순간에는 대화상자 밖 효과 층에도 조각을 한 번 터뜨린다(confettiOutside).
    * - 홈에 직렬·계급 이름 보이기를 껐으면 계급 이름을 쓰지 않는다(호봉과 형태 이름만).
    */
   import { onMount, untrack } from 'svelte';
@@ -20,11 +24,17 @@
   import { characterRules } from '../lib/character/rules.ts';
   import { getSprite } from '../lib/character/sprites.ts';
   import { env, sleep, wake, type Job } from '../lib/fx/core.ts';
-  import { dissolveOrder, drawEvolve, rimOf, silhouetteColor } from '../lib/fx/evolve.ts';
+  import {
+    dissolveOrder,
+    drawEvolve,
+    rimOf,
+    silhouetteColor,
+    silhouetteRim,
+  } from '../lib/fx/evolve.ts';
   import { MOVES, moveAt } from '../lib/fx/moves.ts';
   import { createField, emitBurst, emitConverge, emitRise } from '../lib/fx/particles.ts';
   import { playScene, promoteScene, stepUpScene, type SceneStep } from '../lib/fx/scenes.ts';
-  import { runField } from '../lib/fx/sparkle.ts';
+  import { runField, sparkle } from '../lib/fx/sparkle.ts';
   import { blit, dim, drawParticles, rays, sprite, type Stage } from '../lib/fx/stage.ts';
   import type { Playback } from '../lib/fx/timeline.ts';
   import Modal from '../lib/ui/Modal.svelte';
@@ -71,6 +81,25 @@
   /** 이름판(승진·성장): 형태 이름 또는 계급 이름 */
   let plate = $state('');
   let canvas = $state<ReturnType<typeof StageCanvas>>();
+  let stageBox = $state<HTMLDivElement>();
+
+  /**
+   * 대화상자 밖 효과 층에 색종이를 한 번 터뜨린다(무대 위쪽 두 귀퉁이에서 바깥으로).
+   * 화면 전체가 아니라 작은 조각 마흔 개가 0.8초쯤 퍼졌다 떨어진다(번쩍임 없음). 움직임 줄이기면 아무 일도 없다.
+   */
+  function confettiOutside() {
+    const box = stageBox?.getBoundingClientRect();
+    if (!box || env.reduced) return;
+    const options = {
+      count: 20,
+      speed: [170, 400],
+      lift: 340,
+      gravity: 800,
+      ttl: [620, 880],
+    } as const;
+    sparkle(box.left + box.width * 0.2, box.top + box.height * 0.3, options);
+    sparkle(box.left + box.width * 0.8, box.top + box.height * 0.3, options);
+  }
 
   const showNames = $derived(view.showIdentityHome);
   const title =
@@ -121,6 +150,8 @@
     const name = step.step;
     if (name === 'end') {
       done = true;
+      // 뒤의 홈(상태창)도 이제 새 호봉·모습으로 바뀐다
+      app.revealCelebration();
       rolled = ev.toStep;
       tag = '';
       plate = plateText(true);
@@ -171,6 +202,7 @@
         },
       });
       spawn();
+      confettiOutside();
     } else if (name === 'gather') {
       emitConverge(field, {
         x: CENTER.x,
@@ -205,6 +237,7 @@
         look: { sprite: 'p-star' },
       });
       spawn();
+      confettiOutside();
     }
   }
 
@@ -260,6 +293,7 @@
     const dark = theme.dark;
     const shadowInk = dark ? 0 : undefined;
     const sil = silhouetteColor(dark);
+    const rim = silhouetteRim(dark);
     const dust = dark ? { 14: 13 } : undefined;
     if (done) {
       const comp = poseOf(party, { tick: anim.reduced ? 0 : anim.tick, shadowInk });
@@ -309,11 +343,19 @@
       if (evolves && beforePlain) blit(target, rimOf(beforePlain, dark ? 4 : 3), ox, oy);
       whole(before, 'eyes-sparkle');
     } else if (name === 'silhouette' && beforePlain && afterPlain)
-      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'silhouette', t, { color: sil, order });
+      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'silhouette', t, {
+        color: sil,
+        order,
+        rim,
+      });
     else if (name === 'dissolve' && beforePlain && afterPlain)
-      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'dissolve', t, { color: sil, order });
+      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'dissolve', t, {
+        color: sil,
+        order,
+        rim,
+      });
     else if (name === 'reveal' && beforePlain && afterPlain)
-      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'reveal', t, { color: sil, order });
+      drawEvolve(target, beforePlain, afterPlain, ox, oy, 'reveal', t, { color: sil, order, rim });
     else if (name === 'burst' || name === 'tour') {
       whole(after, 'eyes-happy');
       const twinkle = getSprite('fxc-twinkle');
@@ -356,7 +398,7 @@
 
 <Modal {title} icon="icon-arrow-up" onclose={close} dismissible={done}>
   <div class="stack wide center">
-    <div class="stage" id="celebration-stage">
+    <div class="stage" id="celebration-stage" bind:this={stageBox}>
       <StageCanvas
         bind:this={canvas}
         rows={60}
@@ -382,7 +424,7 @@
     </div>
 
     {#if done}
-      <div class="stack pop-in" role="status" id="celebration-result">
+      <div class="stack pop-in" role={still ? undefined : 'status'} id="celebration-result">
         <p class="mid">{headline}</p>
         {#each lines as line (line)}<p>{line}</p>{/each}
         {#if evolves || ev.kind !== 'step'}
@@ -415,7 +457,15 @@
   </div>
   {#snippet actions()}
     {#if done}
-      <button type="button" class="btn primary" data-autofocus onclick={close}>확인</button>
+      <button
+        type="button"
+        class="btn primary"
+        data-autofocus
+        aria-describedby={still ? 'celebration-result' : undefined}
+        onclick={close}
+      >
+        확인
+      </button>
     {:else}
       <button type="button" class="btn" data-autofocus onclick={skip}>건너뛰기</button>
     {/if}

@@ -46,6 +46,30 @@
   function onBlur(event: Event) {
     (event.currentTarget as HTMLInputElement).value = String(value);
   }
+
+  /**
+   * 칸에 들어서면 든 숫자를 모두 고른다. 기본값 '1'이 든 칸에 9를 치면 '19'가 되어 조용히 틀리던 것을 막는다.
+   * 마우스로 눌러 들어온 때는 뒤따르는 mouseup 이 고른 것을 풀지 않게 한 번 막는다.
+   */
+  let justFocused = false;
+  function selectAll(el: HTMLInputElement) {
+    try {
+      el.select();
+      el.setSelectionRange(0, el.value.length);
+    } catch {
+      // 고르기를 지원하지 않는 환경에서는 그대로 둔다
+    }
+  }
+  function onFocus(event: FocusEvent) {
+    justFocused = true;
+    selectAll(event.currentTarget as HTMLInputElement);
+  }
+  function onMouseUp(event: MouseEvent) {
+    if (!justFocused) return;
+    justFocused = false;
+    event.preventDefault();
+    selectAll(event.currentTarget as HTMLInputElement);
+  }
 </script>
 
 <div class="field">
@@ -69,6 +93,9 @@
       value={String(value)}
       oninput={onInput}
       onblur={onBlur}
+      onfocus={onFocus}
+      onmouseup={onMouseUp}
+      onkeydown={() => (justFocused = false)}
       aria-invalid={error ? 'true' : undefined}
       aria-describedby={[describedby ?? '', hint ? `${id}-hint` : '', error ? `${id}-error` : '']
         .filter(Boolean)

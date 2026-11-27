@@ -6,6 +6,9 @@
  *   넓은 흰 면이 눈부시지 않게 한다.
  * - 녹아 바뀜: 옛 실루엣 칸이 사라지고 새 실루엣 칸이 생긴다. 칸마다 미리 섞어 둔 순서(8단계)를 따르므로 한 방향으로만 나아간다.
  * - 색 드러남: 새 모습의 색이 위에서 아래로 두 줄씩 돌아온다.
+ * - 밝은 무대에서는 흰 실루엣이 연한 하늘색과 잘 구별되지 않아, 실루엣 둘레에 진한 외곽선 1px 을 두른다(rim).
+ *   외곽선은 실루엣과 함께 서서히 생기고, 모양이 바뀌면 따라 바뀌며, 색이 돌아온 줄에서는 사라진다
+ *   (새 모습은 제 외곽선이 있다). 어두운 무대에서는 두르지 않는다.
  * 어느 단계도 같은 칸을 번갈아 깜빡이지 않는다(번쩍임 없음).
  */
 import { TRANSPARENT } from '../character/sprite-format.ts';
@@ -22,6 +25,11 @@ export const REVEAL_ROWS = 2;
 /** 실루엣 색(팔레트 인덱스): 밝은 무대 흰색 c, 어두운 무대 밝은 회청 d */
 export function silhouetteColor(dark: boolean): number {
   return dark ? 13 : 12;
+}
+
+/** 실루엣 외곽선 색(팔레트 인덱스): 밝은 무대에서만 먹색 0 을 두른다. 어두운 무대는 두르지 않는다(undefined) */
+export function silhouetteRim(dark: boolean): number | undefined {
+  return dark ? undefined : 0;
 }
 
 /** 칸마다 0~7 의 순서를 고르게 섞어 매긴다(시드가 같으면 같은 순서) */
@@ -54,6 +62,8 @@ export interface EvolveOptions {
   color: number;
   /** dissolveOrder(before.pixels.length) */
   order: Uint8Array;
+  /** 실루엣 둘레에 두를 외곽선 색(팔레트 인덱스). 주지 않으면 두르지 않는다 */
+  rim?: number;
 }
 
 /**
@@ -70,37 +80,36 @@ export function drawEvolve(
   t: number,
   options: EvolveOptions,
 ): void {
-  const { color, order } = options;
+  const { color, order, rim } = options;
+  const outline = rim !== undefined && color >= 0;
   if (phase === 'silhouette') {
     blit(stage, before, dx, dy, { mix: { color, t } });
+    // 외곽선도 실루엣과 함께 서서히 생긴다
+    if (outline) blit(stage, rimOf(before, rim), dx, dy, { alpha: Math.max(0, Math.min(1, t)) });
     return;
   }
   if (phase === 'dissolve') {
     const step = stepped(t, DISSOLVE_STEPS);
-    const w = before.w;
-    blit(stage, mergePose(before, after), dx, dy, {
-      map: (_v, x, y) => {
-        const i = y * w + x;
-        const from = (order[i] as number) < step ? after : before;
-        const own = from.pixels[i] as number;
-        if (own === TRANSPARENT) return -1;
-        return color < 0 ? own : color;
-      },
-    });
+    const shape = dissolveShape(before, after, order, step);
+    blit(stage, shape, dx, dy, { map: (own) => (color < 0 ? own : color) });
+    if (outline) blit(stage, rimOf(shape, rim), dx, dy);
     return;
   }
   // reveal: 위에서부터 두 줄씩 새 색이 돌아온다
   const rows = stepped(t, Math.ceil(after.h / REVEAL_ROWS)) * REVEAL_ROWS;
   blit(stage, after, dx, dy, { map: (v, _x, y) => (y < rows ? v : color) });
+  // 아직 실루엣인 줄에만 외곽선을 남긴다
+  if (outline) blit(stage, rimOf(after, rim), dx, dy, { map: (v, _x, y) => (y < rows ? -1 : v) });
 }
 
-/** 두 그림 가운데 하나라도 칠해진 칸을 모두 가진 그림(녹아 바뀜이 훑을 칸) */
-function mergePose(a: Pose, b: Pose): Pose {
-  const pixels = new Uint8Array(a.pixels);
+/** 녹아 바뀜의 step 단계에서 보이는 그림: 칸마다 순서가 지났으면 새 모습, 아니면 옛 모습의 칸 */
+export function dissolveShape(before: Pose, after: Pose, order: Uint8Array, step: number): Pose {
+  const pixels = new Uint8Array(before.pixels.length).fill(TRANSPARENT);
   for (let i = 0; i < pixels.length; i += 1) {
-    if (pixels[i] === TRANSPARENT) pixels[i] = b.pixels[i] as number;
+    const from = (order[i] as number) < step ? after : before;
+    pixels[i] = from.pixels[i] as number;
   }
-  return { w: a.w, h: a.h, pixels };
+  return { w: before.w, h: before.h, pixels };
 }
 
 /** 그림 둘레를 1px 두른 테두리만 담은 그림(빛 모으기 때 한 번 생기는 금빛 테) */

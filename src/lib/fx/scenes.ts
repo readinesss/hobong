@@ -32,15 +32,15 @@ export interface Scene {
   keyCue?: CueName;
 }
 
-/** 부화 끝 장면에 머문 뒤 홈으로 넘어가기까지(ms). 움직임 줄이기면 저절로 넘어가지 않고 버튼만 둔다 */
-export const HATCH_LINGER_MS = 1200;
-
 export interface HatchSceneOptions {
   /** 깨어난 모습이 알봉이가 아니면(8급 이상) 이어서 그 모습으로 자란다 */
   evolves: boolean;
 }
 
-/** 알 깨어남(첫 입력 화면 안에서, 대화상자 없이). 9급 약 2초 + 머묾, 그 밖은 약 2.9초 + 머묾 */
+/**
+ * 알 깨어남(첫 입력 화면 안에서, 대화상자 없이). 9급 약 2초, 그 밖은 약 2.9초.
+ * 끝 장면은 [바로 시작하기]를 누를 때까지 머문다(저절로 넘어가지 않는다 — Hatch.svelte).
+ */
 export function hatchScene(options: HatchSceneOptions): Scene {
   const steps: SceneStep[] = [
     // 말풍선·입력 칸이 물러나고 알이 화면 가운데로 온다

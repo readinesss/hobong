@@ -5,8 +5,16 @@
    * - 값과 검사는 초안(ProfileDraft)이 맡는다. '한 번에 쓰기'(ProfileForm)와 같은 초안이라 오가도 값이 남는다.
    * - 질문 차례·필수 여부·알 단계는 src/lib/onboarding/questions.ts, 대사는 data/talk.json.
    * - 낭독: 질문이 바뀌면 입력 칸으로 포커스를 옮기고, 질문 문장이 칸(묶음)의 이름, 맞장구·알 상태·남은 칸이 설명이다.
+   *   날짜 질문은 포커스를 받는 연도 칸에 설명을 단다(묶음의 설명은 읽지 않는 낭독기가 있다).
    *   따로 알리는 영역(live)은 두지 않는다(포커스 낭독과 겹쳐 두 번 읽지 않게).
    * - 알 그림은 장식(aria-hidden)이고, 소리·진동은 신호(emitCue)만 낸다.
+   * - 맞장구는 그림과 맞춘다: 금 단계가 실제로 오른 답에만 '금이 갔어요'를 말하고, 아니면 그 칸의 몸짓(톡·흔들·갸웃·콩콩·까딱)을 말한다.
+   *   움직임 줄이기에서는 몸짓을 말하지 않는다(알이 멈춰 있다).
+   * - 고르는 질문(칩)에서도 Enter 는 [다음]이다(Space 는 고르기). 도움말은 한 줄로 두고 나머지는 [자세히]에 접는다
+   *   (규정 근거는 '한 번에 쓰기'와 설정에 있다).
+   * - 답하면 맞장구와 알 반응을 먼저 잠깐(ACK_HOLD_MS) 보여 주고 나서 질문을 바꾼다(반응이 질문 바뀜에 묻히지 않게).
+   *   스크롤은 그 전에 한 번만 한다(알이 화면 밖이면 창 맨 위로). 움직임 줄이기면 기다리지 않는다.
+   * - 화면 키보드가 올라와 높이가 줄면 알은 말풍선 옆의 작은 무대로 옮겨 가 같은 반응을 보여 준다(사라지지 않는다).
    */
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
@@ -15,7 +23,7 @@
   import { hapticsSupported, setHapticsEnabled } from '../../lib/app/haptics.ts';
   import { GENERAL_PAY_TABLE_LABEL, trackChipLabel } from '../../lib/app/track.ts';
   import { formatKorean, type Ymd } from '../../lib/calc/date.ts';
-  import { eggStageFor } from '../../lib/character/egg.ts';
+  import { EGG_STAGE_MAX, eggStageFor } from '../../lib/character/egg.ts';
   import {
     formIdFor,
     resolveCustom,
@@ -25,6 +33,7 @@
   } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
   import { propOwnerOf, themeOfSeries } from '../../lib/character/series.ts';
+  import { env } from '../../lib/fx/core.ts';
   import { emitCue } from '../../lib/fx/cues.ts';
   import {
     firstProblem,
@@ -37,7 +46,7 @@
   } from '../../lib/onboarding/questions.ts';
   import { TRACK_IDS, type RankKey } from '../../lib/rules/index.ts';
   import { GENERAL_PAY_TABLES, LIMITS, type CharacterLook } from '../../lib/store/schema.ts';
-  import { fillLine, newTalkSeed, pickLine, TALK } from '../../lib/talk.ts';
+  import { fillLine, newTalkSeed, nickStem, pickLine, TALK } from '../../lib/talk.ts';
   import ChipRadio from '../../lib/ui/ChipRadio.svelte';
   import DateInput from '../../lib/ui/DateInput.svelte';
   import Icon from '../../lib/ui/Icon.svelte';
@@ -47,7 +56,7 @@
   import Stepper from '../../lib/ui/Stepper.svelte';
   import LookEditor from '../customize/LookEditor.svelte';
   import SeriesPicker from '../profile/SeriesPicker.svelte';
-  import EggStage, { type EggReaction } from './EggStage.svelte';
+  import EggStage, { REACTION_MOVE, type EggReaction } from './EggStage.svelte';
 
   interface Props {
     draft: ProfileDraft;
@@ -94,13 +103,23 @@
   /** 확인 단계에서 '고치기'로 온 질문이면 답한 뒤 확인으로 돌아간다 */
   let returning = $state(false);
   let showAdvanced = $state(false);
+  /** 지금 질문의 [자세히]를 펼쳤는지(질문이 바뀌면 접는다) */
+  let moreOpen = $state(false);
   const seed = newTalkSeed();
   let turn = 0;
   const say = (lines: readonly string[]) => pickLine(lines, seed + (turn += 1));
 
   let egg = $state<ReturnType<typeof EggStage>>();
+  let section = $state<HTMLElement>();
   let panel = $state<HTMLElement>();
   let heading = $state<HTMLElement>();
+  let eggBox = $state<HTMLElement>();
+  let bubbleEl = $state<HTMLElement>();
+  /** 맞장구를 보여 주는 동안(질문이 바뀌기 전). 그동안은 [다음]을 다시 받지 않는다 */
+  let holding = $state(false);
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 답한 뒤 맞장구와 알 반응을 먼저 보여 주는 시간(ms) */
+  const ACK_HOLD_MS = 380;
 
   // ── 질문 차례 ─────────────────────────────────────────────────────────
   /** 지금 권할 소품: 특정직은 직종 소품, 일반직은 고른 직렬의 소품 */
@@ -132,22 +151,79 @@
   );
   const paint = $derived(resolveCustom(characterRules, look, owner).paint);
 
-  // ── 화면 키보드: 보이는 높이에 맞춰 알을 줄이거나 숨긴다 ─────────────────
+  // ── 화면 키보드: 보이는 높이에 맞춰 알을 줄이거나 말풍선 옆으로 옮긴다 ──────────
   let viewHeight = $state(800);
+  /** 지금 눈에 보이는 세로 범위(배치 뷰포트 좌표). 화면 키보드가 가린 곳은 뺀다 */
+  function visibleRange(): { top: number; bottom: number } {
+    const vv = window.visualViewport;
+    const top = vv?.offsetTop ?? 0;
+    return { top, bottom: top + (vv?.height ?? window.innerHeight) };
+  }
+  /** 화면 키보드가 올라와 있다고 볼 만큼 보이는 높이가 줄었는지 */
+  function keyboardUp(): boolean {
+    const vv = window.visualViewport;
+    return compact || (vv !== null && vv !== undefined && vv.height < window.innerHeight - 120);
+  }
+  /**
+   * 알(창 맨 위)이 보이게 한다. 반응을 보여 주기 직전에 한 번만 부른다
+   * (긴 질문에서 아래로 내려 [다음]을 눌렀을 때 반응이 화면 밖에서 지나가지 않게).
+   */
+  function showEgg() {
+    const box = eggBox?.getBoundingClientRect();
+    if (!box) return;
+    const view = visibleRange();
+    if (box.top < view.top || box.bottom > view.bottom) section?.scrollIntoView({ block: 'start' });
+  }
+  /**
+   * 질문이 바뀐 뒤(또는 화면 키보드가 올라온 뒤) 보여야 할 것이 가려졌으면 맞춘다.
+   * - 창이 통째로 들어오면 그대로 둔다(이미 보이면 아무 일도 없다).
+   * - 화면 키보드가 올라와 있으면 말풍선부터 [다음]까지를 우선한다.
+   * - 그 밖에는 말풍선이 화면 밖일 때만 창 맨 위로 간다(반응 도중에 화면이 밀리지 않게 [다음]을 쫓아가지 않는다).
+   */
+  function settleScroll() {
+    const whole = section?.getBoundingClientRect();
+    const from = bubbleEl?.getBoundingClientRect();
+    const to = panel?.getBoundingClientRect();
+    if (!whole || !from || !to) return;
+    const view = visibleRange();
+    const height = view.bottom - view.top;
+    if (whole.height <= height) {
+      if (whole.top < view.top) window.scrollBy(0, whole.top - view.top);
+      else if (whole.bottom > view.bottom) window.scrollBy(0, whole.bottom - view.bottom);
+      return;
+    }
+    if (keyboardUp()) {
+      const top = (compact ? (eggBox?.getBoundingClientRect().top ?? from.top) : from.top) - 6;
+      if (to.bottom - top <= height) {
+        if (top < view.top) window.scrollBy(0, top - view.top);
+        else if (to.bottom > view.bottom) window.scrollBy(0, to.bottom - view.bottom);
+      } else window.scrollBy(0, top - view.top);
+      return;
+    }
+    if (from.top < view.top || from.bottom > view.bottom)
+      section?.scrollIntoView({ block: 'start' });
+  }
   onMount(() => {
     const vv = window.visualViewport;
     const update = () => {
+      const before = viewHeight;
       viewHeight = vv?.height ?? window.innerHeight;
+      // 화면 키보드가 올라오거나 내려가면(높이가 바뀌면) 말풍선과 [다음]이 보이게 맞춘다
+      if (active && Math.abs(viewHeight - before) > 40) void tick().then(settleScroll);
     };
-    update();
+    viewHeight = vv?.height ?? window.innerHeight;
     vv?.addEventListener('resize', update);
     window.addEventListener('resize', update);
     return () => {
       vv?.removeEventListener('resize', update);
       window.removeEventListener('resize', update);
+      if (holdTimer) clearTimeout(holdTimer);
     };
   });
-  const eggScale = $derived(viewHeight >= 600 ? 4 : viewHeight >= 430 ? 2 : 0);
+  /** 보이는 높이가 430px 아래면(화면 키보드) 알은 말풍선 옆의 작은 무대로 간다 */
+  const compact = $derived(viewHeight < 430);
+  const eggScale = $derived(viewHeight >= 600 ? 4 : 2);
+  const eggRows = $derived(compact ? 34 : eggScale < 4 ? 30 : 44);
 
   const canVibrate = hapticsSupported();
   function toggleHaptics() {
@@ -216,37 +292,65 @@
     at = place;
     tried = false;
     oops = '';
+    moreOpen = false;
     if (place !== 'greeting' && place !== 'summary') egg?.glance();
     await tick();
     if (options.focus === false) return;
     const target =
       place === 'greeting' || place === 'summary' ? heading : (focusTarget(place) ?? heading);
     target?.focus({ preventScroll: true });
-    // 화면 키보드가 올라온 뒤에도 말풍선과 [다음]이 보이게
-    setTimeout(() => panel?.scrollIntoView({ block: 'nearest' }), 320);
+    settleScroll();
   }
 
+  /** 맞장구를 보여 주던 것을 그만둔다(뒤로 가기·화면을 떠날 때) */
+  function dropHold() {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+    holding = false;
+  }
+
+  /** 칸마다 다른 몸짓과 조각(EggStage): 하트·이름표 / 반짝이 / 달력 장 / 휘장 / 봉급표 종이 / 깃 / 동전·봉투 */
   const REACTIONS: Record<QuestionId, EggReaction> = {
     nickname: 'heart',
     birthDate: 'star',
-    hireDate: 'shake',
-    track: 'tilt',
-    payTable: 'tap',
-    series: 'nudge',
+    hireDate: 'calendar',
+    track: 'badge',
+    payTable: 'sheet',
+    series: 'tag',
     prop: 'star',
-    rank: 'tilt',
-    step: 'hop',
-    nextStepDate: 'hop',
+    rank: 'badge',
+    step: 'feather',
+    nextStepDate: 'calendar',
     payday: 'coin',
   };
 
-  function ackOf(id: QuestionId): string {
+  /** 받았다는 말(질문마다). 알의 금·몸짓은 말하지 않는다 */
+  function wordOf(id: QuestionId): string {
     const q = TALK.questions[id];
-    if (id === 'nickname') return fillLine(say(q.ack), { nick: d.nickname.trim() });
+    if (id === 'nickname') return fillLine(say(q.ack), { nick: nickStem(d.nickname) });
     if (id === 'track' && d.trackRules.status !== 'ready')
       return say(TALK.questions.track.ackPending);
     if (id === 'nextStepDate' && d.atMax) return say(TALK.questions.nextStepDate.ackMax);
+    // 직렬을 '고르지 않음'으로 둔 채 [다음]을 누른 것은 건너뛴 것과 같다
+    if (id === 'series' && d.series === null) return say(TALK.questions.series.skip);
     return say(q.ack);
+  }
+
+  /**
+   * 맞장구 = 받았다는 말 + 알 토막. 알 토막은 그림과 맞춘다:
+   * 금 단계가 방금 올랐으면(risen = 오른 단계) 금 대사, 아니면 그 칸의 몸짓 대사.
+   * 움직임 줄이기에서는 몸짓을 말하지 않는다. 직종의 맞장구는 계산만 말한다(부록 H4).
+   */
+  function ackOf(id: QuestionId, risen: number | null): string {
+    const word = wordOf(id);
+    if (risen !== null) {
+      const lines: readonly string[] = TALK.egg.crack[risen] ?? [];
+      return `${word} ${say(lines)}`.trim();
+    }
+    if (env.reduced || id === 'track') return word;
+    const moves: Partial<Record<string, readonly string[]>> = TALK.egg.move;
+    const lines = moves[REACTION_MOVE[REACTIONS[id]]];
+    return lines ? `${word} ${say(lines)}` : word;
   }
 
   /** 답을 받아들이고 다음으로 간다. skipped 면 선택 칸을 건너뛴 것 */
@@ -257,29 +361,42 @@
     const now = progressOf(list, answered);
     const after = eggStageFor(now.done, now.total);
     topStage = Math.max(topStage, after);
+    /** 이 답으로 금 단계가 올랐는지(그림이 실제로 바뀐 때에만 '금' 대사와 흔들림을 쓴다) */
+    const rose = after > before;
     ack = skipped
       ? say(id === 'prop' ? TALK.questions.prop.skip : TALK.questions.series.skip)
-      : ackOf(id);
+      : ackOf(id, rose ? after : null);
     const nowReady = now.left === 0;
+    // 알이 화면 밖이면 반응을 보여 주기 전에 한 번만 맞춘다
+    showEgg();
     if (skipped) {
       egg?.react('nudge');
     } else {
-      egg?.react(REACTIONS[id]);
+      egg?.react(REACTIONS[id], rose ? (after >= EGG_STAGE_MAX ? 'ready' : 'crack') : undefined);
       if (nowReady && !wasReady) emitCue('egg-ready');
-      else if (Math.max(topStage, after) > before) emitCue('egg-crack');
+      else if (rose) emitCue('egg-crack');
       else emitCue('egg-react');
     }
     const index = list.indexOf(id);
     const nextId = list[index + 1];
-    if (returning || nextId === undefined) {
-      returning = false;
-      void go('summary');
-    } else void go(nextId);
+    const target: Place = returning || nextId === undefined ? 'summary' : nextId;
+    returning = false;
+    if (env.reduced) {
+      void go(target);
+      return;
+    }
+    // 맞장구와 알 반응을 먼저 보여 주고, 그다음 질문을 바꾼다
+    holding = true;
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      holding = false;
+      void go(target);
+    }, ACK_HOLD_MS);
   }
 
   function next(event?: Event) {
     event?.preventDefault();
-    if (at === 'greeting' || at === 'summary') return;
+    if (at === 'greeting' || at === 'summary' || holding) return;
     const id = at;
     tried = true;
     if (problemsOf(id, d.visibleErrors).length > 0) {
@@ -301,7 +418,26 @@
     accept(id);
   }
 
-  function back() {
+  /** 고르는 칸(칩)에서 Enter 는 [다음]과 같다(Space 는 고르기). 글자 칸의 Enter 는 폼이 맡는다 */
+  function onAskKey(event: KeyboardEvent) {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || target.getAttribute('role') !== 'radio') return;
+    event.preventDefault();
+    next();
+  }
+
+  /** '잘 모르겠어요 → 채우기': 날짜를 채우고, 사라지는 버튼 대신 [다음]으로 포커스를 옮긴다 */
+  async function fillGuess() {
+    d.nextStepDate = d.guessedNext ?? '';
+    await tick();
+    panel?.querySelector<HTMLElement>('.ask button[type="submit"]')?.focus();
+  }
+
+  /** 이전 질문으로(인사에서는 첫 화면으로). 브라우저의 뒤로 가기도 이 길로 온다(Welcome 의 popstate) */
+  export function back() {
+    dropHold();
     if (at === 'greeting') {
       onexit();
       return;
@@ -319,7 +455,7 @@
   }
 
   function skip() {
-    if (at === 'greeting' || at === 'summary' || !isOptional(at)) return;
+    if (at === 'greeting' || at === 'summary' || holding || !isOptional(at)) return;
     if (at === 'series') setSeries(null);
     if (at === 'prop') declineProp();
     accept(at, true);
@@ -348,7 +484,7 @@
     resetProp();
   }
   function takeProp() {
-    if (!suggested) return;
+    if (!suggested || holding) return;
     look = { ...look, prop: suggested.id };
     accept('prop');
   }
@@ -459,7 +595,13 @@
   }
 </script>
 
-<section class="win talk" id="welcome-talk" aria-labelledby="talk-title">
+<section
+  class="win talk"
+  id="welcome-talk"
+  aria-labelledby="talk-title"
+  data-own-scroll
+  bind:this={section}
+>
   <header class="win-title">
     <button type="button" class="btn ghost small back" onclick={back}>
       <Icon name="icon-chevron-left" />
@@ -504,31 +646,31 @@
       {/if}
     </div>
 
-    {#if eggScale > 0}
-      <div class="stage" class:small={eggScale < 4} aria-hidden="true">
-        <EggStage
-          bind:this={egg}
-          {stage}
-          {ready}
-          {paint}
-          scale={eggScale}
-          rows={eggScale < 4 ? 30 : 44}
-        />
+    <div class="scene" class:compact>
+      <div
+        class={compact ? 'egg-mini' : 'stage'}
+        class:small={!compact && eggScale < 4}
+        aria-hidden="true"
+        bind:this={eggBox}
+      >
+        <EggStage bind:this={egg} {stage} {ready} {paint} scale={eggScale} rows={eggRows} />
       </div>
-    {/if}
 
-    <div class="bubble" class:flat={eggScale === 0}>
-      {#if eggScale === 0}<span class="mini" aria-hidden="true"><Icon name="icon-egg" /></span>{/if}
-      <div class="stack says">
-        {#if ack && at !== 'greeting'}<p class="cap ack" id="talk-ack">{ack}</p>{/if}
-        {#if at === 'greeting'}
-          <p class="q" id="talk-q">{greeting}</p>
-        {:else if at === 'summary'}
-          <p class="q" id="talk-q">{summaryLine}</p>
-        {:else}
-          <p class="q" id="talk-q">{question}</p>
-        {/if}
-        {#if oops}<p class="cap oops" id="talk-oops">{oops}</p>{/if}
+      <div class="bubble" class:side={compact} bind:this={bubbleEl}>
+        <div class="stack says">
+          {#if ack && at !== 'greeting'}
+            <p class="cap ack" class:now={holding} id="talk-ack">{ack}</p>
+          {/if}
+          <!-- 맞장구를 보여 주는 동안 질문은 잠깐 가린다(칸의 이름으로는 그대로 읽힌다) -->
+          {#if at === 'greeting'}
+            <p class="q" id="talk-q">{greeting}</p>
+          {:else if at === 'summary'}
+            <p class="q" id="talk-q">{summaryLine}</p>
+          {:else}
+            <p class="q" id="talk-q" hidden={holding}>{question}</p>
+          {/if}
+          {#if oops}<p class="cap oops" id="talk-oops">{oops}</p>{/if}
+        </div>
       </div>
     </div>
     <p class="sr-only" id="talk-state">{stateText}</p>
@@ -574,7 +716,7 @@
           {/each}
         </ul>
 
-        <div class="stack">
+        <div class="stack opts">
           <label class="switch">
             <input
               type="checkbox"
@@ -585,22 +727,20 @@
             <span>{TALK.summary.showIdentity}</span>
           </label>
           <span class="cap muted" id="talk-identity-hint">{TALK.summary.showIdentityHint}</span>
-        </div>
-
-        <div class="stack well">
-          <div class="btn-row">
+          <div class="look-row">
             <button type="button" class="btn small" onclick={openLook}>
               <Icon name="icon-palette" />
               {TALK.summary.look}
             </button>
+            <p class="cap muted" role="status">
+              {lookChanged ? TALK.summary.lookDone : TALK.summary.lookHint}
+            </p>
           </div>
-          <p class="cap muted" role="status">
-            {lookChanged ? TALK.summary.lookDone : TALK.summary.lookHint}
-          </p>
         </div>
 
-        {#if hatchProblem}<p class="note warn" role="alert">{hatchProblem}</p>{/if}
-        <div class="btn-row end">
+        <!-- [알 깨우기]는 화면 아래에 붙어 있다(답 목록이 길어도 늘 보인다) -->
+        <div class="wake">
+          {#if hatchProblem}<p class="note warn" role="alert">{hatchProblem}</p>{/if}
           <button type="button" class="btn primary hatch" onclick={hatch}>
             <Icon name="icon-egg" />
             {TALK.summary.hatch}
@@ -608,7 +748,8 @@
         </div>
       </div>
     {:else}
-      <form class="ask stack wide" onsubmit={next} novalidate>
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <form class="ask stack wide" onsubmit={next} onkeydown={onAskKey} novalidate>
         {#if at === 'nickname'}
           <div class="field">
             <div class="line">
@@ -708,6 +849,7 @@
             value={d.series}
             onchange={setSeries}
             describedby={described}
+            brief={TALK.questions.series.hint}
           />
         {:else if at === 'prop' && suggested && propPreview}
           <div class="prop">
@@ -715,7 +857,7 @@
               <Sprite look={propPreview} scale={2} animate={false} />
             </span>
             <div class="stack">
-              <p><strong>{suggested.name}</strong></p>
+              <p><strong id="tk-prop-name">{suggested.name}</strong></p>
               <p class="cap muted" id="tk-hint">{TALK.questions.prop.hint}</p>
             </div>
           </div>
@@ -729,9 +871,10 @@
               onchange={setRank}
             />
             {#if d.unselectable.length > 0}
-              <span class="hint cap">
+              <!-- 까닭(봉급표 근거)은 '한 번에 쓰기'와 설정에 있다. 대화에서는 한 줄만 -->
+              <span class="hint cap" id="tk-unselectable">
                 {#each d.unselectable as r (r.key)}
-                  {josa(r.label, '은', '는')} 고를 수 없어요. {r.note ?? ''}
+                  {josa(r.label, '은', '는')} {TALK.questions.rank.unselectable}
                 {/each}
               </span>
             {/if}
@@ -795,11 +938,7 @@
           />
           {#if !d.atMax && d.guessedNext && d.nextStepDate !== d.guessedNext}
             <div class="btn-row">
-              <button
-                type="button"
-                class="btn small"
-                onclick={() => (d.nextStepDate = d.guessedNext ?? '')}
-              >
+              <button type="button" class="btn small" id="tk-guess" onclick={fillGuess}>
                 {fillLine(TALK.questions.nextStepDate.guess, {
                   date: formatLongDate(d.guessedNext),
                 })}
@@ -867,12 +1006,23 @@
               value={d.payday}
               onchange={(next) => d.setPayday(next)}
             />
-            <span class="hint cap stack" id="tk-hint">
-              <span>
-                {d.payday}일{d.paydayOrgs ? `: ${d.paydayOrgs}` : ''} · 나중에 설정에서 바꿀 수 있어요.
-              </span>
-              {#if d.trackRules.payday.note}<span>{d.trackRules.payday.note}</span>{/if}
-            </span>
+            <!-- 도움말은 한 줄. 날짜마다의 기관은 [자세히]에(기본값의 근거는 '한 번에 쓰기'와 설정에 있다) -->
+            <span class="hint cap" id="tk-hint">{TALK.questions.payday.hint}</span>
+            {#if d.paydayOrgs}
+              <button
+                type="button"
+                class="btn ghost small toggle"
+                aria-expanded={moreOpen}
+                aria-controls="tk-more"
+                onclick={() => (moreOpen = !moreOpen)}
+              >
+                <span aria-hidden="true">{moreOpen ? '▼' : '▶'}</span>
+                <span>{TALK.nav.more}</span>
+              </button>
+              {#if moreOpen}
+                <span class="hint cap" id="tk-more">{d.payday}일: {d.paydayOrgs}</span>
+              {/if}
+            {/if}
           </div>
         {/if}
 
@@ -883,12 +1033,24 @@
         {#if at !== 'nickname'}
           <div class="btn-row end nav">
             {#if optional}
-              <button type="button" class="btn" onclick={skip}>
+              <button
+                type="button"
+                class="btn"
+                aria-describedby={at === 'prop' ? 'tk-prop-name tk-hint' : undefined}
+                onclick={skip}
+              >
                 {at === 'prop' ? TALK.questions.prop.no : TALK.nav.skip}
               </button>
             {/if}
             {#if at === 'prop'}
-              <button type="button" class="btn primary go" data-talk-focus onclick={takeProp}>
+              <!-- 포커스가 오는 버튼: 질문·소품 이름·'카드 그림에도 보여요'·맞장구·알 상태를 설명으로 읽는다 -->
+              <button
+                type="button"
+                class="btn primary go"
+                data-talk-focus
+                aria-describedby="talk-q tk-prop-name tk-hint {described}"
+                onclick={takeProp}
+              >
                 {TALK.questions.prop.yes}
               </button>
             {:else}
@@ -1002,8 +1164,39 @@
       3px 0 0 0 #1a1c2c,
       0 -3px 0 0 #1a1c2c;
   }
-  .bubble.flat::before {
-    display: none;
+  /* 화면 키보드가 올라왔을 때: 알은 말풍선 왼쪽의 작은 무대로(같은 몸짓·조각·금 단계를 2배로) */
+  .scene.compact {
+    display: flex;
+    align-items: stretch;
+    gap: 9px;
+  }
+  .egg-mini {
+    flex: none;
+    width: 96px;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(
+      var(--stage) 0 calc(100% - 12px),
+      var(--stage-ground) calc(100% - 12px) 100%
+    );
+    box-shadow: var(--frame);
+    margin: var(--u);
+    overflow: hidden;
+  }
+  .bubble.side {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: var(--u) var(--u) var(--u) 3px;
+    align-items: center;
+  }
+  /* 꼬리는 왼쪽(알)을 가리킨다 */
+  .bubble.side::before {
+    left: -6px;
+    top: calc(50% - 3px);
+    box-shadow:
+      0 -3px 0 0 #1a1c2c,
+      0 3px 0 0 #1a1c2c,
+      -3px 0 0 0 #1a1c2c;
   }
   .says {
     flex: 1 1 auto;
@@ -1016,13 +1209,14 @@
   .ack {
     color: #333c57;
   }
+  /* 방금 답에 대한 맞장구: 질문이 바뀌기 전 잠깐 크게 */
+  .ack.now {
+    font-family: inherit;
+    font-size: 15px;
+    color: #1a1c2c;
+  }
   .oops {
     color: #333c57;
-  }
-  .mini {
-    flex: none;
-    line-height: 0;
-    padding-top: 3px;
   }
   .line {
     display: flex;
@@ -1078,8 +1272,38 @@
     text-align: left;
     width: fit-content;
   }
+  .opts {
+    gap: 6px;
+  }
+  .look-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 9px;
+  }
+  .look-row p {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+  /* [알 깨우기]: 화면 아래에 붙여 둔다. 창 본문의 안쪽 여백(12px)만큼 넓혀 끝에서 끝까지 덮는다 */
+  .wake {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    display: grid;
+    gap: 6px;
+    margin: 0 -12px -12px;
+    padding: 9px 12px calc(9px + var(--safe-b));
+    background: var(--panel);
+    box-shadow: 0 calc(var(--u) * -1) 0 0 var(--line);
+  }
   .hatch {
-    min-width: 144px;
+    width: 100%;
+    min-height: 45px;
+  }
+  /* 붙어 있는 버튼 줄이 포커스 받은 [고치기]를 가리지 않게 */
+  #talk-summary :is(button, input) {
+    scroll-margin-bottom: 96px;
   }
   @media (forced-colors: active) {
     .bubble {

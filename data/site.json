@@ -32,6 +32,18 @@
       "blurb": "내려받는 임용정보 패키지에 암호를 걸 수 있어요."
     },
     {
+      "id": "my-hobong",
+      "status": "done",
+      "title": "나만의 호봉이",
+      "blurb": "몸 색과 장식을 고르고, 하는 일에 어울리는 소품을 들 수 있어요."
+    },
+    {
+      "id": "first-talk",
+      "status": "done",
+      "title": "말을 거는 첫 만남",
+      "blurb": "알과 이야기하듯 정보를 넣으면 호봉이가 깨어나요."
+    },
+    {
       "id": "more-jobs",
       "status": "growing",
       "title": "경찰·소방·교원도 함께",
@@ -42,18 +54,6 @@
       "status": "growing",
       "title": "한눈에 보이는 성장",
       "blurb": "급이 오를수록 몸집과 깃이 확 달라지게 다시 그리고 있어요."
-    },
-    {
-      "id": "my-hobong",
-      "status": "growing",
-      "title": "나만의 호봉이",
-      "blurb": "몸 색과 장식을 고르고, 하는 일에 어울리는 소품을 들게 해요."
-    },
-    {
-      "id": "first-talk",
-      "status": "growing",
-      "title": "말을 거는 첫 만남",
-      "blurb": "알과 이야기하듯 정보를 넣으면 호봉이가 깨어나요."
     },
     {
       "id": "sound-and-touch",

@@ -20,7 +20,11 @@
     problem?: string;
     /** 묶음의 이름을 다른 요소(말풍선의 질문 문장)로 바꾼다. 세 칸의 이름('… 연도')은 label 그대로 */
     labelledby?: string;
-    /** 설명에 더 이을 요소 id(빈칸으로 구분). 맞장구·알 상태처럼 칸 밖에 있는 글 */
+    /**
+     * 설명에 더 이을 요소 id(빈칸으로 구분). 맞장구·알 상태처럼 칸 밖에 있는 글.
+     * 주면 설명 전체(이 글 + 도움말 + 오류)를 묶음이 아니라 **연도 칸**에 단다: 포커스가 연도 칸으로 가는 화면
+     * (말을 거는 첫 입력)에서 VoiceOver·TalkBack 은 묶음의 설명을 읽지 않는다. 묶음과 칸에 함께 달면 두 번 읽힌다.
+     */
     describedby?: string;
   }
 
@@ -197,7 +201,7 @@
     class="date"
     role="group"
     aria-labelledby={labelledby ?? `${id}-label`}
-    aria-describedby={describedBy}
+    aria-describedby={describedby ? undefined : describedBy}
   >
     <input
       bind:this={yearEl}
@@ -209,6 +213,7 @@
       placeholder="연도"
       maxlength="10"
       aria-label="{label} 연도"
+      aria-describedby={describedby ? describedBy : undefined}
       aria-invalid={message ? 'true' : undefined}
       aria-required={required ? 'true' : undefined}
       value={year}

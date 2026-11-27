@@ -1,7 +1,48 @@
 <script lang="ts" module>
-  /** 알의 반응(칸마다 다르다). 뜻은 늘 글로도 전한다(이 그림은 장식이다) */
+  import type { MoveName } from '../../lib/fx/moves.ts';
+
+  /**
+   * 알의 반응(칸마다 다르다). 몸짓과 조각이 칸마다 달라 무엇을 답했는지 그림으로도 알아본다.
+   * 뜻은 늘 글로도 전한다(이 그림은 장식이다).
+   *
+   * heart 하트·이름표 / star 반짝이 / calendar 달력 장 / badge 방패 휘장 / sheet 봉급표 종이 / tag 이름표 /
+   * feather 깃 / coin 동전·월급 봉투 / tap·hop·nudge 조각 없이 몸짓만 조금 / flinch 움찔(고쳐야 할 때)
+   */
   export type EggReaction =
-    'tap' | 'heart' | 'star' | 'shake' | 'tilt' | 'hop' | 'coin' | 'nudge' | 'flinch';
+    | 'heart'
+    | 'star'
+    | 'calendar'
+    | 'badge'
+    | 'sheet'
+    | 'tag'
+    | 'feather'
+    | 'coin'
+    | 'tap'
+    | 'hop'
+    | 'nudge'
+    | 'flinch';
+
+  /**
+   * 반응마다의 몸짓 이름(moves.ts). 맞장구의 몸짓 대사(data/talk.json egg.move)도 이 짝을 따른다
+   * (글이 그림과 어긋나지 않게 한곳에 둔다).
+   */
+  export const REACTION_MOVE = {
+    heart: 'tap',
+    star: 'nudge',
+    calendar: 'shake',
+    badge: 'tilt',
+    sheet: 'tap',
+    tag: 'nudge',
+    feather: 'hop',
+    coin: 'hop',
+    tap: 'tap',
+    hop: 'hop',
+    nudge: 'nudge',
+    flinch: 'flinch',
+  } as const satisfies Record<EggReaction, MoveName>;
+
+  /** 금 단계가 올랐을 때의 몸짓: 금이 가면 흔들, 다 채우면 콩콩(칸의 조각은 그대로 튄다) */
+  export type EggRise = 'crack' | 'ready';
 </script>
 
 <script lang="ts">
@@ -39,7 +80,7 @@
   let { stage, ready = false, paint, scale = 4, rows = 52 }: Props = $props();
 
   let canvas = $state<ReturnType<typeof StageCanvas>>();
-  const field = createField({ max: 24 });
+  const field = createField({ max: 32 });
   let stopField: (() => void) | null = null;
 
   /** 지금 틀고 있는 몸짓과 흐른 시간(ms) */
@@ -70,40 +111,87 @@
   const CENTER = { x: 24, y: 34 };
   const TOP = { x: 24, y: 22 };
 
+  /** 알 꼭대기에서 위로 퍼지는 부채꼴(라디안. 0 = 오른쪽, 시계 방향이 +) */
+  const UP_FAN: readonly [number, number] = [Math.PI * 1.1, Math.PI * 1.9];
+
+  /** 조각이 알에서 튀어 올라 포물선을 그리며 떨어진다(칸마다 그림이 다르다) */
+  function toss(sprite: string | readonly string[], count: number, frames = 1) {
+    emitBurst(field, {
+      x: TOP.x,
+      y: TOP.y + 3,
+      count,
+      speed: [16, 30],
+      angle: UP_FAN,
+      lift: 14,
+      gravity: 70,
+      ttl: [620, 820],
+      delay: [0, 120],
+      look: { sprite, frames, frameMs: 180 },
+    });
+  }
+
   function emit(kind: EggReaction) {
     if (env.reduced) return;
     if (kind === 'heart') {
+      // 하트 다섯이 차례로 떠오르고, 이름표 하나가 톡 튀어나온다
       emitRise(field, {
-        from: { x: TOP.x + 9, y: TOP.y + 2 },
-        to: { x: TOP.x + 12, y: TOP.y - 10 },
-        ttl: 700,
-        sway: 2,
+        from: { x: TOP.x, y: TOP.y + 4 },
+        to: { x: TOP.x + 2, y: TOP.y - 12 },
+        count: 5,
+        ttl: [640, 860],
+        sway: 9,
+        stagger: 70,
         look: { sprite: 'fxc-heart' },
       });
+      toss('fxc-tag', 1);
     } else if (kind === 'star' || kind === 'hop') {
       emitBurst(field, {
         x: TOP.x,
         y: TOP.y + 2,
-        count: kind === 'hop' ? 3 : 2,
-        speed: [14, 22],
-        angle: [Math.PI * 1.15, Math.PI * 1.85],
-        lift: 6,
-        gravity: 30,
-        ttl: [380, 520],
-        look: { sprite: 'p-star' },
+        count: kind === 'hop' ? 4 : 8,
+        speed: [18, 34],
+        angle: UP_FAN,
+        lift: 10,
+        gravity: 40,
+        ttl: [520, 760],
+        delay: [0, 100],
+        look: { sprite: ['fxc-spark', 'fxc-spark', 'p-star'] },
       });
-    } else if (kind === 'shake') {
+    } else if (kind === 'calendar') {
+      toss('fxc-cal', 6);
       emitBurst(field, {
         x: CENTER.x,
         y: CENTER.y + 2,
-        count: 3,
+        count: 4,
         speed: [6, 12],
         angle: [Math.PI * 0.2, Math.PI * 0.8],
         gravity: 90,
         ttl: [380, 460],
         look: { sprite: 'fxc-dust', frames: 3 },
       });
-    } else if (kind === 'tilt') {
+    } else if (kind === 'badge') {
+      toss(['fxc-badge', 'fxc-badge', 'fxc-spark'], 7);
+    } else if (kind === 'sheet') {
+      toss('fxc-sheet', 6);
+    } else if (kind === 'tag') {
+      toss(['fxc-tag', 'fxc-spark'], 6);
+    } else if (kind === 'feather') {
+      toss(['p-feather', 'p-feather', 'fxc-spark'], 8);
+    } else if (kind === 'coin') {
+      emitBurst(field, {
+        x: TOP.x,
+        y: TOP.y + 3,
+        count: 5,
+        speed: [16, 28],
+        angle: UP_FAN,
+        lift: 16,
+        gravity: 80,
+        ttl: [640, 820],
+        delay: [0, 140],
+        look: { sprite: 'fxc-coin', frames: 2, frameMs: 160 },
+      });
+      toss('fxc-envelope', 2);
+    } else if (kind === 'nudge') {
       emitBurst(field, {
         x: CENTER.x,
         y: CENTER.y - 6,
@@ -112,35 +200,20 @@
         ttl: [300, 420],
         look: { sprite: 'p-glint' },
       });
-    } else if (kind === 'coin') {
-      emitRise(field, {
-        from: { x: TOP.x, y: TOP.y },
-        to: { x: TOP.x, y: TOP.y - 12 },
-        ttl: 600,
-        sway: 0,
-        look: { sprite: 'fxc-coin', frames: 2, frameMs: 200 },
-      });
     }
     stopField = runField(field, () => canvas?.redraw());
   }
 
-  const MOVE_OF: Record<EggReaction, Move> = {
-    tap: MOVES.tap,
-    heart: MOVES.tap,
-    star: MOVES.nudge,
-    shake: MOVES.shake,
-    tilt: MOVES.tilt,
-    hop: MOVES.hop,
-    coin: MOVES.tap,
-    nudge: MOVES.nudge,
-    flinch: MOVES.flinch,
-  };
-
-  /** 칸을 채웠을 때(또는 고쳐야 할 때) 한 번 반응한다 */
-  export function react(kind: EggReaction): void {
+  /**
+   * 칸을 채웠을 때(또는 고쳐야 할 때) 한 번 반응한다.
+   * rise: 이 답으로 금 단계가 올랐으면 'crack'(흔들), 다 채웠으면 'ready'(콩콩). 조각은 칸의 것 그대로다.
+   */
+  export function react(kind: EggReaction, rise?: EggRise): void {
     if (env.reduced) return;
     if (kind === 'flinch') squashMs = 90;
-    play(MOVE_OF[kind]);
+    const move: Move =
+      rise === 'crack' ? MOVES.shake : rise === 'ready' ? MOVES.hop : MOVES[REACTION_MOVE[kind]];
+    play(move);
     emit(kind);
   }
 

@@ -400,7 +400,8 @@
       {/if}
 
       <hr class="rule" />
-      <ShareNote variant={2} inline />
+      <!-- '로그인은 준비 중' 한마디만. 알리기는 권하지 않는다(첫 화면에서도 열리는 창이라 아직 써 보기 전이다) -->
+      <ShareNote variant={2} share={false} />
     </div>
   {/if}
 </Modal>

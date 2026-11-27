@@ -60,6 +60,8 @@ export interface Toast {
   kind: 'info' | 'good' | 'warn';
   icon?: string;
   action?: ToastAction;
+  /** 떠 있는 시간(ms). 연출 때문에 미뤘다가 다시 띄울 때 쓴다 */
+  ms: number;
 }
 
 /** 내 정보에서 직종을 바꿔 저장한 뒤 한 번 보여 줄 안내 */
@@ -166,6 +168,11 @@ class AppStore {
   welcomeBack = $state<WelcomeBack | null>(null);
   celebration = $state<Celebration | null>(null);
   /**
+   * 승급·승진 연출이 끝 장면에 닿았는지. 닿기 전에는 뒤의 홈(상태창)이 오르기 전 호봉·모습을 보여 준다
+   * (결과를 연출보다 먼저 보지 않게). 연출이 새로 뜰 때마다 false 로 돌린다.
+   */
+  celebrationRevealed = $state(false);
+  /**
    * 직종이 없던 형식(v3 이하)의 저장본을 방금 바꿔 열었다. 홈에 '이제 경찰·소방·교원도 계산해요' 띠를
    * 한 번 띄운다(이 탭의 메모리. 바꾼 저장본은 v4 로 저장되므로 다음에 열면 뜨지 않는다).
    */
@@ -182,6 +189,8 @@ class AppStore {
 
   #store: KeyValueStore | null = null;
   #toastSeq = 0;
+  /** 승급·승진 연출이 떠 있는 동안 미뤄 둔 알림(연출이 닫히면 차례로 띄운다) */
+  #heldToasts: (() => void)[] = [];
   /** 이 탭이 마지막으로 읽거나 쓴 저장본 원문. 다른 탭이 바꿨는지 알아보는 데 쓴다 */
   #lastRaw: string | null = null;
 
@@ -466,7 +475,7 @@ class AppStore {
             cardShowRank: cardReset ? showRank : null,
           }
         : null;
-    if (promoted) this.celebration = promoted;
+    if (promoted) this.#celebrate(promoted);
   }
 
   /** 지금 저장된 내 정보에서 profile 로 바꾸는 것이 승진이면 그 연출 정보, 아니면 null */
@@ -508,6 +517,19 @@ class AppStore {
     if (day !== null) this.updateSettings({ payday: day });
   }
 
+  /**
+   * 승급·승진 연출을 띄운다. 뒤의 홈은 끝 장면에 닿을 때까지 오르기 전 값을 보이고(celebrationRevealed),
+   * 이미 떠 있던 알림은 거뒀다가 연출이 닫힌 뒤 다시 띄운다(연출 위에 알림이 쌓이지 않게).
+   */
+  #celebrate(event: Celebration): void {
+    this.celebrationRevealed = false;
+    this.celebration = event;
+    for (const shown of this.toasts.splice(0))
+      this.#heldToasts.push(() =>
+        this.toast(shown.text, shown.kind, shown.icon, shown.ms, shown.action),
+      );
+  }
+
   /** 승급·성장 연출을 본 것으로 기록한다 */
   acknowledgeGrowth(rank: RankKey | null, step: number, form: string): void {
     this.celebration = null;
@@ -538,7 +560,7 @@ class AppStore {
       c.ladder?.ranks ?? null,
     );
     if (decision.kind === 'step' || decision.kind === 'grow') {
-      this.celebration = {
+      this.#celebrate({
         kind: decision.kind,
         fromRank: lastRank,
         fromStep: lastStep,
@@ -552,7 +574,7 @@ class AppStore {
         toLabel: rankStepLabel(c, step),
         fromRankLabel: null,
         toRankLabel: null,
-      };
+      });
     } else if (decision.kind === 'record') {
       // 계급이 바뀌었거나 호봉·형태가 내려간 경우(직접 수정·규칙 변경)는 조용히 맞춘다.
       this.acknowledgeGrowth(rank, step, form);
@@ -817,10 +839,29 @@ class AppStore {
     ms = 3200,
     action?: ToastAction,
   ): void {
+    // 승급·승진 연출이 떠 있는 동안에는 미룬다(연출 위에 알림이 쌓이지 않게). 닫히면 releaseToasts 가 띄운다
+    if (this.celebration !== null) {
+      this.#heldToasts.push(() => this.toast(text, kind, icon, ms, action));
+      if (this.#heldToasts.length > 4) this.#heldToasts.shift();
+      return;
+    }
     const id = (this.#toastSeq += 1);
-    this.toasts.push({ id, text, kind, icon, action });
+    this.toasts.push({ id, text, kind, icon, action, ms });
     if (this.toasts.length > 4) this.toasts.splice(0, this.toasts.length - 4);
     setTimeout(() => this.dismissToast(id), ms);
+  }
+
+  /** 미뤄 둔 알림을 띄운다(연출이 닫힌 뒤 App 이 부른다). 연출이 아직 떠 있으면 아무 일도 없다 */
+  releaseToasts(): void {
+    if (this.celebration !== null || this.#heldToasts.length === 0) return;
+    const held = this.#heldToasts;
+    this.#heldToasts = [];
+    for (const show of held) show();
+  }
+
+  /** 연출의 끝 장면에 닿았다: 뒤의 홈이 새 호봉·모습으로 바뀐다 */
+  revealCelebration(): void {
+    this.celebrationRevealed = true;
   }
 
   dismissToast(id: number): void {

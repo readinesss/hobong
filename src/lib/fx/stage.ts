@@ -176,6 +176,26 @@ export function disc(
   }
 }
 
+/** 픽셀 원의 테두리(두께 thick 칸). 퍼지는 빛 고리 */
+export function ring(
+  stage: Stage,
+  cx: number,
+  cy: number,
+  r: number,
+  color: number,
+  thick = 1,
+  alpha = 1,
+): void {
+  const radius = Math.max(0, Math.floor(r));
+  const inner = Math.max(0, radius - Math.max(1, Math.floor(thick)));
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      if (inside(dx, dy, radius) && !inside(dx, dy, inner))
+        put(stage, cx + dx, cy + dy, color, alpha);
+    }
+  }
+}
+
 /** 선(Bresenham). 빛줄기 */
 export function line(
   stage: Stage,

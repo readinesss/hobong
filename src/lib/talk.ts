@@ -19,6 +19,15 @@ export function fillLine(
 }
 
 /**
+ * '{nick}님' 자리에 넣을 닉네임. 닉네임이 이미 '님'으로 끝나면 그 '님'을 떼어 넣는다
+ * ('열두글자임님' → '열두글자임' + '님': '…님님'이 되지 않게).
+ */
+export function nickStem(nickname: string): string {
+  const name = nickname.trim();
+  return name.endsWith('님') ? name.slice(0, -1) : name;
+}
+
+/**
  * 변형 가운데 하나를 고른다. seed 가 같으면 같은 문장이 나온다(다시 그려도 대사가 바뀌지 않게).
  * 빈 목록이면 ''.
  */
