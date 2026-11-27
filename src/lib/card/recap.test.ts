@@ -33,6 +33,7 @@ const profile: Profile = {
   birthDate: '1996-04-12',
   hireDate: '2022-09-01',
   track: 'general',
+  series: null,
   payTable: 'table3',
   rank: '9',
   rankDate: '2022-09-01',

@@ -11,6 +11,9 @@
  * - v4: 직종(track)·봉급표(payTable)·계급 키(rank). grade·gradeDate 를 rank·rankDate 로,
  *       character.lastGrade 를 lastRank 로 바꾸고, 계급정년 직접 고침(overrides.rankLimitDate)·
  *       형태 변화 감지(character.lastForm)·카드의 계급 이름 켜기(settings.card.showRank)를 더했다.
+ * - v5: 고도화 2차. 직렬(profile.series, 기본 없음)과 그 이름을 어디에 보일지(settings.identity.showSeriesHome·
+ *       settings.card.showSeries), 호봉이 꾸미기(character.look), 진동·소리·포인터·반짝이 설정
+ *       (settings.haptics·sound·pointer·sparkles). 모두 '지금과 같은 모습·동작'이 되는 기본값으로 채운다.
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
@@ -18,6 +21,7 @@
  * 이유와 함께 거부하게 한다(사용자가 무엇이 빠졌는지 모른 채 불러오는 일이 없게).
  */
 import { addDays, isValidYmd, todayYmd, type Ymd } from '../calc/date.ts';
+import { defaultLook } from './defaults.ts';
 import { APP_ID, SCHEMA_VERSION, type Settings } from './schema.ts';
 import { isGrade } from './validate.ts';
 
@@ -165,11 +169,43 @@ function v3ToV4(data: Dict): Dict {
   return out;
 }
 
+/**
+ * v4 → v5: 새 칸을 '지금과 같은 모습·동작'이 되는 기본값으로 채운다.
+ * - 직렬은 고른 적이 없다(null). 홈 이름 보이기는 켬(본인 화면), 카드 직렬 이름은 끔.
+ * - 꾸미기는 기본 모습(DEFAULT_LOOK). 소품 'auto' 는 직렬을 고르지 않았으면 호봉 소품이라, 어느 직종이든 옮긴 뒤의
+ *   모습이 v4 와 같다(특정직의 직종 소품은 직접 고를 때만 든다 — look.ts resolveProp).
+ * - 진동은 켬(지원 기기·움직임 줄이기 꺼짐일 때만 울린다), 소리는 모두 끔, 포인터는 픽셀, 반짝이는 켬.
+ * v4 저장본에 v5 이름의 키가 섞여 있어도(손으로 고친 파일) 옮겨 담지 않고 기본값을 둔다 —
+ * v4 앱은 그런 키를 읽지도 저장하지도 않았으므로 사용자가 고른 값이 아니다.
+ * 그 밖의 값은 건드리지 않는다(형식이 틀린 칸은 검증이 이유와 함께 거부한다).
+ */
+function v4ToV5(data: Dict, ctx: MigrationContext): Dict {
+  const out: Dict = { ...data };
+  if (isDict(data.profile)) out.profile = { ...data.profile, series: null };
+  if (isDict(data.settings)) {
+    const d = ctx.defaultSettings;
+    out.settings = {
+      ...data.settings,
+      ...(isDict(data.settings.card)
+        ? { card: { ...data.settings.card, showSeries: d.card.showSeries } }
+        : {}),
+      identity: { ...d.identity },
+      haptics: d.haptics,
+      sound: { ...d.sound },
+      pointer: d.pointer,
+      sparkles: d.sparkles,
+    };
+  }
+  if (isDict(data.character)) out.character = { ...data.character, look: defaultLook() };
+  return out;
+}
+
 /** 키 = 변환 전 버전 */
 const MIGRATIONS: Record<number, Migration> = {
   1: v1ToV2,
   2: v2ToV3,
   3: v3ToV4,
+  4: v4ToV5,
 };
 
 export type MigrateResult =

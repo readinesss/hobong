@@ -17,6 +17,8 @@
     /** 바깥을 누르거나 Esc로 닫을 수 있는지 */
     dismissible?: boolean;
     wide?: boolean;
+    /** 더 넓게(900px 이상 화면에서 두 열로 쓰는 대화상자, 예: 호봉이 꾸미기) */
+    xwide?: boolean;
   }
 
   let {
@@ -27,6 +29,7 @@
     actions,
     dismissible = true,
     wide = false,
+    xwide = false,
   }: Props = $props();
 
   let panel = $state<HTMLDivElement>();
@@ -139,6 +142,7 @@
     bind:this={panel}
     class="win modal pop-in"
     class:wide
+    class:xwide
     role="dialog"
     aria-modal="true"
     aria-labelledby={titleId}
@@ -193,6 +197,11 @@
   }
   .modal.wide {
     width: min(640px, 100%);
+  }
+  @media (min-width: 900px) {
+    .modal.xwide {
+      width: min(1040px, 100%);
+    }
   }
   .body {
     overflow-y: auto;

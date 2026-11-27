@@ -67,7 +67,15 @@ import {
 } from '../calc/salary.ts';
 import { isRaiseDay, prevRaiseDate } from '../calc/step.ts';
 import { earnings, secondOfDay, todayStatus, toSchedule, type TodayStatus } from '../calc/today.ts';
-import { decideMood, formIdFor, nextUnlock, resolveLook, type MoodId } from '../character/look.ts';
+import {
+  decideMood,
+  formIdFor,
+  holdsOwnProp,
+  nextUnlock,
+  resolveLook,
+  type MoodId,
+} from '../character/look.ts';
+import { propOwnerOf, seriesLabel } from '../character/series.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
 import {
@@ -199,6 +207,23 @@ class View {
   step = $derived(careerStepOn(this.careerRules, this.profile, this.serviceDay));
   /** '7급 12호봉' / '경위 12호봉' / '12호봉'(교원·사다리 없는 직종) */
   rankStepLabel = $derived(rankStepLabel(this.careerRules, this.step));
+  /**
+   * 일반직이 고른 직렬 이름(data/series.json). 고르지 않았거나 목록에 없거나 일반직이 아니면 null.
+   * 소속을 짐작하게 할 수 있어 화면마다 사용자 설정(identity.showSeriesHome·card.showSeries)을 보고 보인다.
+   */
+  seriesName = $derived(seriesLabel(this.profile));
+  /** 홈에 직렬·계급 이름을 보일지(settings.identity.showSeriesHome, 기본 켬) */
+  showIdentityHome = $derived(this.data.settings.identity.showSeriesHome);
+  /**
+   * 홈(상태창·지갑)에 쓰는 계급·호봉 글자. 공개 설정을 끄면 계급 이름을 빼고 '12호봉'만 쓴다
+   * (#20 설계 §13: 우정직은 계급 이름 '우정7급'이 곧 직군이다. '7급 상당' 같은 표기는 쓰지 않는다).
+   */
+  homeRankStepLabel = $derived(this.showIdentityHome ? this.rankStepLabel : `${this.step}호봉`);
+  /**
+   * 홈(승급·정년 창 설명 포함)에 쓸 계급 이름. 공개 설정을 끄면 null — 화면은 '지금 계급'·'다음 계급'처럼
+   * 이름 없이 쓴다(우정·경찰·소방 계급 이름은 직군·직종을 드러낸다)
+   */
+  homeRankLabel = $derived(this.showIdentityHome ? this.rankLabel : null);
   /** 지금 봉급. 봉급을 계산하지 않는 직종(준비 중)은 null */
   salary = $derived(salaryOn(rulesFor, this.profile, this.serviceDay));
   /** 정기승급을 계산하지 않는 직종에서 입력한 다음 승급일이 지났는지(호봉을 고쳐 달라고 한다) */
@@ -246,7 +271,6 @@ class View {
       period !== null && isRaiseDay(this.profile, this.today, stepCeiling(this.careerRules), period)
     );
   });
-  nextUnlock = $derived(nextUnlock(characterRules, this.step));
 
   // ── 재직 ─────────────────────────────────────────────────────────────
   /** 임용부터 정년까지의 진행. 정년을 계산하지 않으면 null */
@@ -492,7 +516,22 @@ class View {
       today: this.serviceDay,
     }),
   );
-  look = $derived(resolveLook(characterRules, this.formId, this.step, this.mood));
+  /** 꾸미기와 'auto' 소품을 고를 사용자 정보(직렬은 테마 id 로만 넘긴다). 모든 그림이 같은 값을 쓴다 */
+  characterLook = $derived(this.data.character.look);
+  propOwner = $derived(propOwnerOf(this.profile));
+  /** 손 소품을 들고 있어 왼손 호봉 소품(결재판)이 나오지 않는지. 다음 소품 약속·'새로 생김'에서 뺀다 */
+  handHeld = $derived(holdsOwnProp(characterRules, this.characterLook, this.propOwner));
+  nextUnlock = $derived(nextUnlock(characterRules, this.step, this.handHeld));
+  look = $derived(
+    resolveLook(
+      characterRules,
+      this.formId,
+      this.step,
+      this.mood,
+      this.characterLook,
+      this.propOwner,
+    ),
+  );
   line = $derived.by(() => {
     void clock.minute;
     const now = untrack(() => clock.now);

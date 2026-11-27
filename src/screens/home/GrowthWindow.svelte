@@ -9,6 +9,11 @@
   import Win from '../../lib/ui/Win.svelte';
 
   const DOT = ' · ';
+  /** 공개 설정('홈에 직렬·계급 이름 보이기')을 끄면 계급 이름 대신 쓰는 말 */
+  const noun = $derived(view.careerRules.ladder?.noun ?? '계급');
+  const rankWord = $derived(view.homeRankLabel ?? `지금 ${noun}`);
+  const rankName = (rank: { label: string } | null | undefined) =>
+    view.showIdentityHome && rank ? `${rank.label} ` : '';
   /** 바로 위 계급(없으면 null). 이름은 사다리의 이름('6급'·'경감') */
   const nextRank = $derived(view.careerRules.nextRank);
   const c = $derived(view.careerRules);
@@ -32,8 +37,9 @@
     return merged;
   });
   /** 근속승진 '할 수 있다' 규정 안내(경찰·해양경찰·소방) */
+  /** 공개 설정을 끄면 뺀다(계급 이름 '경감으로의 근속승진은…'을 담는다) */
   const discretionNote = $derived(
-    isAvailable(c.longService) ? (c.longService.discretionNote ?? '') : '',
+    isAvailable(c.longService) && view.showIdentityHome ? (c.longService.discretionNote ?? '') : '',
   );
   const showsPromotion = $derived(
     !view.retired &&
@@ -84,7 +90,7 @@
         </p>
       {:else}
         <p class="cap muted">
-          {view.rankLabel ? `${view.rankLabel}의 ` : ''}최고호봉({view.maxStep}호봉)이에요.
+          {view.homeRankLabel ? `${view.homeRankLabel}의 ` : ''}최고호봉({view.maxStep}호봉)이에요.
         </p>
       {/if}
     </li>
@@ -107,7 +113,7 @@
           </strong>
         </div>
         <p class="cap muted">
-          {formatKorean(view.minService)} · {withRo(view.rankLabel)}
+          {formatKorean(view.minService)} · {withRo(rankWord)}
           {yearsOf(view.minServiceMonths)} 재직
         </p>
       </li>
@@ -118,7 +124,7 @@
         <div class="head">
           <span class="row">
             <Icon name="icon-medal" />
-            {view.senior.targetRank?.label ?? ''} 대우공무원
+            {rankName(view.senior.targetRank)}대우공무원
           </span>
           <strong class="num">
             {reached(view.senior.date) ? '요건 충족' : formatDday(view.today, view.senior.date)}
@@ -141,7 +147,7 @@
         <div class="head">
           <span class="row">
             <Icon name="icon-stairs" />
-            {view.longService.targetRank?.label ?? ''} 근속승진 요건
+            {rankName(view.longService.targetRank)}근속승진 요건
           </span>
           <strong class="num">
             {reached(view.longService.date)
@@ -152,12 +158,11 @@
         <p class="cap muted">
           {formatKorean(view.longService.date)}{view.longService.overridden
             ? ' (직접 입력)'
-            : ` · ${withRo(view.rankLabel)} ${yearsOf(view.longService.requiredMonths)} 재직`}
+            : ` · ${withRo(rankWord)} ${yearsOf(view.longService.requiredMonths)} 재직`}
         </p>
         {#if view.promotion && view.promotion.diff !== null}
           <p class="cap muted">
-            이때 승진하면 {view.promotion.toRank.label}
-            {view.promotion.toStep}호봉 · 봉급
+            이때 승진하면 {rankName(view.promotion.toRank)}{view.promotion.toStep}호봉 · 봉급
             <Money
               value={view.promotion.diff}
               sign={view.promotion.diff >= 0 ? '+' : ''}
@@ -173,13 +178,20 @@
             전({formatKorean(view.longService.reviewFrom, false)})부터 할 수 있어요.
           </p>
         {/if}
-        {#if view.longService.quotaNote}<p class="cap muted">{view.longService.quotaNote}</p>{/if}
+        <!-- 정원 안내도 계급 이름('경감으로의…')을 담아 공개 설정을 끄면 뺀다 -->
+        {#if view.longService.quotaNote && view.showIdentityHome}<p class="cap muted">
+            {view.longService.quotaNote}
+          </p>{/if}
         {#if discretionNote}<p class="cap muted">{discretionNote}</p>{/if}
       </li>
     {/if}
   </ul>
   {#each promotionOff as item (item.label)}
-    <OffNote label={item.label} off={item.off} />
+    <!-- 승진 계열의 '준비 중' 사유는 계급 이름('우정7~9급')을 담으므로 공개 설정을 끄면 사유를 뺀다 -->
+    <OffNote
+      label={item.label}
+      off={view.showIdentityHome ? item.off : { ...item.off, reason: '' }}
+    />
   {/each}
   {#if showsPromotion}<p class="note">
       요건을 채우는 날이며 실제 승진·선발은 심사와 명부에 따라 달라요. 휴직·징계 기간은 반영하지

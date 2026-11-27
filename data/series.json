@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "notes": [
+    "일반직 직렬 → 호봉이 소품 테마(#16). 직렬을 고르는 것은 선택이고(기본 없음), 고른 직렬은 이 브라우저에만 저장한다(사용자가 내려받은 백업 파일에는 들어간다).",
+    "직군·직렬 이름은 원문(공무원임용령 별표 1·2) 그대로 쓴다. 저장본(profile.series)에는 직렬 이름을 그대로 담는다 — 원문 이름이 바뀌면 옛 이름을 aliases 에 남겨 예전 저장본이 계속 맞게 한다.",
+    "theme 은 data/character.json custom.props 의 id(그림 이름 series-<id>, 행정 테마 folder 는 기존 item-folder). 소품은 여러 직렬이 함께 쓰므로 소품만으로 직렬을 알 수는 없지만, 좁은 테마(책=사서, 편지=우정)는 짐작될 수 있다(도움말에 적는다).",
+    "직렬 사이에 순위·위계가 느껴지는 표시는 하지 않는다. 목록은 원문 표의 순서다. 테마를 고른 까닭과 피한 상징은 #16 준비 작업(series-art/themes.json)의 기록을 따른다.",
+    "특정직(경찰·소방·교원 등)은 직렬 대신 직종 소품(custom.props[].tracks)을 쓴다. 이 파일은 일반직만 담는다."
+  ],
+  "sources": {
+    "table1": { "law": "공무원임용령", "annex": "별표 1", "title": "일반직공무원의 직급표(제3조제1항 관련)", "revised": "2026-09-29", "effective": "2026-10-02", "promulgation": "대통령령 제36728호, 2026. 9. 29., 타법개정", "snapshot": "docs/sources/2026/appointment-decree-table1-grades.txt" },
+    "table2": { "law": "공무원임용령", "annex": "별표 2", "title": "일반직 우정직군 직급표(제3조제4항 관련)", "revised": "2013-11-20", "effective": "2026-10-02", "promulgation": "대통령령 제36728호, 2026. 9. 29., 타법개정", "snapshot": "docs/sources/2026/appointment-decree-table2-postal.txt" }
+  },
+  "checkedAt": "2026-11-26",
+  "groups": [
+    {
+      "name": "과학기술",
+      "source": "table1",
+      "series": [
+        { "name": "공업", "theme": "wrench" },
+        { "name": "농업", "theme": "sprout" },
+        { "name": "임업", "theme": "sprout" },
+        { "name": "수의", "theme": "stethoscope" },
+        { "name": "해양수산", "theme": "compass" },
+        { "name": "기상", "theme": "umbrella" },
+        { "name": "보건", "theme": "stethoscope" },
+        { "name": "의료기술", "theme": "stethoscope" },
+        { "name": "식품위생", "theme": "sujeo" },
+        { "name": "의무", "theme": "stethoscope" },
+        { "name": "약무", "theme": "stethoscope" },
+        { "name": "간호", "theme": "stethoscope" },
+        { "name": "간호조무", "theme": "stethoscope" },
+        { "name": "환경", "theme": "sprout" },
+        { "name": "항공", "theme": "compass" },
+        { "name": "시설", "theme": "setsquare" },
+        { "name": "방재안전", "theme": "umbrella" },
+        { "name": "전산", "theme": "laptop" },
+        { "name": "방송통신", "theme": "laptop" },
+        { "name": "방송무대", "theme": "laptop" },
+        { "name": "운전", "theme": "compass" },
+        { "name": "위생", "theme": "folder" },
+        { "name": "조리", "theme": "sujeo" }
+      ]
+    },
+    {
+      "name": "행정",
+      "source": "table1",
+      "series": [
+        { "name": "교정", "theme": "folder" },
+        { "name": "보호", "theme": "folder" },
+        { "name": "형사법무", "theme": "folder" },
+        { "name": "출입국관리", "theme": "folder" },
+        { "name": "철도경찰", "theme": "folder" },
+        { "name": "행정", "theme": "folder" },
+        { "name": "직업상담", "theme": "laptop" },
+        { "name": "세무", "theme": "calculator" },
+        { "name": "관세", "theme": "calculator" },
+        { "name": "사회복지", "theme": "umbrella" },
+        { "name": "통계", "theme": "calculator" },
+        { "name": "사서", "theme": "book" },
+        { "name": "감사", "theme": "folder" },
+        { "name": "방호", "theme": "folder" }
+      ]
+    },
+    {
+      "name": "관리운영",
+      "source": "table1",
+      "series": [
+        { "name": "토목운영", "theme": "setsquare" },
+        { "name": "건축운영", "theme": "setsquare" },
+        { "name": "통신운영", "theme": "laptop" },
+        { "name": "전화상담운영", "theme": "laptop" },
+        { "name": "전기운영", "theme": "wrench" },
+        { "name": "기계운영", "theme": "wrench" },
+        { "name": "열관리운영", "theme": "wrench" },
+        { "name": "화공운영", "theme": "wrench" },
+        { "name": "선박항해운영", "theme": "compass" },
+        { "name": "선박기관운영", "theme": "compass" },
+        { "name": "농림운영", "theme": "sprout" },
+        { "name": "산림보호운영", "theme": "sprout" },
+        { "name": "보건운영", "theme": "stethoscope" },
+        { "name": "사무운영", "theme": "folder" }
+      ]
+    },
+    {
+      "name": "우정",
+      "source": "table2",
+      "series": [
+        { "name": "우정", "theme": "letter" }
+      ]
+    }
+  ]
+}

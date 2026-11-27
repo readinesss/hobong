@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "canvas": { "w": 48, "h": 48 },
   "palette": ["#1a1c2c", "#5d275d", "#b13e53", "#ef7d57", "#ffcd75", "#a7f070", "#38b764", "#257179", "#29366f", "#3b5dc9", "#41a6f6", "#73eff7", "#f4f4f4", "#94b0c2", "#566c86", "#333c57"],
   "paletteName": "Sweetie 16 (GrafxKid)",
@@ -74,5 +74,76 @@
   },
   "tiredAfterDays": 90,
   "sleepHours": { "from": 22, "to": 6 },
-  "egg": "egg-hatch"
+  "egg": "egg-hatch",
+  "custom": {
+    "notes": [
+      "호봉이 꾸미기(#17)와 직렬·직종 소품(#16). 그림을 새로 그리지 않고 이 구역의 숫자만 고쳐 색 짝을 늘리거나 바꿀 수 있다.",
+      "저장본(character.look)에는 아래 id 만 담는다. 목록에 없는 id 는 거부하지 않고 보존하며, 그릴 때만 기본값(look.ts DEFAULT 규칙)으로 대신한다.",
+      "몸 색(bodies[].remap)은 몸통 영역에만 적용한다(src/lib/character/regions.ts): 눈 앵커에서 외곽선을 넘지 않고 번지는 몸과, 그 밖의 3·4 칸(솜털·날개손 끝). 발(몸 아래 줄보다 아래의 3·4)·볏·깃은 따르지 않는다.",
+      "얼굴 가면: 부리·볼(그늘과 같은 3)은 몸 색을 따르지 않는다. 몸마다 face {beak, cheek} 로 따로 정할 수 있다(없으면 3 그대로).",
+      "볏(crests)은 볏 영역(head 앵커 위)의 3·4 아닌 칸에, 깃(plumes)은 깃 영역의 3·4 아닌 칸에 적용한다. 몸 아래(봉황 꼬리)에서는 붉은 테(2)를 늘 남긴다.",
+      "'알아서' 깃(auto)은 bodies[].autoPlume 이다. 몸 바탕·그늘과 같은 색이 날봉이·봉황 깃에 남지 않게 고른다(테스트). 깃봉이의 흰 첫 깃(c·d·e)은 어느 깃 색에서도 그대로다(깃 색은 날봉이부터 보인다).",
+      "itemRemap·decoRemap 은 그 몸 색에서만 소품·장식의 색을 한 번 더 바꾼다(소품 틴트를 먼저, 그 위에 보정). 몸 색과 같아 묻히는 짝을 막는다.",
+      "hide: 기분(moods[].hide)이 숨기는 슬롯이면 그 장식·소품도 숨긴다. 머리핀은 'head'(모자를 쓰는 휴가·잠·축하)와 함께 숨긴다 — 챙 아래로 삐져나오고 밀짚모자와 색이 섞인다. propHalo: 손 소품 둘레 1px 테두리 빛(날개·꼬리 위에 겹친 칸에만, 호봉 소품 그림에는 칠하지 않는다).",
+      "props: 왼손(handL) 소품. 'auto' 는 일반직이 직렬을 골랐으면 그 테마(data/series.json), 그 밖(특정직 포함)은 호봉 소품(9호봉부터 결재판)을 든다. tracks 는 고르는 칸에서 '내 직종'을 알려 주기만 한다(직종은 꼭 고르는 계산 값이라 기본 모습이 직종을 드러내지 않게). 모르는 id 도 호봉 소품으로 그린다(직렬 소품으로 바꾸지 않는다)."
+    ],
+    "bodies": [
+      { "id": "sunny", "name": "햇살", "remap": {}, "autoPlume": "five", "decoRemap": { "deco-pin-star": { "4": 12, "3": 13 }, "deco-badge-star": { "4": 12, "3": 13 }, "deco-badge-tiger": { "4": 12 } }, "note": "기본 노랑(치환 없음). 금빛 깃(20호봉)의 4·3 이 몸과 같은 색이지만 붉은 띠(2)와 외곽선으로 갈린다. 노란 별 장식은 흰 별로, 호랑이 배지는 흰 바탕에 주황 줄로(decoRemap)." },
+      { "id": "baekho", "name": "백호", "remap": { "4": 12 }, "autoPlume": "five", "note": "흰 몸에 주황 호랑이 줄무늬(줄 대비 2.47). 알·흰 배털과는 외곽선으로 갈린다(허용). 깃봉이의 흰 첫 깃과 같은 흰색이다(외곽선으로 갈림)." },
+      { "id": "snow", "name": "눈송이", "remap": { "4": 12, "3": 13 }, "chest": 13, "autoPlume": "five", "note": "흰 몸에 은회색 줄무늬(줄 대비 2.06). 발은 발 영역이라 주황 그대로. 날봉이·봉황의 흰 가슴털(c)이 흰 몸에 묻혀 회색 테만 떠 보여 가슴털을 은회색(chest 13)으로. 깃봉이의 흰 첫 깃과 같은 흰색이다(외곽선으로 갈림)." },
+      { "id": "sky", "name": "하늘", "remap": { "4": 11, "3": 10 }, "autoPlume": "forest", "decoRemap": { "deco-pin-ribbon": { "10": 9, "9": 8 } }, "note": "물빛 몸에 하늘색 줄무늬. 새 몸통의 날봉이·봉황 깃에 물빛(b)·하늘(a)이 있어 알아서 깃은 숲 깃(palettes.json 의 오색에서 바꿨다). 리본은 a→9, 9→8." },
+      { "id": "sprout", "name": "새싹", "remap": { "4": 5, "3": 6 }, "autoPlume": "sunset", "itemRemap": { "item-lanyard": { "6": 7 } }, "decoRemap": { "deco-pin-leaf": { "5": 4, "6": 3 }, "deco-badge-leaf": { "5": 4, "6": 3 } }, "note": "연두 몸에 초록 줄무늬. 초록 깃과 겹쳐 알아서 깃은 노을 깃. 초록 목걸이 줄(9→6)이 그늘 6과 같아 이 몸에서만 청록 7로(itemRemap). 잎 장식은 가을 잎(decoRemap)." },
+      { "id": "sunset", "name": "노을", "remap": { "4": 3, "3": 2 }, "autoPlume": "blue", "face": { "beak": 4, "cheek": 2 }, "decoRemap": { "deco-pin-flower": { "2": 12 }, "deco-badge-heart": { "2": 12, "12": 4 } }, "note": "주황 몸에 빨강 그늘. 알아서 깃은 푸른 깃. 주황 몸에 주황 부리가 묻혀 부리 4·볼 2(face). 빨강 넥타이·목걸이 줄·볼 터치는 그늘과 같은 색이라 외곽선으로 갈린다(허용). 꽃·하트 장식은 흰색으로(decoRemap). 축하 연출에서 몸 전체를 번쩍이지 않는다." },
+      { "id": "sea", "name": "바다", "remap": { "4": 10, "3": 9 }, "autoPlume": "sunset", "itemRemap": { "item-lanyard": { "9": 8 }, "item-tie": { "9": 8, "8": 15 } }, "decoRemap": { "deco-pin-ribbon": { "10": 3, "9": 2 } }, "note": "하늘색 몸에 파랑 그늘. 파랑 깃과 겹쳐 알아서 깃은 노을 깃. 파랑 목걸이 줄(9)이 그늘 9와 같아 이 몸에서만 남색 8로(itemRemap). 파랑 넥타이(18호봉, 9)도 그늘과 같아 남색 넥타이(9→8, 8→f). 리본은 주황으로(decoRemap)." },
+      { "id": "cloud", "name": "구름", "remap": { "4": 13, "3": 14 }, "autoPlume": "five", "note": "회청 몸에 짙은 회청 그늘. 어두운 무대(#566c86)와 그늘이 같은 색이지만 외곽선이 형태를 지킨다. 깃봉이의 흰 첫 깃 그늘(d·e)과 같은 색이다(외곽선으로 갈림)." }
+    ],
+    "crests": [
+      { "id": "red", "name": "빨강", "remap": {} },
+      { "id": "blue", "name": "파랑", "remap": { "2": 9, "1": 8 } },
+      { "id": "green", "name": "초록", "remap": { "2": 6, "1": 7 } },
+      { "id": "purple", "name": "보라", "remap": { "2": 1, "1": 15 } },
+      { "id": "white", "name": "흰빛", "remap": { "2": 12, "1": 13 } }
+    ],
+    "plumes": [
+      { "id": "auto", "name": "알아서", "remap": {} },
+      { "id": "five", "name": "오색", "remap": {} },
+      { "id": "blue", "name": "푸른 깃", "remap": { "6": 9, "5": 10, "7": 8 } },
+      { "id": "forest", "name": "숲 깃", "remap": { "9": 7, "10": 6, "11": 5 } },
+      { "id": "sunset", "name": "노을 깃", "remap": { "9": 2, "10": 3, "11": 4, "6": 3, "5": 4, "7": 1 } },
+      { "id": "moon", "name": "달빛 깃", "remap": { "9": 14, "10": 13, "11": 12, "6": 14, "5": 13, "7": 15 } }
+    ],
+    "decos": [
+      { "id": "flower", "slot": "pin", "name": "꽃핀", "sprite": "deco-pin-flower" },
+      { "id": "ribbon", "slot": "pin", "name": "리본핀", "sprite": "deco-pin-ribbon" },
+      { "id": "leaf", "slot": "pin", "name": "잎사귀핀", "sprite": "deco-pin-leaf" },
+      { "id": "star", "slot": "pin", "name": "별핀", "sprite": "deco-pin-star" },
+      { "id": "star", "slot": "chest", "name": "별 배지", "sprite": "deco-badge-star" },
+      { "id": "heart", "slot": "chest", "name": "하트 배지", "sprite": "deco-badge-heart" },
+      { "id": "leaf", "slot": "chest", "name": "잎 배지", "sprite": "deco-badge-leaf" },
+      { "id": "tiger", "slot": "chest", "name": "호랑이 배지", "sprite": "deco-badge-tiger" },
+      { "id": "blush", "slot": "cheek", "name": "볼 터치", "sprite": "deco-cheek-blush" }
+    ],
+    "props": [
+      { "id": "folder", "name": "결재판", "sprite": "item-folder", "kind": "series" },
+      { "id": "calculator", "name": "계산기", "sprite": "series-calculator", "kind": "series" },
+      { "id": "book", "name": "책", "sprite": "series-book", "kind": "series" },
+      { "id": "letter", "name": "편지", "sprite": "series-letter", "kind": "series" },
+      { "id": "laptop", "name": "노트북", "sprite": "series-laptop", "kind": "series" },
+      { "id": "stethoscope", "name": "청진기", "sprite": "series-stethoscope", "kind": "series" },
+      { "id": "sprout", "name": "새싹 화분", "sprite": "series-sprout", "kind": "series" },
+      { "id": "wrench", "name": "스패너", "sprite": "series-wrench", "kind": "series" },
+      { "id": "setsquare", "name": "삼각자", "sprite": "series-setsquare", "kind": "series" },
+      { "id": "compass", "name": "나침반", "sprite": "series-compass", "kind": "series" },
+      { "id": "umbrella", "name": "우산", "sprite": "series-umbrella", "kind": "series" },
+      { "id": "sujeo", "name": "수저", "sprite": "series-sujeo", "kind": "series" },
+      { "id": "flashlight", "name": "손전등", "sprite": "track-flashlight", "kind": "track", "tracks": ["police"] },
+      { "id": "lifering", "name": "구명환", "sprite": "track-lifering", "kind": "track", "tracks": ["coastGuard"] },
+      { "id": "extinguisher", "name": "소화기", "sprite": "track-extinguisher", "kind": "track", "tracks": ["fire"] },
+      { "id": "chalkboard", "name": "작은 칠판", "sprite": "track-chalkboard", "kind": "track", "tracks": ["teacher"] },
+      { "id": "globe", "name": "지구본", "sprite": "track-globe", "kind": "track", "tracks": ["foreign"] },
+      { "id": "radio", "name": "무전기", "sprite": "track-radio", "kind": "track", "tracks": ["militaryCivil"] }
+    ],
+    "hide": { "pin": ["head"], "chest": ["neck"], "cheek": [], "prop": ["handL"] },
+    "propHalo": 12
+  }
 }

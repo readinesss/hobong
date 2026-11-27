@@ -20,7 +20,14 @@ import {
   type ParseResult,
 } from '../store/backup.ts';
 import { defaultSettings, newUserData } from '../store/defaults.ts';
-import type { LeaveKind, LeaveRecord, Profile, Settings, UserData } from '../store/schema.ts';
+import type {
+  CharacterLook,
+  LeaveKind,
+  LeaveRecord,
+  Profile,
+  Settings,
+  UserData,
+} from '../store/schema.ts';
 import {
   clearAll,
   clearCorrupt,
@@ -533,6 +540,18 @@ class AppStore {
     this.commit((d) => {
       if (hours === null) delete d.leave.grantOverrideHours[String(year)];
       else d.leave.grantOverrideHours[String(year)] = Math.max(0, Math.round(hours));
+    });
+  }
+
+  // ── 꾸미기 ───────────────────────────────────────────────────────────
+
+  /**
+   * 호봉이 꾸미기를 저장한다(#17). 고르지 않은 칸의 값(이 버전이 모르는 새 장식 id 등)은 받은 그대로 둔다 —
+   * 그릴 때만 기본값으로 대신한다.
+   */
+  updateLook(look: CharacterLook): void {
+    this.commit((d) => {
+      d.character.look = { ...look, deco: { ...look.deco } };
     });
   }
 

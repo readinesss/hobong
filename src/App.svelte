@@ -255,10 +255,9 @@
       <footer class="foot cap muted">
         <p>
           {view.rules.target.label}
-          {trackNameOf(view.careerRules)} 기준 · 규정 확인일 {formatKorean(
-            view.rules.meta.verifiedAt,
-            false,
-          )} · 공식 인사·급여 시스템의 기록이 기준이며 이 화면은 참고용이에요.
+          {view.showIdentityHome ? trackNameOf(view.careerRules) : view.careerRules.track.label} 기준
+          · 규정 확인일 {formatKorean(view.rules.meta.verifiedAt, false)} · 공식 인사·급여 시스템의 기록이
+          기준이며 이 화면은 참고용이에요.
         </p>
       </footer>
     </main>

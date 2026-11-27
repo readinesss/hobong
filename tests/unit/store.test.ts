@@ -18,7 +18,12 @@ import {
   serializeBackup,
   type ParseContext,
 } from '../../src/lib/store/backup.ts';
-import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
+import {
+  DEFAULT_LOOK,
+  defaultLook,
+  defaultSettings,
+  newUserData,
+} from '../../src/lib/store/defaults.ts';
 import { SCHEMA_VERSION, type Profile, type UserData } from '../../src/lib/store/schema.ts';
 import {
   clearAll,
@@ -62,6 +67,7 @@ function sampleProfile(over: Partial<Profile> = {}): Profile {
     birthDate: '1995-05-20',
     hireDate: '2020-01-01',
     track: 'general',
+    series: null,
     payTable: 'table3',
     rank: '8',
     rankDate: '2024-07-01',
@@ -89,6 +95,7 @@ function sampleData(): UserData {
       showTenure: true,
       showBadges: false,
       showRank: true,
+      showSeries: false,
     },
   };
   data.leave = {
@@ -100,7 +107,13 @@ function sampleData(): UserData {
     grantOverrideHours: { '2026': 184 },
   };
   data.achievements = { hire: { at: '2020-01-01' }, 'first-leave': { at: '2026-03-03' } };
-  data.character = { seenForms: ['egg', 'chick'], lastRank: '8', lastStep: 6, lastForm: null };
+  data.character = {
+    seenForms: ['egg', 'chick'],
+    lastRank: '8',
+    lastStep: 6,
+    lastForm: null,
+    look: defaultLook(),
+  };
   data.visits = { days: ['2026-11-23', '2026-11-24', '2026-11-25'], lastVisit: '2026-11-24' };
   data.meta = {
     createdAt: '2026-01-05T00:00:00.000Z',
@@ -109,6 +122,25 @@ function sampleData(): UserData {
     changesSinceBackup: 7,
   };
   return data;
+}
+
+/** v4 데이터가 v5 로 바뀔 때 더해지는 것(지금과 같은 모습·동작의 기본값). 나머지는 그대로다 */
+function asV5(v4: any): any {
+  const d = defaultSettings(R);
+  return {
+    ...v4,
+    profile: { ...v4.profile, series: null },
+    settings: {
+      ...v4.settings,
+      card: { ...v4.settings.card, showSeries: false },
+      identity: d.identity,
+      haptics: d.haptics,
+      sound: d.sound,
+      pointer: d.pointer,
+      sparkles: d.sparkles,
+    },
+    character: { ...v4.character, look: defaultLook() },
+  };
 }
 
 describe('내보내기 → 초기화 → 불러오기', () => {
@@ -142,7 +174,7 @@ describe('내보내기 → 초기화 → 불러오기', () => {
       status: 'ok',
       data,
       migrated: false,
-      fromVersion: 4,
+      fromVersion: SCHEMA_VERSION,
       restored: false,
     });
   });
@@ -177,6 +209,7 @@ describe('구버전(v1) 파일 변환', () => {
       birthDate: '1996-04-12',
       hireDate: '2022-09-01',
       track: 'general',
+      series: null,
       payTable: 'table3',
       rank: '9',
       rankDate: '2022-09-01',
@@ -202,6 +235,7 @@ describe('구버전(v1) 파일 변환', () => {
       lastRank: '9',
       lastStep: 4,
       lastForm: null,
+      look: defaultLook(),
     });
     expect(parsed.data.meta.createdAt).toBe('2026-02-01T00:00:00.000Z');
   });
@@ -225,21 +259,23 @@ describe('구버전(v1) 파일 변환', () => {
     const before = JSON.parse(v2).data;
     const { grade: _g, gradeDate, overrides, ...profileRest } = before.profile;
     const { lastGrade: _lg, ...characterRest } = before.character;
-    expect({ ...parsed.data, profile: { ...parsed.data.profile, stepAsOf: undefined } }).toEqual({
-      ...before,
-      // v4 이름으로 바뀐 것 말고는 그대로다
-      profile: {
-        ...profileRest,
-        track: 'general',
-        payTable: 'table3',
-        rank: '9',
-        rankDate: gradeDate,
-        overrides: { ...overrides, rankLimitDate: null },
-        stepAsOf: undefined,
-      },
-      settings: { ...before.settings, card: { ...before.settings.card, showRank: true } },
-      character: { ...characterRest, lastRank: '9', lastForm: null },
-    });
+    expect({ ...parsed.data, profile: { ...parsed.data.profile, stepAsOf: undefined } }).toEqual(
+      // v4 이름으로 바뀐 것과 v5 에 더해진 것 말고는 그대로다
+      asV5({
+        ...before,
+        profile: {
+          ...profileRest,
+          track: 'general',
+          payTable: 'table3',
+          rank: '9',
+          rankDate: gradeDate,
+          overrides: { ...overrides, rankLimitDate: null },
+          stepAsOf: undefined,
+        },
+        settings: { ...before.settings, card: { ...before.settings.card, showRank: true } },
+        character: { ...characterRest, lastRank: '9', lastForm: null },
+      }),
+    );
     // 다음 승급일이 1년보다 멀어도 지금 호봉은 넣은 값 그대로다(v2에서는 4호봉으로 내려갔다).
     expect(stepOn(parsed.data.profile, TODAY, 31)).toBe(5);
     expect(nextRaiseDate(parsed.data.profile, TODAY, 31)).toBe('2027-12-01');
@@ -374,7 +410,7 @@ describe('불러오기 전 검증: 틀린 파일은 거부한다', () => {
       status: 'ok',
       data,
       migrated: false,
-      fromVersion: 4,
+      fromVersion: SCHEMA_VERSION,
       restored: false,
     });
   });
@@ -407,7 +443,7 @@ describe('되돌리기와 손상된 저장본', () => {
       status: 'ok',
       data: before,
       migrated: false,
-      fromVersion: 4,
+      fromVersion: SCHEMA_VERSION,
       restored: false,
     });
     expect(loadUndo(store, ctx)).toBeNull();
@@ -779,23 +815,25 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
     const before = JSON.parse(text).data;
     const { grade: _g, gradeDate: _gd, overrides, ...profileRest } = before.profile;
     const { lastGrade: _lg, ...characterRest } = before.character;
-    expect(parsed.data).toEqual({
-      ...before,
-      profile: {
-        ...profileRest,
-        track: 'general',
-        payTable: 'table3',
-        rank: '7',
-        rankDate: '2021-07-01',
-        overrides: { ...overrides, rankLimitDate: null },
-      },
-      settings: { ...before.settings, card: { ...before.settings.card, showRank: true } },
-      character: { ...characterRest, lastRank: '7', lastForm: null },
-    });
-    // 다시 내보내면 v4 파일이고, 그 파일은 변환 없이 같은 값으로 열린다
+    expect(parsed.data).toEqual(
+      asV5({
+        ...before,
+        profile: {
+          ...profileRest,
+          track: 'general',
+          payTable: 'table3',
+          rank: '7',
+          rankDate: '2021-07-01',
+          overrides: { ...overrides, rankLimitDate: null },
+        },
+        settings: { ...before.settings, card: { ...before.settings.card, showRank: true } },
+        character: { ...characterRest, lastRank: '7', lastForm: null },
+      }),
+    );
+    // 다시 내보내면 지금 버전 파일이고, 그 파일은 변환 없이 같은 값으로 열린다
     const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW)), ctx);
     expect(again.ok && again.migrated).toBe(false);
-    expect(again.ok && again.fromVersion).toBe(4);
+    expect(again.ok && again.fromVersion).toBe(SCHEMA_VERSION);
     expect(again.ok && again.data).toEqual(parsed.data);
   });
 
@@ -912,7 +950,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
       'backup-v4-teacher.json',
       'backup-v4-other.json',
     ]) {
-      const data = JSON.parse(fixture(name)).data;
+      const data = asV5(JSON.parse(fixture(name)).data);
       expect(errorsOf(validateUserData(data, noRules)), name).toBe('');
       expect(parseBackup(fixture(name), noRules).ok, name).toBe(true);
     }
@@ -936,7 +974,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
     expect(validateUserData(lastStep, stored).ok).toBe(false);
   });
 
-  it('경찰·교원·그 밖의 특정직 v4 파일은 그대로 왕복한다', () => {
+  it('경찰·교원·그 밖의 특정직 v4 파일은 v5 기본값만 더해 열리고 왕복한다', () => {
     for (const name of [
       'backup-v4-police.json',
       'backup-v4-teacher.json',
@@ -946,8 +984,8 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
       const parsed = parseBackup(text, ctx);
       expect(parsed.ok ? '' : parsed.details.join('\n'), name).toBe('');
       if (!parsed.ok) continue;
-      expect(parsed.migrated, name).toBe(false);
-      expect(parsed.data, name).toEqual(JSON.parse(text).data);
+      expect(parsed.migrated, name).toBe(true);
+      expect(parsed.data, name).toEqual(asV5(JSON.parse(text).data));
       const again = serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW));
       expect(parseBackup(again, ctx), name).toMatchObject({ ok: true, data: parsed.data });
     }
@@ -1205,5 +1243,254 @@ describe('입력 폼 검사의 규정 조회(careerLookup)는 일반직에서 �
         expect(look.rankLabel(sel), `${year} ${g}급`).toBe(`${g}급`);
       }
     }
+  });
+});
+
+describe('저장 형식 v5: 직렬·꾸미기·소리·포인터(고도화 2차)', () => {
+  const fixture = (name: string) =>
+    readFileSync(join(process.cwd(), 'tests/fixtures', name), 'utf8');
+  const stored = { ...ctx, stored: true };
+  const envelope = (data: unknown, version = SCHEMA_VERSION) =>
+    JSON.stringify({
+      app: 'hobong',
+      schemaVersion: version,
+      appVersion: '0.2.0',
+      exportedAt: NOW,
+      data,
+    });
+  const patched = (patch: (d: Record<string, any>) => void) => {
+    const data = JSON.parse(JSON.stringify(sampleData())) as Record<string, any>;
+    patch(data);
+    return data;
+  };
+  const errorsOf = (r: ReturnType<typeof validateUserData>) => (r.ok ? [] : r.errors).join('\n');
+
+  it('새 사용자 기본값: 직렬 없음, 홈 이름 켬·카드 이름 끔, 기본 모습, 진동 켬, 소리 끔, 픽셀 포인터, 반짝이 켬', () => {
+    const data = newUserData(sampleProfile({ series: null }), defaultSettings(R), NOW, TODAY);
+    expect(data.profile.series).toBeNull();
+    expect(data.settings.identity).toEqual({ showSeriesHome: true });
+    expect(data.settings.card.showSeries).toBe(false);
+    expect(data.settings.haptics).toBe(true);
+    expect(data.settings.sound).toEqual({
+      sfx: false,
+      bgm: false,
+      master: 80,
+      sfxVolume: 80,
+      bgmVolume: 50,
+      bgmTrack: 'auto',
+    });
+    expect(data.settings.pointer).toBe('pixel');
+    expect(data.settings.sparkles).toBe(true);
+    expect(data.character.look).toEqual({
+      body: 'sunny',
+      crest: 'red',
+      plume: 'auto',
+      deco: { pin: null, chest: null, cheek: false },
+      prop: 'auto',
+    });
+    // 기본값은 얼려 두고, 새 데이터는 고칠 수 있는 사본을 받는다
+    expect(Object.isFrozen(DEFAULT_LOOK)).toBe(true);
+    expect(data.character.look).not.toBe(DEFAULT_LOOK);
+    expect(data.character.look.deco).not.toBe(DEFAULT_LOOK.deco);
+    expect(validateUserData(data, stored).ok).toBe(true);
+  });
+
+  it('첫 입력에서 고른 꾸미기로 시작할 수 있다', () => {
+    const look = {
+      ...defaultLook(),
+      body: 'sea',
+      deco: { pin: 'ribbon', chest: null, cheek: true },
+    };
+    const data = newUserData(sampleProfile(), defaultSettings(R), NOW, TODAY, look);
+    expect(data.character.look).toEqual(look);
+    expect(data.character.look).not.toBe(look);
+  });
+
+  it('v5 파일은 그대로 왕복한다(직렬·꾸미기·소리 설정)', () => {
+    const text = fixture('backup-v5.json');
+    const parsed = parseBackup(text, ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.migrated).toBe(false);
+    expect(parsed.fromVersion).toBe(5);
+    expect(parsed.data).toEqual(JSON.parse(text).data);
+    expect(serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-26T09:00:00.000Z'))).toBe(
+      `${JSON.stringify(JSON.parse(text), null, 2)}\n`,
+    );
+  });
+
+  it('v1~v4 파일이 모두 v5 로 열린다(새 칸은 기본값)', () => {
+    for (const name of [
+      'backup-v1.json',
+      'backup-v2.json',
+      'backup-v3.json',
+      'backup-v4-police.json',
+      'backup-v4-teacher.json',
+      'backup-v4-other.json',
+    ]) {
+      const parsed = parseBackup(fixture(name), ctx);
+      expect(parsed.ok ? '' : parsed.details.join('\n'), name).toBe('');
+      if (!parsed.ok) continue;
+      expect(parsed.migrated, name).toBe(true);
+      expect(parsed.data.profile.series, name).toBeNull();
+      expect(parsed.data.character.look, name).toEqual(defaultLook());
+      expect(parsed.data.settings, name).toMatchObject({
+        identity: { showSeriesHome: true },
+        card: { showSeries: false },
+        haptics: true,
+        sound: defaultSettings(R).sound,
+        pointer: 'pixel',
+        sparkles: true,
+      });
+      // 다시 내보내면 v5 파일이고, 변환 없이 같은 값으로 열린다
+      const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.2.0', NOW)), ctx);
+      expect(again.ok && again.fromVersion, name).toBe(SCHEMA_VERSION);
+      expect(again.ok && again.data, name).toEqual(parsed.data);
+      // 저장본 자리에 있어도 같은 길로 열린다
+      const store = memoryStore();
+      store.setItem(KEYS.data, fixture(name));
+      expect(loadData(store, stored).status, name).toBe('ok');
+    }
+  });
+
+  it('v4 파일에 v5 이름의 키가 섞여 있어도 옮겨 담지 않고 기본값을 둔다', () => {
+    const env = JSON.parse(fixture('backup-v4-police.json'));
+    env.data.profile.series = '간호';
+    env.data.settings.identity = { showSeriesHome: false };
+    env.data.settings.card.showSeries = true;
+    env.data.settings.sound = { sfx: true };
+    env.data.settings.pointer = 'zzz';
+    env.data.character.look = { body: 'sea' };
+    const parsed = parseBackup(JSON.stringify(env), ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.data.profile.series).toBeNull();
+    expect(parsed.data.settings.identity.showSeriesHome).toBe(true);
+    expect(parsed.data.settings.card.showSeries).toBe(false);
+    expect(parsed.data.settings.sound).toEqual(defaultSettings(R).sound);
+    expect(parsed.data.settings.pointer).toBe('pixel');
+    expect(parsed.data.character.look).toEqual(defaultLook());
+  });
+
+  it('모르는 꾸미기 id·곡 id 는 거부하지 않고 그대로 보존한다(형식만 본다)', () => {
+    const data = patched((d) => {
+      d.character.look = {
+        body: 'aurora',
+        crest: 'rainbow-2',
+        plume: 'galaxy',
+        deco: { pin: 'snowflake', chest: 'moon-badge', cheek: true },
+        prop: 'trumpet',
+      };
+      d.settings.sound.bgmTrack = 'winter-2027';
+    });
+    for (const c of [ctx, stored]) {
+      const r = validateUserData(data, c);
+      expect(errorsOf(r)).toBe('');
+      if (!r.ok) continue;
+      expect(r.value.character.look).toEqual(data.character.look);
+      expect(r.value.settings.sound.bgmTrack).toBe('winter-2027');
+    }
+    // 파일로 내보냈다가 불러와도, 저장본으로 읽어도 남아 있다
+    const parsed = parseBackup(envelope(data), ctx);
+    expect(parsed.ok && parsed.data.character.look.prop).toBe('trumpet');
+    const store = memoryStore();
+    store.setItem(KEYS.data, envelope(data));
+    const loaded = loadData(store, stored);
+    expect(loaded.status === 'ok' && loaded.data.character.look.body).toBe('aurora');
+  });
+
+  it('목록에 없는 직렬도 형식이 맞으면 보존하고, 일반직이 아니어도 지우지 않는다', () => {
+    for (const [track, payTable, rank, series] of [
+      ['general', 'table3', '8', '없어진직렬'],
+      ['police', null, '경위', '간호'],
+      ['general', 'table3', '8', 'Data'],
+    ] as const) {
+      const data = patched((d) => {
+        d.profile = { ...d.profile, track, payTable, rank, series };
+        d.character.lastRank = rank;
+      });
+      const r = validateUserData(data, stored);
+      expect(errorsOf(r), series).toBe('');
+      expect(r.ok && r.value.profile.series, series).toBe(series);
+    }
+  });
+
+  it('형식이 틀린 v5 값은 이유와 함께 거부한다(내부 키 이름은 쓰지 않는다)', () => {
+    const cases: [(d: Record<string, any>) => void, string][] = [
+      [(d) => delete d.profile.series, '직렬'],
+      [(d) => (d.profile.series = ''), '직렬'],
+      [(d) => (d.profile.series = '<b>행정</b>'), '직렬'],
+      [(d) => (d.profile.series = '가'.repeat(21)), '직렬'],
+      [(d) => (d.profile.series = 7), '직렬'],
+      [(d) => delete d.settings.identity, '직렬 이름 보이기'],
+      [(d) => (d.settings.identity = { showSeriesHome: 'yes' }), '직렬 이름 보이기'],
+      [(d) => delete d.settings.card.showSeries, '카드 설정'],
+      [(d) => (d.settings.haptics = 1), '진동'],
+      [(d) => delete d.settings.sound, '소리'],
+      [(d) => (d.settings.sound.master = 101), '소리'],
+      [(d) => (d.settings.sound.sfxVolume = -1), '소리'],
+      [(d) => (d.settings.sound.bgmVolume = 2.5), '소리'],
+      [(d) => (d.settings.sound.bgmTrack = 'Auto Track'), '소리'],
+      [(d) => (d.settings.sound.sfx = 'on'), '소리'],
+      [(d) => (d.settings.pointer = 'big'), '포인터'],
+      [(d) => (d.settings.sparkles = null), '반짝이'],
+      [(d) => delete d.character.look, '꾸미기'],
+      [(d) => (d.character.look.body = 3), '꾸미기'],
+      [(d) => (d.character.look.body = 'Sky'), '꾸미기'],
+      [(d) => (d.character.look.crest = ''), '꾸미기'],
+      [(d) => (d.character.look.plume = null), '꾸미기'],
+      [(d) => (d.character.look.prop = 'x'.repeat(33)), '꾸미기'],
+      [(d) => (d.character.look.deco = null), '꾸미기'],
+      [(d) => (d.character.look.deco.pin = '꽃'), '꾸미기'],
+      [(d) => (d.character.look.deco.chest = 5), '꾸미기'],
+      [(d) => (d.character.look.deco.cheek = 'yes'), '꾸미기'],
+      [(d) => delete d.character.look.deco.cheek, '꾸미기'],
+    ];
+    for (const [patch, word] of cases) {
+      const data = patched(patch);
+      const message = errorsOf(validateUserData(data, stored));
+      expect(message, patch.toString()).toContain(word);
+      expect(message, patch.toString()).not.toMatch(
+        /series|identity|haptics|sound|pointer|sparkles|look|showSeries/,
+      );
+      // 파일 불러오기도 거부하고, 기존 데이터는 건드리지 않는다
+      const store = memoryStore();
+      saveData(store, sampleData(), '0.2.0', NOW);
+      const before = store.getItem(KEYS.data);
+      expect(parseBackup(envelope(data), ctx).ok, patch.toString()).toBe(false);
+      expect(store.getItem(KEYS.data)).toBe(before);
+    }
+  });
+
+  it('검증은 알 수 없는 키를 버리고 꾸미기·소리를 새 객체로 옮겨 담는다', () => {
+    const data = patched((d) => {
+      d.character.look.extra = 'x';
+      d.character.look.deco.extra = 'y';
+      d.settings.sound.extra = 1;
+      d.settings.identity.extra = true;
+    });
+    const r = validateUserData(data, stored);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.character.look).toEqual(defaultLook());
+    expect(r.value.character.look).not.toBe(data.character.look);
+    expect(r.value.settings.sound).toEqual(defaultSettings(R).sound);
+    expect(r.value.settings.identity).toEqual({ showSeriesHome: true });
+  });
+
+  it('옛 사본 보호: v5 저장본·파일은 v4 앱에게 "더 새 버전"이다 — 이 앱도 v6 은 읽지도 옮기지도 않는다', () => {
+    // v4 앱의 규칙(migrate.ts: 파일 버전 > 앱 버전이면 newer)을 그대로 적용하면 v5 는 newer 다
+    const v5 = JSON.parse(fixture('backup-v5.json'));
+    expect(v5.schemaVersion).toBe(5);
+    expect(v5.schemaVersion > 4).toBe(true);
+    // 이 앱(v5)이 더 새 파일(v6)을 만나면: 손대지 않고 새 버전으로 열어 달라고만 한다
+    const v6 = envelope(v5.data, SCHEMA_VERSION + 1);
+    expect(parseBackup(v6, ctx)).toMatchObject({ ok: false, code: 'newer' });
+    const store = memoryStore();
+    store.setItem(KEYS.data, v6);
+    expect(loadData(store, stored).status).toBe('newer');
+    expect(isNewerData(store, stored)).toBe(true);
+    expect(store.getItem(KEYS.data)).toBe(v6);
+    expect(hasCorrupt(store)).toBe(false);
   });
 });

@@ -19,7 +19,8 @@
 data/
   2026.json        그 해에 적용할 규정 전체 (status: verified)
   2027.json        2026을 이어 쓰고(extends) 달라진 항목만 담는다
-  character.json   캐릭터 진화 규칙 (법령과 무관)
+  character.json   캐릭터 진화 규칙과 꾸미기(custom) (법령과 무관)
+  series.json      일반직 직렬 → 호봉이 소품 테마 (공무원임용령 별표 1·2 의 직렬 이름)
   lines.json       호봉이의 한마디 (법령과 무관)
 docs/sources/<연도>/   원문 발췌본
 ```
@@ -249,6 +250,55 @@ npm run rules:check -- --date 2027-01-04  # 그날 기준으로 미리 보기
 | T15 | 교사의 직급보조비 | 별표 15 비고 제8호의 인사혁신처장 결정 | `teacher.positionAllowance` 를 금액으로(표시만) |
 
 T4(해양경찰 연가 근거)와 T5(우정 직급의 상당 계급 — 직급보조비·캐릭터 형태)는 원문을 확인해 넣었다.
+
+## 직렬 목록과 호봉이 꾸미기 (법령 값이 아님)
+
+`data/series.json` 은 공무원임용령 별표 1(일반직 직급표)·별표 2(우정직군)의 직군·직렬 이름을 원문 그대로
+담고, 직렬마다 호봉이가 드는 소품 테마(`theme`)를 붙였다. 계산에는 쓰지 않는다.
+
+- 원문 발췌본은 `docs/sources/2026/appointment-decree-table1-grades.txt`·`table2-postal.txt`. 직렬 이름이
+  발췌본에 있는지는 테스트(`tests/unit/character-custom.test.ts`)가 본다.
+- 직렬이 새로 생기면 그 직군에 항목을 더하고 테마를 고른다(테마는 `character.json` 의 `custom.props` 중
+  `kind: "series"`). 이름이 바뀌면 새 이름으로 고치고 **옛 이름을 `aliases` 에 남긴다** — 저장본
+  (`profile.series`)은 직렬 이름을 그대로 담으므로, 옛 이름이 사라지면 그 사용자의 소품이 기본(결재판)으로 돌아간다.
+- 직렬이 없어져도 저장본은 거부하지 않는다(형식만 본다). 화면에 이름이 안 보이고 소품이 기본으로 돌아갈 뿐이다.
+
+`data/character.json` 의 `custom` 구역은 호봉이 꾸미기(몸 색 `bodies`·볏 `crests`·깃 `plumes`·장식 `decos`·
+손 소품 `props`)와 슬롯 숨김(`hide`)이다. 저장본(`character.look`)은 이 id 만 담고, **목록에 없는 id 는
+거부하지 않고 보존**한다(같은 저장 형식 버전에서 목록이 늘어도 예전 사본이 백업 전체를 거부하지 않게). 그릴 때만
+기본값으로 대신한다. id 를 지우거나 이름을 바꾸면 그 id 를 고른 사용자는 기본 모습으로 돌아가므로, 되도록 id 는
+그대로 두고 그림·색만 고친다. 색 치환이 어느 칸에 적용되는지는 `src/lib/character/regions.ts` 머리말에 있다.
+
+### 저장 형식 v5 에 더한 칸(사용자 데이터, 참고)
+
+규정 데이터가 아니라 브라우저 저장본·백업 파일의 칸이다. 정의는 `src/lib/store/schema.ts`, 기본값은 `defaults.ts`,
+v4 → v5 변환은 `migrate.ts`.
+
+| 칸 | 기본값 | 검사 |
+|---|---|---|
+| `profile.series` | `null`(고르지 않음) | 형식만(`SERIES_KEY_RE`). 목록에 없거나 일반직이 아니어도 지우지 않는다 |
+| `settings.identity.showSeriesHome` | `true` | 참·거짓 |
+| `settings.card.showSeries` | `false` | 참·거짓 |
+| `settings.haptics`·`sparkles` | `true` | 참·거짓(화면은 2C) |
+| `settings.pointer` | `'pixel'` | `'pixel'`·`'system'` 밖이면 거부 |
+| `settings.sound` | `{ sfx: false, bgm: false, master: 80, sfxVolume: 80, bgmVolume: 50, bgmTrack: 'auto' }` | 음량 0~100, 곡 id 는 형식만(`LOOK_ID_RE`) |
+| `character.look` | `{ body: 'sunny', crest: 'red', plume: 'auto', deco: { pin: null, chest: null, cheek: false }, prop: 'auto' }` | id 는 형식만(`LOOK_ID_RE`) — **모르는 id 보존**(아래) |
+
+**꾸미기 id 보존 규칙.** `character.look` 의 id 가 `custom` 목록에 없으면 저장본·백업을 거부하지 않고 그대로 둔다.
+그릴 때만 기본값으로 대신하고(`look.ts resolveCustom`), 꾸미기 화면은 그 묶음을 '고르지 않음'으로 보이며 안내한다.
+사용자가 다른 것을 고른 묶음만 바뀌고, 나머지 모르는 값은 다시 저장할 때도 그대로 남는다(e2e
+`tests/e2e/customize.spec.ts`). 직종 `track` 은 계산 키라 이 규칙에서 빠진다(목록 밖이면 거부).
+
+**형식은 앞으로도 지킨다(같은 v5 안의 약속).** 위 보존 규칙은 새 값이 지금 형식에 맞을 때만 예전 사본에서 지켜진다.
+그래서 목록을 늘릴 때는 다음을 지킨다(`tests/unit/assets.test.ts` 가 지금 목록을 본다).
+
+- 새 꾸미기·소품·곡 id 는 `LOOK_ID_RE`(영문 소문자로 시작, 소문자·숫자·`-`, 32자까지)를 지킨다. 밑줄·대문자를 쓰지 않는다.
+- 새 직렬 이름·옛 이름(`aliases`)은 `SERIES_KEY_RE`(한글·영숫자·가운뎃점 `·`, 낱말 사이 띄어쓰기 한 칸, 20자까지)를 지킨다.
+  가운뎃점·띄어쓰기는 아직 원문에 없지만 v5 에서 미리 받는다.
+- 새 칸(예: `deco.hat`)을 더하거나 열거값(`pointer`)·숫자 범위(음량 0~100 정수)를 넓히면 예전 사본이 버리거나 거부하므로
+  **저장 형식 버전을 올린다**(부록 C: 더 새 버전 저장본은 예전 사본이 건드리지 않는다).
+- 특정직의 손 소품 `'auto'` 는 호봉 소품(9호봉부터 결재판)이다. 직종 소품(손전등 등)은 직접 고를 때만 든다 —
+  직종은 꼭 고르는 계산 값이라 기본 모습·카드가 직종을 드러내지 않게(부록 F). 모르는 소품 id 도 호봉 소품으로 그린다.
 
 ## 반영하지 않는 것
 

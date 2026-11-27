@@ -13,6 +13,11 @@ export interface Layer {
   /** 추가 이동(대기 애니메이션의 1px 흔들림 등) */
   dx?: number;
   dy?: number;
+  /**
+   * 테두리 빛(팔레트 인덱스). 그림 바깥 1px(상하좌우) 중 이미 무언가 그려진 칸에만 이 색을 먼저 칠한다.
+   * 손 소품이 날개·꼬리 위에 겹쳐 같은 색 계열에 묻히지 않게 한다(빈 배경에는 칠하지 않는다).
+   */
+  halo?: number;
 }
 
 export interface Composition {
@@ -38,9 +43,29 @@ export function anchorOf(body: Sprite, name: string | null): Point {
   return anchor;
 }
 
+function haloAround(target: Composition, layer: Layer, frame: Uint8Array, x0: number, y0: number) {
+  const { sprite } = layer;
+  const color = layer.halo as number;
+  const opaque = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < sprite.w && y < sprite.h && frame[y * sprite.w + x] !== TRANSPARENT;
+  for (let y = -1; y <= sprite.h; y += 1) {
+    const ty = y0 + y;
+    if (ty < 0 || ty >= target.h) continue;
+    for (let x = -1; x <= sprite.w; x += 1) {
+      const tx = x0 + x;
+      if (tx < 0 || tx >= target.w || opaque(x, y)) continue;
+      if (!opaque(x - 1, y) && !opaque(x + 1, y) && !opaque(x, y - 1) && !opaque(x, y + 1))
+        continue;
+      const i = ty * target.w + tx;
+      if (target.pixels[i] !== TRANSPARENT) target.pixels[i] = color;
+    }
+  }
+}
+
 function blit(target: Composition, layer: Layer, x0: number, y0: number): void {
   const { sprite, remap } = layer;
   const frame = sprite.frames[(layer.frame ?? 0) % sprite.frames.length] as Uint8Array;
+  if (layer.halo !== undefined) haloAround(target, layer, frame, x0, y0);
   for (let y = 0; y < sprite.h; y += 1) {
     const ty = y0 + y;
     if (ty < 0 || ty >= target.h) continue;

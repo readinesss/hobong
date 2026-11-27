@@ -62,7 +62,7 @@
         {@const limit = retire.rankLimit}
         <p class="cap muted" id="career-rank-limit">
           {limit.years !== null
-            ? `계급정년(${view.rankLabel} ${limit.years}년) 기준`
+            ? `계급정년(${view.homeRankLabel ? `${view.homeRankLabel} ` : ''}${limit.years}년) 기준`
             : `직접 넣은 계급정년에 이르는 날(${formatKorean(limit.reachDate, false)}) 기준`} · 연령정년({retire.age}세)은
           {formatLongDate(retire.ageRetireDate)} · 승진하면 달라져요.
         </p>

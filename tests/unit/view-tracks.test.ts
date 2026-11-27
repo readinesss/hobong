@@ -24,6 +24,7 @@ function seed(over: Partial<Profile>): UserData {
     birthDate: '1968-04-10',
     hireDate: '2005-03-02',
     track: 'general',
+    series: null,
     payTable: 'table3',
     rank: '7',
     rankDate: '2018-03-01',
@@ -204,7 +205,13 @@ describe('성장 연출 기준(app.checkGrowth)', () => {
   it('lastForm null(새 사용자·v3 변환): 연출 없이 지금 형태로 채운다', () => {
     at('2026-11-25T10:00:00+09:00');
     const data = seed({ step: 12, nextStepDate: '2027-03-01' });
-    data.character = { seenForms: [], lastRank: '7', lastStep: 12, lastForm: null };
+    data.character = {
+      ...data.character,
+      seenForms: [],
+      lastRank: '7',
+      lastStep: 12,
+      lastForm: null,
+    };
     app.data = data;
     app.celebration = null;
     app.checkGrowth(view.profile.rank, view.step, view.formId);
@@ -225,7 +232,13 @@ describe('성장 연출 기준(app.checkGrowth)', () => {
       rankDate: '2024-11-25',
       step: 9,
     });
-    data.character = { seenForms: [], lastRank: '교원', lastStep: 9, lastForm: 'egg' };
+    data.character = {
+      ...data.character,
+      seenForms: [],
+      lastRank: '교원',
+      lastStep: 9,
+      lastForm: 'egg',
+    };
     app.data = data;
     app.celebration = null;
     expect(view.formId).toBe('chick');

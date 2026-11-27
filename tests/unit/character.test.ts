@@ -163,6 +163,11 @@ describe('캐릭터 규칙 (data/character.json)', () => {
     expect(nextUnlock(C, 1)).toMatchObject({ step: 3, name: '머그컵' });
     expect(nextUnlock(C, 3)).toMatchObject({ step: 4, name: '초록 줄' });
     expect(nextUnlock(C, 31)).toBeNull();
+    // 손 소품을 들면 왼손 호봉 소품(결재판)은 약속하지 않는다
+    expect(nextUnlock(C, 8)).toMatchObject({ step: 9, name: '결재판', slot: 'handL' });
+    expect(nextUnlock(C, 8, true)).toMatchObject({ step: 12 });
+    expect(unlockList(C, true).some((u) => u.slot === 'handL')).toBe(false);
+    expect(unlockList(C, true)).toHaveLength(list.length - 1);
   });
 });
 

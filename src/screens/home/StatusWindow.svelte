@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { formatDday, josa } from '../../lib/app/format.ts';
   import { nav } from '../../lib/app/nav.svelte.ts';
+  import { lookName } from '../../lib/character/customize.ts';
+  import { characterRules } from '../../lib/character/rules.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean } from '../../lib/calc/date.ts';
   import Progress from '../../lib/ui/Progress.svelte';
@@ -41,7 +43,7 @@
   <div class="status">
     <div class="stage">
       <p class="bubble" aria-live="polite">{view.line}</p>
-      <Sprite {look} {scale} label="호봉이. {look.form.name}, {look.moodLabel}" />
+      <Sprite {look} {scale} label="호봉이. {lookName(characterRules, look)}, {look.moodLabel}" />
     </div>
 
     <div class="stack wide info">
@@ -50,8 +52,12 @@
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
         </p>
+        {#if view.showIdentityHome && view.seriesName}
+          <!-- 직렬은 소속을 짐작하게 할 수 있다. 설정 '홈에 직렬·계급 이름 보이기'를 켰을 때만 -->
+          <p class="cap" id="status-series">{view.seriesName} 직렬</p>
+        {/if}
         <p class="big level">
-          {view.rankStepLabel}{#if !view.raisesAutomatically}<span class="cap muted">
+          {view.homeRankStepLabel}{#if !view.raisesAutomatically}<span class="cap muted">
               (입력값)
             </span>{/if}
         </p>

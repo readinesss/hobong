@@ -59,7 +59,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     const file = await download(page);
     expect(file.name).toBe('hobong-backup-20261125.json');
     const envelope = JSON.parse(file.text);
-    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 4, appVersion: '0.1.0' });
+    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 5, appVersion: '0.1.0' });
     expect(typeof envelope.exportedAt).toBe('string');
     await expect(page.getByText('급여·인사 정보가 들어 있으니')).toBeVisible();
     // 브라우저는 저장이 끝났는지 알려 주지 않으므로 단정하지 않고 확인을 부탁한다
@@ -370,7 +370,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(fromV3?.settings.card.showRank).toBe(true);
     const version = () =>
       page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}').schemaVersion);
-    expect(await version()).toBe(4);
+    expect(await version()).toBe(5);
 
     await openApp(page, { seed: makeSeedV4({ ...v3, rank: '8', rankDate: '2024-07-01' }) });
     await tick(page, 6000);

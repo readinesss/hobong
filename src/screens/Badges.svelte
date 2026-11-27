@@ -3,7 +3,7 @@
   import { theme } from '../lib/app/theme.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
-  import { resolveLook, stageLabels, unlockList } from '../lib/character/look.ts';
+  import { HAND_SLOT, resolveLook, stageLabels, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import type { AchievementView } from '../lib/achievements.ts';
   import Icon from '../lib/ui/Icon.svelte';
@@ -45,15 +45,23 @@
         current: form.id === currentForm,
         passed,
         gradeLabel,
-        // 도감에는 소품 없이 기본 모습만 싣는다.
-        look: resolveLook(characterRules, form.id, 0, 'work'),
+        // 도감에는 호봉 소품·손 소품 없이 고른 색·장식만 입힌 모습을 싣는다.
+        look: resolveLook(characterRules, form.id, 0, 'work', {
+          ...view.characterLook,
+          prop: 'none',
+        }),
       };
     }),
   );
   const seenCount = $derived(forms.filter((f) => f.known).length);
 
   const unlocks = $derived(
-    unlockList(characterRules).map((u) => ({ ...u, open: u.step <= view.step })),
+    unlockList(characterRules).map((u) => ({
+      ...u,
+      open: u.step <= view.step,
+      // 손 소품을 들면 왼손 호봉 소품은 나오지 않는다(지킬 수 없는 약속을 하지 않게 조건을 단다)
+      handNote: view.handHeld && u.slot === HAND_SLOT,
+    })),
   );
 
   const year = $derived(view.recap.year);
@@ -152,6 +160,11 @@
             <div class="grow">
               <span>{item.name}</span>
               <span class="cap muted">{item.blurb}</span>
+              {#if item.handNote}
+                <span class="cap muted">
+                  지금은 다른 소품을 들고 있어 들지 않아요(손 소품을 '들지 않기'로 바꾸면 나와요).
+                </span>
+              {/if}
             </div>
             {#if item.open}
               <Icon name="icon-check" label="얻음" />

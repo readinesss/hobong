@@ -261,3 +261,49 @@ export async function closeDialogs(page: Page): Promise<void> {
     await tick(page);
   }
 }
+
+export interface SeedV5 {
+  series?: string | null;
+  look?: Record<string, unknown>;
+  showSeriesHome?: boolean;
+  showSeries?: boolean;
+  theme?: string;
+}
+
+/** 지금 형식(v5)의 저장본. makeSeedV4 에 v5 칸(직렬·공개 설정·꾸미기 등)을 기본값으로 더한다 */
+export function makeSeedV5(profile: SeedProfileV4 = {}, v5: SeedV5 = {}): string {
+  const env = JSON.parse(makeSeedV4(profile)) as {
+    schemaVersion: number;
+    data: {
+      profile: Record<string, unknown>;
+      settings: Record<string, unknown> & { card: Record<string, unknown> };
+      character: Record<string, unknown>;
+    };
+  };
+  env.schemaVersion = 5;
+  const { data } = env;
+  data.profile.series = v5.series ?? null;
+  data.settings.card = { ...data.settings.card, showSeries: v5.showSeries ?? false };
+  data.settings.identity = { showSeriesHome: v5.showSeriesHome ?? true };
+  data.settings.haptics = true;
+  data.settings.sound = {
+    sfx: false,
+    bgm: false,
+    master: 80,
+    sfxVolume: 80,
+    bgmVolume: 50,
+    bgmTrack: 'auto',
+  };
+  data.settings.pointer = 'pixel';
+  data.settings.sparkles = true;
+  if (v5.theme) data.settings.theme = v5.theme;
+  data.character.look = {
+    body: 'sunny',
+    crest: 'red',
+    plume: 'auto',
+    deco: { pin: null, chest: null, cheek: false },
+    prop: 'auto',
+    ...v5.look,
+  };
+  return JSON.stringify(env);
+}

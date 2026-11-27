@@ -30,7 +30,7 @@ import {
   readEncrypted,
   toBase64,
 } from '../../src/lib/store/crypto.ts';
-import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
+import { defaultLook, defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
 import { SCHEMA_VERSION, type UserData } from '../../src/lib/store/schema.ts';
 
 const TODAY = '2026-11-25';
@@ -51,6 +51,7 @@ function sampleData(): UserData {
       birthDate: '1995-05-20',
       hireDate: '2020-01-01',
       track: 'general',
+      series: null,
       payTable: 'table3',
       rank: '8',
       rankDate: '2024-07-01',
@@ -127,7 +128,7 @@ describe('암호 걸기 → 풀기', () => {
     if (!direct.ok) expect(direct.reason).toContain('암호가 걸린 백업');
   });
 
-  it('예전(v3) 앱이 암호를 건 백업도 풀린 뒤 같은 변환을 거쳐 v4 로 열린다', async () => {
+  it('예전(v3) 앱이 암호를 건 백업도 풀린 뒤 같은 변환을 거쳐 지금 버전으로 열린다', async () => {
     const v3 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v3.json'), 'utf8');
     const opened = await decryptBackup(await locked(PASSWORD, v3), PASSWORD);
     expect(opened).toEqual({ ok: true, plain: v3 });
@@ -148,6 +149,39 @@ describe('암호 걸기 → 풀기', () => {
     expect(serializeBackup(makeEnvelope(parsed.data, '0.1.0', NOW))).toContain(
       `"schemaVersion": ${SCHEMA_VERSION}`,
     );
+  });
+
+  it('v4 앱이 암호를 건 백업도 풀린 뒤 v5 기본값(직렬 없음·기본 모습·소리 끔)을 더해 열린다', async () => {
+    const v4 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v4-police.json'), 'utf8');
+    const opened = await decryptBackup(await locked(PASSWORD, v4), PASSWORD);
+    expect(opened).toEqual({ ok: true, plain: v4 });
+    if (!opened.ok) return;
+    const parsed = parseBackup(opened.plain, ctx);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.fromVersion).toBe(4);
+    expect(parsed.migrated).toBe(true);
+    expect(parsed.data).toEqual((parseBackup(v4, ctx) as { data: UserData }).data);
+    expect(parsed.data.profile).toMatchObject({ track: 'police', rank: '경위', series: null });
+    expect(parsed.data.character.look).toEqual(defaultLook());
+    expect(parsed.data.settings).toMatchObject({
+      identity: { showSeriesHome: true },
+      haptics: true,
+      sound: { sfx: false, bgm: false },
+      pointer: 'pixel',
+      sparkles: true,
+      card: { showSeries: false, showRank: false },
+    });
+  });
+
+  it('v5 백업(꾸미기·직렬·소리 설정)도 암호를 걸고 풀어 그대로 열린다', async () => {
+    const v5 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v5.json'), 'utf8');
+    const opened = await decryptBackup(await locked(PASSWORD, v5), PASSWORD);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const parsed = parseBackup(opened.plain, ctx);
+    expect(parsed.ok && parsed.migrated).toBe(false);
+    expect(parsed.ok && parsed.data).toEqual(JSON.parse(v5).data);
   });
 
   it('같은 평문·암호라도 파일마다 salt·IV·암호문이 모두 다르다(salt 16바이트, IV 12바이트)', async () => {

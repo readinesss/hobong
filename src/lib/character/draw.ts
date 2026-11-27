@@ -4,6 +4,7 @@
  */
 import { compose, toRgba, type Layer } from './compose.ts';
 import type { Look } from './look.ts';
+import { recolorBody, skinSprite } from './regions.ts';
 import { characterRules } from './rules.ts';
 import { getSprite } from './sprites.ts';
 
@@ -27,8 +28,10 @@ const SHADOW_COLOR = 15;
 /** 48×48 팔레트 인덱스 그림을 만든다 */
 export function poseOf(look: Look, options: PoseOptions = {}) {
   const tick = options.tick ?? 0;
-  const body = getSprite(look.form.body);
-  if (!body) return null;
+  const base = getSprite(look.form.body);
+  if (!base) return null;
+  // 꾸미기 색을 영역별로 칠한 몸통(기본 모습이면 원본 그대로). 앵커는 원본과 같다
+  const body = recolorBody(base, look.paint);
   // 박자: 4틱(약 1초)마다 한 번 숨쉬듯 1px 내려앉고, 20틱마다 한 번 깜빡인다.
   const bob = tick % 4 >= 2 ? 1 : 0;
   const blink = look.canBlink && tick % 20 === 19;
@@ -39,15 +42,17 @@ export function poseOf(look: Look, options: PoseOptions = {}) {
   if (eyes) layers.push({ sprite: eyes });
   const shadow = look.form.shadow ?? characterRules.shadow;
   for (const part of look.parts) {
-    const sprite = getSprite(part.sprite);
-    if (!sprite) continue;
+    const raw = getSprite(part.sprite);
+    if (!raw) continue;
+    // @skin 손 소품: 쥔 날개 끝이 몸 색을 따른다
+    const sprite = skinSprite(raw, look.paint.body);
     const isShadow = part.sprite === shadow;
     if (options.plain && (part.animated || isShadow)) continue;
     const remap =
       isShadow && options.shadowInk !== undefined
         ? { ...part.remap, [SHADOW_COLOR]: options.shadowInk }
         : part.remap;
-    layers.push({ sprite, remap, frame: part.animated ? fxFrame : 0 });
+    layers.push({ sprite, remap, frame: part.animated ? fxFrame : 0, halo: part.halo });
   }
   const comp = compose(layers, { w: W, h: H, body, bodyDy: bob });
   if (options.silhouette !== undefined) {

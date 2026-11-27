@@ -20,10 +20,30 @@
   let phase = $state(0);
   const LAST = 8;
 
-  const before = $derived(resolveLook(characterRules, event.fromForm, event.fromStep, 'work'));
-  const after = $derived(resolveLook(characterRules, event.toForm, event.toStep, 'celebrate'));
+  const before = $derived(
+    resolveLook(
+      characterRules,
+      event.fromForm,
+      event.fromStep,
+      'work',
+      view.characterLook,
+      view.propOwner,
+    ),
+  );
+  const after = $derived(
+    resolveLook(
+      characterRules,
+      event.toForm,
+      event.toStep,
+      'celebrate',
+      view.characterLook,
+      view.propOwner,
+    ),
+  );
   const unlocked = $derived(
-    unlockList(characterRules).filter((u) => u.step > event.fromStep && u.step <= event.toStep),
+    unlockList(characterRules, view.handHeld).filter(
+      (u) => u.step > event.fromStep && u.step <= event.toStep,
+    ),
   );
   const done = $derived(phase >= LAST);
 
@@ -96,7 +116,8 @@
           <p>{welcomeLine(view.profile.nickname)}</p>
           <p class="cap muted">{after.form.blurb}</p>
         {:else}
-          <p class="mid">{event.toLabel}</p>
+          <!-- 공개 설정을 끄면 계급 이름(우정·경찰·소방은 직군·직종을 드러낸다) 없이 호봉만 -->
+          <p class="mid">{view.showIdentityHome ? event.toLabel : `${event.toStep}호봉`}</p>
           {#if grown > 0}<p>
               {event.fromStep}호봉에서 {event.toStep}호봉으로 올랐어요. 깃이 {grown === 1
                 ? '하나'

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { closeDialogs, makeSeed, makeSeedV4, openApp, tick } from './helpers.ts';
+import { closeDialogs, makeSeed, makeSeedV4, makeSeedV5, openApp, tick } from './helpers.ts';
 
 const TABS = [
   { hash: 'home', label: '홈' },
@@ -353,6 +353,7 @@ test.describe('반응형과 조작', () => {
     await openApp(page, { seed: makeSeed(), hash: 'settings' });
     const order = [
       'set-profile',
+      'set-look',
       'set-data',
       'set-work',
       'set-display',
@@ -570,4 +571,52 @@ test.describe('반응형과 조작', () => {
     await page.getByRole('radio', { name: '그 밖의 특정직 (준비 중)' }).click();
     await check('그 밖의 특정직');
   });
+
+  // 호봉이 꾸미기(#17): 좁은 폭부터 넓은 폭까지, 밝게·어둡게·고대비에서 견본이 넘치지 않고 44px 이상이다
+  for (const width of [320, 360, 1280]) {
+    for (const mode of ['light', 'dark', 'forced'] as const) {
+      test(`${width}px ${mode}: 호봉이 꾸미기 창이 넘치지 않고 견본이 44px 이상이다`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        if (mode === 'forced') await page.emulateMedia({ forcedColors: 'active' });
+        await openApp(page, {
+          seed: makeSeedV5(
+            { rank: '7', step: 14 },
+            { theme: mode === 'dark' ? 'dark' : 'light', series: '간호' },
+          ),
+          hash: 'settings',
+        });
+        const over = () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+        expect(await over(), '설정 가로 넘침').toBeLessThanOrEqual(0);
+        await page.locator('#set-look').getByRole('button', { name: '꾸미기' }).click();
+        const dialog = page.getByRole('dialog', { name: '호봉이 꾸미기' });
+        await expect(dialog).toBeVisible();
+        await tick(page, 600);
+        expect(await over(), '꾸미기 창 가로 넘침').toBeLessThanOrEqual(0);
+        const body = await page.evaluate(() => {
+          const b = document.querySelector('.modal .win-body')!;
+          return [b.scrollWidth, b.clientWidth];
+        });
+        expect(body[0], '꾸미기 창 본문').toBeLessThanOrEqual(body[1] as number);
+        expect(await page.evaluate(smallTargets), '꾸미기 창의 작은 터치 대상').toEqual([]);
+        // 견본은 모두 이름 글자가 있고, 고른 견본에는 ✓ 표시가 붙는다(색만으로 구별하지 않는다)
+        const tiles = await page.evaluate(() =>
+          [...document.querySelectorAll('.modal .sw')].map((el) => ({
+            name: el.querySelector('.name')?.textContent?.trim() ?? '',
+            checked: (el.querySelector('input') as HTMLInputElement).checked,
+            mark: getComputedStyle(el.querySelector('.tile')!, '::after').content,
+          })),
+        );
+        expect(tiles.length).toBeGreaterThan(40);
+        for (const t of tiles) {
+          expect(t.name, '견본 이름').not.toBe('');
+          if (t.checked) expect(t.mark, `${t.name} ✓ 표시`).toContain('✓');
+        }
+      });
+    }
+  }
 });

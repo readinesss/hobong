@@ -7,6 +7,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { characterRules as C } from '../../src/lib/character/rules.ts';
+import { seriesData } from '../../src/lib/character/series.ts';
+import { DEFAULT_LOOK } from '../../src/lib/store/defaults.ts';
+import { LOOK_ID_RE, SERIES_KEY_RE } from '../../src/lib/store/schema.ts';
 import {
   buildSpriteIndex,
   parseSprites,
@@ -48,9 +51,9 @@ function literalsIn(dir: string, pattern: RegExp, out = new Set<string>()): Set<
 }
 
 describe('캐릭터 스프라이트', () => {
-  const ANCHORS = ['eyes', 'head', 'neck', 'handL', 'handR', 'crown', 'ground'];
+  const ANCHORS = ['eyes', 'head', 'neck', 'handL', 'handR', 'crown', 'ground', 'chest'];
 
-  it('형태마다 48×48 몸통과 앵커 일곱 개가 있다', () => {
+  it('형태마다 48×48 몸통과 앵커 여덟 개가 있다', () => {
     for (const form of C.forms) {
       const body = need(form.body);
       expect([body.w, body.h], form.body).toEqual([C.canvas.w, C.canvas.h]);
@@ -73,6 +76,8 @@ describe('캐릭터 스프라이트', () => {
       mood.items.forEach((n) => names.add(n));
       mood.fx.forEach((n) => names.add(n));
     }
+    for (const deco of C.custom.decos) names.add(deco.sprite);
+    for (const prop of C.custom.props) names.add(prop.sprite);
     for (const name of names) need(name);
   });
 
@@ -128,6 +133,127 @@ describe('캐릭터 스프라이트', () => {
   });
 });
 
+describe('꾸미기 장식·손 소품(#17·#16)', () => {
+  const bodies = C.forms.map((f) => need(f.body));
+  /** 몸통 위에 놓았을 때 스프라이트 칸이 덮는 몸통 칸들 */
+  function over(sprite: Sprite, body: Sprite) {
+    const [ax, ay] = body.anchors[sprite.attach ?? ''] as readonly [number, number];
+    const x0 = ax - sprite.origin[0];
+    const y0 = ay - sprite.origin[1];
+    const cells: { v: number; under: number; x: number; y: number }[] = [];
+    sprite.frames[0]?.forEach((v, i) => {
+      if (v === TRANSPARENT) return;
+      const x = x0 + (i % sprite.w);
+      const y = y0 + Math.floor(i / sprite.w);
+      const inside = x >= 0 && y >= 0 && x < body.w && y < body.h;
+      cells.push({ v, x, y, under: inside ? (body.frames[0]?.[y * body.w + x] ?? -1) : -1 });
+    });
+    return cells;
+  }
+
+  it('장식은 정한 자리(핀 head·배지 chest·볼 eyes)에 붙고, 폭이 짝수이며 한 프레임이다', () => {
+    const anchorOf = { pin: 'head', chest: 'chest', cheek: 'eyes' } as const;
+    for (const deco of C.custom.decos) {
+      const s = need(deco.sprite);
+      expect(s.attach, deco.sprite).toBe(anchorOf[deco.slot]);
+      expect(s.w % 2, deco.sprite).toBe(0);
+      expect(s.frames.length, deco.sprite).toBe(1);
+      expect(s.skin, deco.sprite).toBe(false);
+    }
+  });
+
+  it('머리핀은 다섯 몸통 모두 머리 외곽선에 걸치고, 색 칸은 머리 위에 놓인다(리본 날개 끝 1칸만 밖)', () => {
+    for (const deco of C.custom.decos.filter((d) => d.slot === 'pin')) {
+      const s = need(deco.sprite);
+      for (const body of bodies) {
+        const cells = over(s, body);
+        const where = `${deco.sprite} × ${body.name}`;
+        expect(
+          cells.some((c) => c.under === 0),
+          `${where}: 외곽선에 걸친다`,
+        ).toBe(true);
+        const floating = cells.filter((c) => c.v !== 0 && c.under === TRANSPARENT);
+        expect(floating.length, `${where}: 허공에 뜬 색 칸`).toBeLessThanOrEqual(1);
+        // 색 칸 아래는 머리(몸 색 3·4 또는 외곽선)다
+        for (const c of cells.filter((c) => c.v !== 0 && c.under !== TRANSPARENT)) {
+          expect([0, 3, 4], `${where} ${c.x},${c.y}`).toContain(c.under);
+        }
+      }
+    }
+  });
+
+  it('가슴 배지·볼 터치의 색 칸은 다섯 몸통 모두 몸통 위에 놓인다(허공에 뜨지 않는다)', () => {
+    for (const deco of C.custom.decos.filter((d) => d.slot !== 'pin')) {
+      const s = need(deco.sprite);
+      for (const body of bodies) {
+        const floating = over(s, body).filter((c) => c.v !== 0 && c.under === TRANSPARENT);
+        expect(floating, `${deco.sprite} × ${body.name}`).toEqual([]);
+      }
+    }
+  });
+
+  it('가슴 배지는 볼(눈 아래 3줄)보다 아래, 목걸이 끈·명찰·넥타이와 겹치지 않는 가슴 오른쪽에 붙는다', () => {
+    const lanyard = need('item-lanyard');
+    const tie = need('item-tie');
+    for (const deco of C.custom.decos.filter((d) => d.slot === 'chest')) {
+      const s = need(deco.sprite);
+      for (const body of bodies) {
+        const where = `${deco.sprite} × ${body.name}`;
+        const badge = over(s, body);
+        const [ex, ey] = body.anchors.eyes as readonly [number, number];
+        // 볼 줄(eyes+3)과 그 위에는 색 칸이 없다(볼에 붙인 스티커처럼 읽히지 않게)
+        expect(
+          badge.filter((c) => c.v !== 0 && c.y <= ey + 3),
+          where,
+        ).toEqual([]);
+        // 몸 가운데(eyes.x)보다 오른쪽
+        expect(Math.min(...badge.map((c) => c.x)), where).toBeGreaterThan(ex);
+        const taken = new Set(
+          [...over(lanyard, body), ...over(tie, body)].map((c) => `${c.x},${c.y}`),
+        );
+        expect(
+          badge.filter((c) => taken.has(`${c.x},${c.y}`)),
+          `${where}: 목걸이·넥타이와 겹침`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it('손 소품은 왼손(handL)·층 25 에 붙고 @skin 이며, 쥔 날개 끝은 기준점 오른쪽 2×2(4·4·4·3)다', () => {
+    const handL = [...sprites.values()].filter((s) => s.attach === 'handL');
+    expect(handL.map((s) => s.name).sort()).toEqual(C.custom.props.map((p) => p.sprite).sort());
+    for (const s of handL) {
+      expect(s.skin, s.name).toBe(true);
+      expect(s.layer, s.name).toBe(25);
+      const [ox, oy] = s.origin;
+      const band: number[] = [];
+      s.frames[0]?.forEach((v, i) => {
+        const x = i % s.w;
+        const y = Math.floor(i / s.w);
+        if ((v === 3 || v === 4) && x >= ox + 1 && Math.abs(y - oy) <= 2) band.push(v);
+      });
+      expect(band, s.name).toEqual([4, 4, 4, 3]);
+      // 9급 알봉이 handL(x9)에서도 캔버스 밖으로 잘리지 않는다
+      for (const body of bodies) {
+        for (const c of over(s, body)) {
+          expect(c.x >= 0 && c.x < 48 && c.y >= 0 && c.y < 48, `${s.name} × ${body.name}`).toBe(
+            true,
+          );
+        }
+      }
+    }
+    // @skin 은 손 소품에만 쓴다
+    for (const s of sprites.values()) if (s.skin) expect(s.attach, s.name).toBe('handL');
+  });
+
+  it('소품 그림 이름은 종류를 따른다(직렬 series-·직종 track-, 행정 테마는 기존 item-folder)', () => {
+    for (const prop of C.custom.props) {
+      const prefix = prop.kind === 'track' ? 'track-' : prop.id === 'folder' ? 'item-' : 'series-';
+      expect(prop.sprite, prop.id).toBe(`${prefix}${prop.id}`);
+    }
+  });
+});
+
 describe('아이콘', () => {
   const icons = [...sprites.entries()].filter(([name]) => name.startsWith('icon-'));
 
@@ -144,5 +270,33 @@ describe('아이콘', () => {
     used.delete('icon-missing'); // 아이콘을 못 찾았을 때 쓰는 빈 칸의 CSS 클래스 이름
     expect(used.size).toBeGreaterThan(30);
     for (const name of used) need(name);
+  });
+});
+
+describe('저장본에 담기는 id·이름 형식(같은 v5 의 예전 사본이 백업을 거부하지 않게, docs/DATA.md)', () => {
+  it('꾸미기·소품의 모든 id 는 LOOK_ID_RE 를 지킨다', () => {
+    const ids = [
+      ...C.custom.bodies,
+      ...C.custom.crests,
+      ...C.custom.plumes,
+      ...C.custom.decos,
+      ...C.custom.props,
+    ].map((x) => x.id);
+    expect(ids.length).toBeGreaterThan(30);
+    for (const id of ids) expect(LOOK_ID_RE.test(id), id).toBe(true);
+    expect(LOOK_ID_RE.test(DEFAULT_LOOK.prop)).toBe(true);
+    expect(LOOK_ID_RE.test('none')).toBe(true);
+  });
+
+  it('직렬 이름·옛 이름은 SERIES_KEY_RE 를 지킨다(가운뎃점·띄어쓰기는 미리 받는다)', () => {
+    const names = seriesData.groups.flatMap((g) =>
+      g.series.flatMap((s) => [s.name, ...(s.aliases ?? [])]),
+    );
+    expect(names.length).toBeGreaterThanOrEqual(52);
+    for (const name of names) expect(SERIES_KEY_RE.test(name), name).toBe(true);
+    for (const ok of ['검찰·마약', '출입국 관리', '행정', 'IT'])
+      expect(SERIES_KEY_RE.test(ok), ok).toBe(true);
+    for (const bad of ['', ' 행정', '행정 ', '출입국  관리', '가'.repeat(21), '행정\n', '<b>'])
+      expect(SERIES_KEY_RE.test(bad), JSON.stringify(bad)).toBe(false);
   });
 });

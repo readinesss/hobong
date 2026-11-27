@@ -11,8 +11,11 @@ import {
   GENERAL_PAY_TABLES,
   GENERAL_RANKS,
   LIMITS,
+  LOOK_ID_RE,
   RANK_KEY_RE,
+  SERIES_KEY_RE,
   type CardSettings,
+  type CharacterLook,
   type GeneralPayTableId,
   type Grade,
   type LeaveKind,
@@ -93,6 +96,42 @@ function rankFits(track: TrackId | null, value: unknown): boolean {
   return true;
 }
 
+/** 저장본의 직렬 키 형식 또는 null(고르지 않음) */
+export function isSeriesKeyOrNull(value: unknown): value is string | null {
+  return value === null || (typeof value === 'string' && SERIES_KEY_RE.test(value));
+}
+
+/** 꾸미기·소리 목록의 id 형식(모르는 id 도 받는다) */
+export function isLookId(value: unknown): value is string {
+  return typeof value === 'string' && LOOK_ID_RE.test(value);
+}
+
+/**
+ * 꾸미기 값 검사(형식만). 목록에 없는 id 도 받아 그대로 옮겨 담는다(그릴 때만 기본값으로 대신한다).
+ * 틀리면 null.
+ */
+export function checkLook(raw: unknown): CharacterLook | null {
+  if (!isDict(raw) || !isDict(raw.deco)) return null;
+  const { body, crest, plume, prop, deco } = raw;
+  const pin = deco.pin;
+  const chest = deco.chest;
+  if (
+    !isLookId(body) ||
+    !isLookId(crest) ||
+    !isLookId(plume) ||
+    !isLookId(prop) ||
+    !(pin === null || isLookId(pin)) ||
+    !(chest === null || isLookId(chest)) ||
+    typeof deco.cheek !== 'boolean'
+  ) {
+    return null;
+  }
+  return { body, crest, plume, deco: { pin, chest, cheek: deco.cheek }, prop };
+}
+
+const isVolume = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= LIMITS.maxVolume;
+
 const ISO_INSTANT_RE = /^(\d{4})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /** 앱이 쓰는 형식(2026-11-25T01:30:00.000Z)의 시각인지. 연도는 날짜 계산이 받는 범위 안이어야 한다 */
@@ -145,6 +184,7 @@ export type ProfileField =
   | 'birthDate'
   | 'hireDate'
   | 'track'
+  | 'series'
   | 'payTable'
   | 'rank'
   | 'rankDate'
@@ -186,6 +226,11 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
 
   const track = isTrackId(raw.track) ? raw.track : null;
   if (!track) errors.track = '직종을 골라 주세요.';
+  // 직렬: 형식만 본다(목록에 없는 직렬도 보존한다 — 화면에 이름을 보이지 않을 뿐). 직종과 짝짓지 않는다
+  // (일반직이 아니면 쓰지 않을 뿐 지우지 않는다). 키가 없으면 거부한다(v5 저장본에는 늘 있다).
+  if (!('series' in raw) || !isSeriesKeyOrNull(raw.series))
+    errors.series = '직렬을 다시 골라 주세요.';
+
   const payTable = raw.payTable;
   const payTableOk = track !== null && payTableFits(track, payTable);
   if (track && !payTableOk) errors.payTable = '봉급표를 다시 골라 주세요.';
@@ -281,6 +326,7 @@ export function toProfile(raw: Dict): Profile {
     birthDate: raw.birthDate as Ymd,
     hireDate: raw.hireDate as Ymd,
     track: raw.track as TrackId,
+    series: raw.series as string | null,
     payTable: raw.payTable as GeneralPayTableId | null,
     rank: raw.rank as RankKey | null,
     rankDate: raw.rankDate as Ymd,
@@ -346,7 +392,8 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
     typeof card.showRetirement !== 'boolean' ||
     typeof card.showTenure !== 'boolean' ||
     typeof card.showBadges !== 'boolean' ||
-    typeof card.showRank !== 'boolean'
+    typeof card.showRank !== 'boolean' ||
+    typeof card.showSeries !== 'boolean'
   ) {
     errors.push('설정: 카드 설정 값이 틀렸어요.');
   } else {
@@ -357,9 +404,30 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
       showTenure: card.showTenure,
       showBadges: card.showBadges,
       showRank: card.showRank,
+      showSeries: card.showSeries,
     };
   }
-  if (errors.length > before || !cardOut) return null;
+  const identity = raw.identity;
+  if (!isDict(identity) || typeof identity.showSeriesHome !== 'boolean')
+    errors.push('설정: 직렬 이름 보이기 값이 틀렸어요.');
+  if (typeof raw.haptics !== 'boolean') errors.push('설정: 진동 값이 틀렸어요.');
+  const sound = raw.sound;
+  if (
+    !isDict(sound) ||
+    typeof sound.sfx !== 'boolean' ||
+    typeof sound.bgm !== 'boolean' ||
+    !isVolume(sound.master) ||
+    !isVolume(sound.sfxVolume) ||
+    !isVolume(sound.bgmVolume) ||
+    // 곡 목록은 늘어나므로 형식만 본다(모르는 곡은 틀 때 'auto' 로)
+    !isLookId(sound.bgmTrack)
+  ) {
+    errors.push('설정: 소리 설정 값이 틀렸어요.');
+  }
+  if (raw.pointer !== 'pixel' && raw.pointer !== 'system')
+    errors.push('설정: 포인터 값이 틀렸어요.');
+  if (typeof raw.sparkles !== 'boolean') errors.push('설정: 반짝이 값이 틀렸어요.');
+  if (errors.length > before || !cardOut || !isDict(identity) || !isDict(sound)) return null;
   return {
     payday: payday as number,
     work: {
@@ -373,6 +441,18 @@ function checkSettings(raw: unknown, errors: string[], semantic: boolean): Setti
     hideAmounts: raw.hideAmounts as boolean,
     tabTitle: raw.tabTitle as Settings['tabTitle'],
     card: cardOut,
+    identity: { showSeriesHome: identity.showSeriesHome as boolean },
+    haptics: raw.haptics as boolean,
+    sound: {
+      sfx: sound.sfx as boolean,
+      bgm: sound.bgm as boolean,
+      master: sound.master as number,
+      sfxVolume: sound.sfxVolume as number,
+      bgmVolume: sound.bgmVolume as number,
+      bgmTrack: sound.bgmTrack as string,
+    },
+    pointer: raw.pointer as Settings['pointer'],
+    sparkles: raw.sparkles as boolean,
   };
 }
 
@@ -495,7 +575,9 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
 
   let character: UserData['character'] | null = null;
   const ch = raw.character;
-  if (
+  const look = isDict(ch) ? checkLook(ch.look) : null;
+  if (isDict(ch) && !look) errors.push('호봉이 꾸미기 값의 형식이 틀렸어요.');
+  else if (
     !isDict(ch) ||
     !Array.isArray(ch.seenForms) ||
     ch.seenForms.length > 50 ||
@@ -511,12 +593,13 @@ export function validateUserData(raw: unknown, ctx: ProfileContext): Result<User
     !(ch.lastForm === null || (typeof ch.lastForm === 'string' && ID_RE.test(ch.lastForm)))
   ) {
     errors.push('캐릭터 상태의 형식이 틀렸어요.');
-  } else {
+  } else if (look) {
     character = {
       seenForms: [...new Set(ch.seenForms as string[])],
       lastRank: ch.lastRank as RankKey | null,
       lastStep: ch.lastStep,
       lastForm: ch.lastForm as string | null,
+      look,
     };
   }
 

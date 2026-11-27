@@ -38,6 +38,7 @@
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
   import Stepper from '../lib/ui/Stepper.svelte';
+  import SeriesPicker from './profile/SeriesPicker.svelte';
 
   interface Props {
     /** 고칠 때의 기존 값. 없으면 새로 만든다 */
@@ -107,6 +108,11 @@
   let longServiceDate = $state<Ymd | ''>(untrack(() => initial?.overrides.longServiceDate ?? ''));
   let seniorDate = $state<Ymd | ''>(untrack(() => initial?.overrides.seniorDate ?? ''));
   let rankLimitDate = $state<Ymd | ''>(untrack(() => initial?.overrides.rankLimitDate ?? ''));
+  /**
+   * 일반직의 직렬(선택). 직종을 바꿔도 지우지 않는다(일반직으로 되돌아오면 다시 쓴다).
+   * 지울지는 사용자가 '직렬 지우기'로 정한다(말없이 지우지 않는다).
+   */
+  let series = $state<string | null>(untrack(() => initial?.series ?? null));
   let payday = $state(
     untrack(
       () =>
@@ -223,6 +229,7 @@
     birthDate,
     hireDate,
     track,
+    series,
     payTable,
     rank: draftRank,
     rankDate: askRank && promoted ? rankDate : hireDate,
@@ -286,6 +293,7 @@
       if (key === 'rank' && !askRank) return [`${noun}: ${text}`];
       if (key === 'track') return [`직종: ${text}`];
       if (key === 'payTable') return [`봉급표: ${text}`];
+      if (key === 'series') return [`직렬: ${text}`];
       if (key === 'stepAsOf') return [`호봉 확인일: ${text}`];
       return [];
     }),
@@ -474,6 +482,19 @@
         </div>
       </details>
     </fieldset>
+  {/if}
+
+  {#if track === 'general'}
+    <SeriesPicker value={series} onchange={(next) => (series = next)} />
+  {:else if series !== null}
+    <div class="note stack" id="pf-series-kept">
+      <p>
+        고른 직렬({series})은 일반직일 때만 써요. 남겨 두면 일반직으로 되돌아올 때 다시 써요.
+      </p>
+      <div class="btn-row">
+        <button type="button" class="btn small" onclick={() => (series = null)}>직렬 지우기</button>
+      </div>
+    </div>
   {/if}
 
   <div class="grid2">

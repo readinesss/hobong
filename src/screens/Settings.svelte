@@ -25,6 +25,7 @@
   import ProfileForm from './ProfileForm.svelte';
   import ContactWindow from './settings/ContactWindow.svelte';
   import DreamsWindow from './settings/DreamsWindow.svelte';
+  import LookWindow from './settings/LookWindow.svelte';
   import LockDialog from './settings/LockDialog.svelte';
   import Sources from './settings/Sources.svelte';
 
@@ -301,6 +302,15 @@
           <dt>{view.rankLabel ? `${noun}·호봉` : '호봉'}</dt>
           <dd>{view.rankStepLabel}{view.raisesAutomatically ? '' : ' (입력값)'}</dd>
         </div>
+        {#if profile.track === 'general'}
+          <div class="kv" id="set-series">
+            <dt>직렬</dt>
+            <dd>
+              {view.seriesName ??
+                (profile.series !== null ? `${profile.series} (목록에 없음)` : '고르지 않음')}
+            </dd>
+          </div>
+        {/if}
         {#if profile.rankDate !== profile.hireDate}
           <div class="kv">
             <dt>현 {noun} 임용일</dt>
@@ -364,7 +374,37 @@
       <p class="cap muted">
         승진했거나 승급일이 바뀌었으면 여기서 고쳐 주세요. 연가 기록과 업적은 그대로 남아요.
       </p>
+      <hr class="rule" />
+      <div class="stack">
+        <label class="switch" id="set-identity-home">
+          <input
+            type="checkbox"
+            checked={settings.identity.showSeriesHome}
+            aria-describedby="set-identity-home-hint"
+            onchange={(e) =>
+              app.updateSettings({
+                identity: { ...settings.identity, showSeriesHome: e.currentTarget.checked },
+              })}
+          />
+          <span class="box" aria-hidden="true"></span>
+          <span>홈에 직렬·계급 이름 보이기</span>
+        </label>
+        <div class="cap muted stack" id="set-identity-home-hint">
+          <p>
+            끄면 홈(상태창·지갑·승급·승진·정년 창)과 승급 축하에 '12호봉'처럼 호봉만 보이고, 계산
+            설명의 계급 이름은 '지금 계급'처럼 바꿔 적어요. 우정직은 계급 이름이 곧 직군이라 함께
+            가려져요. 직종 이름(화면 맨 아래 기준 줄)은 그대로 보여요.
+          </p>
+          <p>
+            직렬은 이 브라우저에만 저장해요(내려받은 백업 파일에는 들어가요). 카드에는 기본으로 넣지
+            않아요. 직렬 이름을 숨겨도 호봉이가 들고 있는 소품으로 직렬이 짐작될 수 있어요. 소품은
+            '호봉이 꾸미기'에서 바꿀 수 있어요.
+          </p>
+        </div>
+      </div>
     </Win>
+
+    <LookWindow />
 
     <Win title="데이터" icon="icon-save" id="set-data">
       <div class="stack wide">

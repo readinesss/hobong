@@ -8,7 +8,7 @@
     downloadBlob,
     shareFile,
   } from '../lib/app/files.ts';
-  import { formatDday, formatSpan, formatWon, MASKED_WON } from '../lib/app/format.ts';
+  import { formatDday, formatSpan, formatWon, josa, MASKED_WON } from '../lib/app/format.ts';
   import { session, type CardKind } from '../lib/app/session.svelte.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
@@ -34,7 +34,7 @@
     type RecapCardModel,
     type RecapOmitted,
   } from '../lib/card/recap.ts';
-  import { resolveLook } from '../lib/character/look.ts';
+  import { resolveLook, resolveProp } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/config.ts';
   import type { CardRatio, CardSettings } from '../lib/store/schema.ts';
@@ -60,6 +60,11 @@
   const hideAmounts = $derived(view.data.settings.hideAmounts);
   const salaryFact = (amount: string) => `월 봉급 ${amount}(봉급표 기준)`;
 
+  /** 카드의 호봉이가 손에 든 소품(호봉 소품·들지 않기면 null). 직렬·직종을 짐작하게 할 수 있어 알린다 */
+  const heldProp = $derived.by(() => {
+    const p = resolveProp(characterRules, view.characterLook.prop, view.propOwner);
+    return p === null || p === 'step' ? null : p;
+  });
   /** 카드에 넣는 계급 이름: '계급 이름 넣기'를 켰을 때만(경찰·소방·우정 계급 이름은 직종을 드러낸다) */
   const cardRank = $derived(card.showRank ? view.rankLabel : '');
   /** 다음 승급: 정기승급을 계산하지 않는 직종은 입력한 날까지의 D-day 만(진행 막대 없음) */
@@ -78,12 +83,21 @@
     maxStep: cardRank ? view.maxStep : null,
     formName: view.look.form.name,
     // 카드에는 언제 찍어도 같은 근무 중 모습을 담는다(기분·시간대에 따라 달라지지 않게).
-    look: resolveLook(characterRules, view.formId, view.step, 'work'),
+    look: resolveLook(
+      characterRules,
+      view.formId,
+      view.step,
+      'work',
+      view.characterLook,
+      view.propOwner,
+    ),
     line: view.line,
     dateText: formatKorean(view.today, false),
     raise: cardRaise,
     maxReached: view.noRaiseReason === 'max' || view.noRaiseReason === 'retire',
     facts: [
+      // 직렬은 소속을 짐작하게 할 수 있어 '직렬 이름 넣기'(기본 끔)를 켰을 때만
+      ...(card.showSeries && view.seriesName ? [`${view.seriesName} 직렬`] : []),
       // 일수까지 적으면 카드 날짜에서 임용일이 하루 단위로 역산되므로 연·월까지만 쓴다.
       ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
       ...(card.showRetirement && view.retireDate !== null && view.career
@@ -131,7 +145,14 @@
     nickname: view.profile.nickname,
     year: recap.year,
     periodText: recapPeriodText(recap),
-    look: resolveLook(characterRules, view.formId, view.step, 'work'),
+    look: resolveLook(
+      characterRules,
+      view.formId,
+      view.step,
+      'work',
+      view.characterLook,
+      view.propOwner,
+    ),
     formName: view.look.form.name,
     rankLabel: cardRank,
     step: view.step,
@@ -434,6 +455,13 @@
         />
       </div>
 
+      {#if heldProp}
+        <p class="cap muted" id="card-prop-hint">
+          카드의 호봉이는 {josa(heldProp.name, '을', '를')} 들고 있어요. 이름을 넣지 않아도 소품으로 직렬·직종이
+          짐작될 수 있어요(설정 '호봉이 꾸미기'에서 바꾸거나 '들지 않기'를 골라요).
+        </p>
+      {/if}
+
       {#if view.rankLabel}
         <div class="stack">
           <label class="switch" id="card-show-rank">
@@ -448,7 +476,7 @@
           </label>
           <p class="cap muted" id="card-show-rank-hint">
             경찰·소방·우정 같은 계급 이름은 직종을 드러낼 수 있어요. 끄면 최고호봉(깃 칸 수)도 넣지
-            않아요. 홈 화면에는 늘 보여요.
+            않아요. 홈 화면에 보일지는 설정 '내 정보'에서 정해요.
           </p>
         </div>
       {/if}
@@ -465,6 +493,22 @@
       {:else}
         <fieldset class="stack">
           <legend class="muted">카드에 담을 것</legend>
+          {#if view.seriesName}
+            <label class="switch" id="card-show-series">
+              <input
+                type="checkbox"
+                checked={card.showSeries}
+                aria-describedby="card-show-series-hint"
+                onchange={(e) => setCard({ showSeries: e.currentTarget.checked })}
+              />
+              <span class="box" aria-hidden="true"></span>
+              <span>직렬 이름 넣기</span>
+            </label>
+            <p class="cap muted" id="card-show-series-hint">
+              직렬은 소속을 짐작하게 할 수 있어 기본으로 넣지 않아요. 넣지 않아도 호봉이가 든
+              소품으로 짐작될 수 있어요(소품은 설정 '호봉이 꾸미기'에서 바꿔요).
+            </p>
+          {/if}
           <label class="switch">
             <input
               type="checkbox"

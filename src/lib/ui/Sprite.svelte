@@ -23,16 +23,20 @@
     animate?: boolean;
     pose?: PoseOptions;
     label?: string;
+    /** 48×48 가운데 이 사각형(스프라이트 픽셀)만 그린다. 작은 장식 견본을 크게 보일 때 */
+    crop?: { x: number; y: number; w: number; h: number };
   }
 
-  let { look, sprite, frame = 0, scale = 4, animate = true, pose, label }: Props = $props();
+  let { look, sprite, frame = 0, scale = 4, animate = true, pose, label, crop }: Props = $props();
 
   let canvas = $state<HTMLCanvasElement>();
   let dpr = $state(1);
 
   // 기기 픽셀 기준으로도 정수 배율이 되게 한다(125%·150% 배율 화면에서 픽셀이 들쭉날쭉해지지 않게).
   const devicePixels = $derived(Math.max(1, Math.round(scale * dpr)));
-  const cssSize = $derived((SPRITE_SIZE * devicePixels) / dpr);
+  const area = $derived(crop ?? { x: 0, y: 0, w: SPRITE_SIZE, h: SPRITE_SIZE });
+  const cssW = $derived((area.w * devicePixels) / dpr);
+  const cssH = $derived((area.h * devicePixels) / dpr);
   const tick = $derived(animate ? anim.tick : 0);
 
   onMount(() => {
@@ -51,9 +55,11 @@
   $effect(() => {
     const el = canvas;
     if (!el) return;
-    const size = SPRITE_SIZE * devicePixels;
-    if (el.width !== size) el.width = size;
-    if (el.height !== size) el.height = size;
+    const { x, y, w, h } = area;
+    const width = w * devicePixels;
+    const height = h * devicePixels;
+    if (el.width !== width) el.width = width;
+    if (el.height !== height) el.height = height;
     const ctx = el.getContext('2d');
     if (!ctx) return;
     // 야근 모드의 어두운 바닥(#3f5068)에서는 그림자(f)가 1.3:1로 묻혀, 먹색(0, 약 2.1:1)으로 칠한다
@@ -62,17 +68,17 @@
       : look
         ? poseOf(look, { shadowInk: theme.dark ? 0 : undefined, ...pose, tick })
         : null;
-    ctx.clearRect(0, 0, size, size);
-    if (comp) paintPose(ctx, comp, 0, 0, devicePixels);
+    ctx.clearRect(0, 0, width, height);
+    if (comp) paintPose(ctx, comp, -x * devicePixels, -y * devicePixels, devicePixels);
   });
 </script>
 
 {#if label}
-  <span class="wrap" role="img" aria-label={label} style="width:{cssSize}px;height:{cssSize}px">
+  <span class="wrap" role="img" aria-label={label} style="width:{cssW}px;height:{cssH}px">
     <canvas
       bind:this={canvas}
       class="sprite"
-      style="width:{cssSize}px;height:{cssSize}px"
+      style="width:{cssW}px;height:{cssH}px"
       aria-hidden="true"
     ></canvas>
   </span>
@@ -80,7 +86,7 @@
   <canvas
     bind:this={canvas}
     class="sprite"
-    style="width:{cssSize}px;height:{cssSize}px"
+    style="width:{cssW}px;height:{cssH}px"
     aria-hidden="true"
   ></canvas>
 {/if}

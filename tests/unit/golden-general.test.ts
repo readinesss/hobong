@@ -47,6 +47,7 @@ const paydayOf = (id: string) => PAYDAY[id] ?? 25;
 const base = {
   nickname: '호봉이',
   track: 'general',
+  series: null,
   payTable: 'table3',
   overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
 } as const;

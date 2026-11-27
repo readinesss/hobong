@@ -41,7 +41,10 @@
       <span class="muted">월 봉급</span>
       {#if salary}
         <p class="big"><Money value={salary.amount} /></p>
-        <p class="cap muted">{view.rankStepLabel} · 공무원보수규정 {salary.annex}</p>
+        <p class="cap muted">
+          <!-- 공개 설정을 끄면 봉급표 번호(별표 8 = 우정직군)도 직렬을 드러내므로 뺀다 -->
+          {view.homeRankStepLabel} · 공무원보수규정{view.showIdentityHome ? ` ${salary.annex}` : ''}
+        </p>
       {:else}
         <p class="cap muted" id="wallet-pay-off">
           {view.payOff ? offSentence('봉급', view.payOff) : '봉급 계산은 준비 중이에요.'}
@@ -66,8 +69,11 @@
           <dd><Money value={view.cumulative.total} short approx /></dd>
         </div>
         <p class="cap muted">
-          지금 {view.rankLabel ? noun : '호봉'}과 {view.cumulative.tableYear}년 봉급표({salary?.annex ??
-            ''})를 임용일부터 그대로 적용한 어림값이에요({view.rankLabel
+          <!-- 공개 설정을 끄면 봉급표 번호(별표 8 = 우정직군)를 뺀다(위 줄과 같은 까닭) -->
+          지금 {view.rankLabel ? noun : '호봉'}과 {view.cumulative.tableYear}년 봉급표{view.showIdentityHome &&
+          salary
+            ? `(${salary.annex})`
+            : ''}를 임용일부터 그대로 적용한 어림값이에요({view.rankLabel
             ? `과거 봉급표·승진 전 ${noun}은`
             : '과거 봉급표는'} 반영하지 않음).
         </p>
