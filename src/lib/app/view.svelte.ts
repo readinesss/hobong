@@ -86,7 +86,14 @@ import {
   resolveLook,
   type MoodId,
 } from '../character/look.ts';
-import { jikryuOf, propOwnerOf, seriesLabel, seriesNameOf } from '../character/series.ts';
+import {
+  isOwnSeriesName,
+  jikryuOf,
+  propOwnerOf,
+  seriesLabel,
+  seriesNameOf,
+  seriesWord,
+} from '../character/series.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
 import {
@@ -226,13 +233,23 @@ class View {
    * (identity.showSeriesHome·card.showSeries)을 보고 보인다.
    */
   seriesName = $derived(seriesNameOf(this.profile.series, this.seriesScope));
+  /**
+   * 고른 이름이 두 표 밖의 '직접 적은 이름'인지(#38). 직렬 표가 있는 직종에서만 참이다.
+   * 직접 적은 이름에는 '직렬'을 붙이지 않는다(법령의 직렬처럼 보이지 않게)
+   */
+  seriesOwn = $derived(this.seriesName !== null && isOwnSeriesName(this.profile.series));
+  /** 카드에 넣는 직렬 글자: '행정 직렬' / 직접 적은 이름은 그대로('경찰행정'). 직류는 넣지 않는다 */
+  seriesCardText = $derived(this.seriesName === null ? null : seriesWord(this.seriesName));
   /** 이 브라우저 안의 화면(홈·설정)에 보일 직렬 이름: '행정 · 교육행정 직류'(직류를 골랐을 때) / '행정' */
   seriesFullName = $derived(seriesLabel(this.profile, this.seriesScope));
-  /** 홈 상태창의 직렬 줄: '행정 직렬 · 교육행정 직류' / '간호 직렬'. 공개 설정(showSeriesHome)은 화면이 본다 */
+  /**
+   * 홈 상태창의 직렬 줄: '행정 직렬 · 교육행정 직류' / '간호 직렬' / 직접 적은 이름은 그대로('경찰행정').
+   * 공개 설정(showSeriesHome)은 화면이 본다
+   */
   seriesHomeText = $derived.by(() => {
     if (this.seriesName === null) return null;
     const jikryu = jikryuOf(this.profile.series, this.profile.seriesJikryu, this.seriesScope);
-    return `${this.seriesName} 직렬${jikryu ? ` · ${jikryu} 직류` : ''}`;
+    return `${seriesWord(this.seriesName)}${jikryu ? ` · ${jikryu} 직류` : ''}`;
   });
   /** 홈에 직렬·계급 이름을 보일지(settings.identity.showSeriesHome, 기본 켬) */
   showIdentityHome = $derived(this.data.settings.identity.showSeriesHome);

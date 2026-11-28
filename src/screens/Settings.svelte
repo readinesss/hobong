@@ -356,8 +356,11 @@
           <div class="kv" id="set-series">
             <dt>직렬</dt>
             <dd>
-              {view.seriesFullName ??
-                (profile.series !== null ? `${profile.series} (목록에 없음)` : '고르지 않음')}
+              {view.seriesFullName
+                ? `${view.seriesFullName}${view.seriesOwn ? ' (직접 적은 이름)' : ''}`
+                : profile.series !== null
+                  ? `${profile.series} (목록에 없음)`
+                  : '고르지 않음'}
             </dd>
           </div>
         {/if}

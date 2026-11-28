@@ -418,7 +418,8 @@ test.describe('호봉이 꾸미기(#17·#16)', () => {
     expect(stored?.profile.nickname).toBe('새버전');
     expect(stored?.character.look).toEqual(future.data.character.look);
     expect(stored?.profile.series).toBe('없는직렬');
-    await expect(page.locator('#set-series')).toContainText('목록에 없음');
+    // 두 표 어디에도 없는 이름은 직접 적은 이름으로 본다(#38 — 지우지 않고 그대로 보인다)
+    await expect(page.locator('#set-series')).toContainText('없는직렬 (직접 적은 이름)');
 
     // 그릴 때만 기본값으로: 햇살 몸, 장식 없이 볼 터치만
     await expect(page.locator('#set-look [role="img"]')).toHaveAttribute(

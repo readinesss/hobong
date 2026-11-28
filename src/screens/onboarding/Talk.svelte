@@ -38,7 +38,12 @@
     type PropRule,
   } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
-  import { propOwnerOf, seriesLabel, themeOfSeries } from '../../lib/character/series.ts';
+  import {
+    isOwnSeriesName,
+    propOwnerOf,
+    seriesLabel,
+    themeOfSeries,
+  } from '../../lib/character/series.ts';
   import { env } from '../../lib/fx/core.ts';
   import { emitCue } from '../../lib/fx/cues.ts';
   import {
@@ -544,12 +549,16 @@
       else if (id === 'track') value = trackChipLabel(d.trackRules);
       else if (id === 'payTable')
         value = GENERAL_PAY_TABLE_LABEL[d.payTable ?? 'table3'] ?? String(d.payTable);
-      else if (id === 'series')
-        value =
-          seriesLabel({ series: d.series, seriesJikryu: d.seriesJikryu }, d.seriesScope) ??
-          d.series ??
-          '고르지 않음';
-      else if (id === 'prop')
+      else if (id === 'series') {
+        const label = seriesLabel(
+          { series: d.series, seriesJikryu: d.seriesJikryu },
+          d.seriesScope,
+        );
+        // 직접 적은 이름(#38)은 설정·목록처럼 표의 직렬과 구별해 보인다
+        value = label
+          ? `${label}${isOwnSeriesName(d.series) ? ' (직접 적은 이름)' : ''}`
+          : (d.series ?? '고르지 않음');
+      } else if (id === 'prop')
         value =
           suggested && look.prop === suggested.id
             ? suggested.name

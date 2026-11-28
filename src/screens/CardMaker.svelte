@@ -99,7 +99,8 @@
     maxReached: view.noRaiseReason === 'max' || view.noRaiseReason === 'retire',
     facts: [
       // 직렬은 소속을 짐작하게 할 수 있어 '직렬 이름 넣기'(기본 끔)를 켰을 때만
-      ...(card.showSeries && view.seriesName ? [`${view.seriesName} 직렬`] : []),
+      // 직접 적은 이름(#38)은 '직렬'을 붙이지 않고 그대로(view.seriesCardText)
+      ...(card.showSeries && view.seriesCardText ? [view.seriesCardText] : []),
       // 일수까지 적으면 카드 날짜에서 임용일이 하루 단위로 역산되므로 연·월까지만 쓴다.
       ...(card.showTenure ? [`재직 ${formatSpan({ ...view.tenure, days: 0 })}`] : []),
       ...(card.showRetirement && view.retireDate !== null && view.career
@@ -516,8 +517,12 @@
               <span>직렬 이름 넣기</span>
             </label>
             <p class="cap muted" id="card-show-series-hint">
-              직렬은 소속을 짐작하게 할 수 있어 기본으로 넣지 않아요. 넣지 않아도 호봉이가 든
-              소품으로 짐작될 수 있어요(소품은 설정 '호봉이 꾸미기'에서 바꿔요).
+              직렬은 소속을 짐작하게 할 수 있어 기본으로 넣지 않아요.
+              <!-- 직접 적은 이름(#38)에는 정해진 소품이 없어 소품으로 짐작된다는 말이 맞지 않는다 -->
+              {#if !view.seriesOwn}
+                넣지 않아도 호봉이가 든 소품으로 짐작될 수 있어요(소품은 설정 '호봉이 꾸미기'에서
+                바꿔요).
+              {/if}
             </p>
           {/if}
           <label class="switch">

@@ -718,7 +718,7 @@ describe('손 소품 테두리 빛(propHalo): 날개·꼬리 위에서 묻히지
   });
 });
 
-describe('직렬 데이터(data/series.json schema 2, 공무원임용령 별표 1·2 · 지방공무원 임용령 별표 1)', () => {
+describe('직렬 데이터(data/series.json schema 3, 공무원임용령 별표 1·2 · 지방공무원 임용령 별표 1)', () => {
   const flat = (scope: 'national' | 'local') =>
     groupsOf(scope).flatMap((g) => g.series.map((s) => ({ ...s, group: g.name, src: g.source })));
   const national = flat('national');
@@ -742,7 +742,7 @@ describe('직렬 데이터(data/series.json schema 2, 공무원임용령 별표 
   };
 
   it('국가: 별표 1·2 의 일반직 52개 직렬을 네 직군에 원문 순서로 담는다(국가 그룹만 본다)', () => {
-    expect(seriesData.schema).toBe(2);
+    expect(seriesData.schema).toBe(3);
     expect(national).toHaveLength(52);
     expect(new Set(national.map((s) => s.name)).size).toBe(52);
     expect(groupsOf('national').map((g) => [g.name, g.series.length])).toEqual([
@@ -846,7 +846,10 @@ describe('직렬 데이터(data/series.json schema 2, 공무원임용령 별표 
       seriesLabel({ series, seriesJikryu: jikryu }, scopeOf(track));
     expect(label('간호', null)).toBe('간호');
     expect(label('간호', null, 'police')).toBeNull();
-    expect(label('없는직렬', null)).toBeNull();
+    // 두 표 어디에도 없는 이름은 직접 적은 이름으로 그대로 보인다(#38). 다른 표에만 있는 이름은 보이지 않는다
+    expect(label('없는직렬', null)).toBe('없는직렬');
+    expect(label('없는직렬', null, 'police')).toBeNull();
+    expect(label('보건진료', null)).toBeNull();
     expect(label(null, null)).toBeNull();
     // 직류: 그 직렬의 직류만 보이고, 같은 이름의 단일 직류·짝이 안 맞는 직류·목록에 없는 직류는 직렬만
     expect(label('행정', '교육행정')).toBe('행정 · 교육행정 직류');

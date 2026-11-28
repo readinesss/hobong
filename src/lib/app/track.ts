@@ -18,7 +18,13 @@ import {
   type Unavailable,
   type UnavailableStatus,
 } from '../rules/types.ts';
-import { otherScope, SERIES_TABLE_NAME, type SeriesHit } from '../character/series.ts';
+import {
+  foundExactly,
+  otherScope,
+  SERIES_TABLE_NAME,
+  type SeriesFind,
+  type SeriesHit,
+} from '../character/series.ts';
 import { josa } from './format.ts';
 
 /** 꺼진 항목의 상태 이름(색이 아니라 글자로 구별한다) */
@@ -327,15 +333,47 @@ export function otherTableNote(
   const id = TRACK_IDS.find((t) => rules.tracks.items[t].seriesScope === other);
   if (!id || hits.length === 0) return null;
   const b = resolveCareer(rules, defaultSel(rules, id));
+  // 옛 이름으로 맞았으면 그 이름을 밝힌다(왜 그 직렬이 나왔는지 알게 — 목록의 hitText 와 같은 '예전 ○○ 직렬')
   const names = hits.map((h) =>
     h.by === 'jikryu'
       ? `${h.series} 직렬의 ${h.jikryu} 직류(${h.group} 직군)`
-      : `${h.series} 직렬(${h.group} 직군)`,
+      : `${h.series} 직렬(${h.alias ? `예전 ${h.alias} 직렬, ` : ''}${h.group} 직군)`,
   );
   return {
     title: `${SERIES_TABLE_NAME[other]}에 있어요: ${someOf(names, 4)}.`,
     who: `${josa(SCOPE_WHO[other], '이면', '면')} 직종에서 ${josa(b.track.label, '을', '를')} 골라 주세요.`,
     diff: careerDiffText(careerDiff(career, b)),
+  };
+}
+
+/**
+ * 직렬 찾기의 직종 말(#38): 찾는 글자(공백을 지운 것)에 다른 직종의 이름(규정 데이터 tracks.items[*].label,
+ * 공백을 지운 2자 이상)이 들어 있으면 그 직종이 따로 있다고 알린다('경찰행정' → 경찰). 직종을 저절로 바꾸지 않는다.
+ * - 지금 직종과 직렬 표가 있는 직종(seriesScope — 다른 표 안내가 맡는다)은 뺀다. 겹치면 긴 이름만('해양경찰행정' → 해양경찰).
+ * - 지금 표에서 이름이 같게 찾았으면(foundExactly) 보이지 않는다. 그 밖에는 결과가 있어도 보인다('경찰' → 철도경찰).
+ * 직종 id 로 가르지 않는다(이름과 seriesScope 만 본다). label 뒤에 '공무원'을 기계적으로 붙이지 않는다('교원 공무원')
+ */
+export function trackWordNote(
+  rules: Rules,
+  career: CareerRules,
+  find: SeriesFind,
+): { labels: string[]; text: string } | null {
+  if (find.needle === '' || foundExactly(find)) return null;
+  const words = TRACK_IDS.map((id) => rules.tracks.items[id])
+    .filter((t) => t.seriesScope === undefined && t.label !== career.track.label)
+    .map((t) => ({ label: t.label, word: t.label.replace(/\s+/g, '') }))
+    .filter((t) => t.word.length >= 2 && find.needle.includes(t.word));
+  const labels = words
+    .filter(
+      (t) =>
+        !words.some((o) => o !== t && o.word.length > t.word.length && o.word.includes(t.word)),
+    )
+    .map((t) => t.label);
+  if (labels.length === 0) return null;
+  const names = labels.join('·');
+  return {
+    labels,
+    text: `직종에 ${josa(names, '이', '가')} 따로 있어요. 해당하면 직종을 바꿔 주세요. 그 직종은 직렬을 고르지 않아요.`,
   };
 }
 
