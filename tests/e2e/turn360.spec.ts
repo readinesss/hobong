@@ -291,7 +291,11 @@ test.describe('호봉이 돌려 보기(#22)', () => {
     await tick(page, 600);
     expect(Number(await view.getAttribute('data-deg'))).not.toBe(before);
 
-    // 튕기기(30px × 4, 16ms 간격): 가로로 끌었으니 자동 회전은 꺼지고, 손을 뗀 뒤에도 더 돈다
+    // 튕기기(30px × 4, 16ms 간격): 가로로 끌었으니 자동 회전은 꺼지고, 손을 뗀 뒤에도 더 돈다.
+    // 관성은 손을 뗄 때의 속도로 정해진다. 가짜 시계는 세우지 않으면 실제 시간과 함께 흐르므로, 느린 기기에서
+    // 끄는 사이에 실제 시간이 끼어들어 속도가 0 으로 재어지지 않게 시계를 세워 두고 끈다(그 뒤로는 tick 만큼만 흐른다).
+    // 세우는 시각은 지금보다 넉넉히 뒤여야 한다(그사이에도 시계가 흘러 '지나간 시각'이 되면 세울 수 없다)
+    await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000));
     await drag(page, stage, 30, 4, 16);
     await expect(auto).toHaveAttribute('aria-pressed', 'false');
     const released = Number(await view.getAttribute('data-deg'));
