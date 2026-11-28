@@ -94,6 +94,53 @@ async function colorCount(page: Page, target: Locator): Promise<number> {
   }, png.toString('base64'));
 }
 
+/**
+ * 입체 캔버스(WebGL)에 실제로 그려진 색 수를 잰다.
+ * WebGL 그림은 화면에 넘긴 뒤에는 비워지고(preserveDrawingBuffer 끔) 스크린샷에 담기는지도 엔진마다 다르다.
+ * 그래서 앱이 한 프레임을 그린 **바로 그 자리에서**(같은 작업 안에서) 캔버스를 2D 로 옮겨 센다.
+ * 돌려받은 함수는 그동안 본 가장 큰 색 수를 돌려주고 다시 0 으로 둔다. openApp 뒤에 부른다(가짜 시계의 rAF 를 감싼다)
+ */
+async function watchSolid(page: Page): Promise<() => Promise<number>> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __solid: number; __solidWatch?: boolean };
+    w.__solid = 0;
+    if (w.__solidWatch) return;
+    w.__solidWatch = true;
+    const N = 64; // 복셀 프레임버퍼 한 변(캔버스는 그 정수배라 가장 가까운 칸으로 줄이면 색이 그대로다)
+    const probe = document.createElement('canvas');
+    probe.width = N;
+    probe.height = N;
+    const ctx = probe.getContext('2d', { willReadFrequently: true });
+    const raf = window.requestAnimationFrame.bind(window);
+    const read = () => {
+      const el = document.querySelector<HTMLCanvasElement>('canvas.solid');
+      if (!ctx || !el || el.width === 0) return;
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, N, N);
+      ctx.drawImage(el, 0, 0, N, N);
+      const data = ctx.getImageData(0, 0, N, N).data;
+      const seen = new Set<number>();
+      for (let i = 0; i < data.length; i += 4) {
+        if ((data[i + 3] ?? 0) === 0) continue;
+        seen.add(((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0));
+      }
+      if (seen.size > w.__solid) w.__solid = seen.size;
+    };
+    window.requestAnimationFrame = (cb) =>
+      raf((t) => {
+        cb(t);
+        read();
+      });
+  });
+  return () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __solid: number };
+      const n = w.__solid;
+      w.__solid = 0;
+      return n;
+    });
+}
+
 /** 다음 프레임 요청 수를 센다(fx/core 루프가 쉬는지) */
 async function countFrames(page: Page, ms: number): Promise<number> {
   await page.evaluate(() => {
@@ -117,16 +164,21 @@ test.describe('호봉이 돌려 보기(#22)', () => {
     const errors = collectErrors(page);
     const dialog = await openTurn(page, seed());
     const view = dialog.locator('.h360');
+    const solid = await watchSolid(page);
     // 처음에는 늘 2D 그림
     await expect(view).toHaveAttribute('data-view', '2d');
     await page.keyboard.press('ArrowRight');
     await tick(page, 300);
     await expect(view).toHaveAttribute('data-view', '3d');
     await expect(view).toHaveAttribute('data-deg', '45');
-    // 캔버스에 그림이 있다(빈 무대의 두 색보다 훨씬 많은 색)
+    // 캔버스는 복셀 64칸의 정수배(넓은 화면 6배 × 기기 배율 — WebKit 프로젝트는 2배 화면이다)
     const canvas = dialog.locator('canvas.solid');
-    expect(await canvas.evaluate((el) => (el as HTMLCanvasElement).width)).toBe(64 * 6);
-    expect(await colorCount(page, canvas)).toBeGreaterThan(6);
+    const dpr = await page.evaluate(() => window.devicePixelRatio);
+    expect(await canvas.evaluate((el) => (el as HTMLCanvasElement).width)).toBe(
+      64 * Math.round(6 * dpr),
+    );
+    // 캔버스에 그림이 있다(빈 무대의 두 색보다 훨씬 많은 색)
+    expect(await solid()).toBeGreaterThan(6);
     expect(errors).toEqual([]);
   });
 
@@ -277,20 +329,27 @@ test.describe('호봉이 돌려 보기(#22)', () => {
     await tick(page, 100);
     await expect(view).toHaveAttribute('data-ready', 'true');
     await expect(dialog.getByText(/잠시 입체로 그릴 수 없어/)).toHaveCount(0);
+    const solid = await watchSolid(page);
     await page.keyboard.press('ArrowRight');
-    await tick(page, 100);
+    await tick(page, 300);
     await expect(view).toHaveAttribute('data-view', '3d');
-    expect(await colorCount(page, dialog.locator('canvas.solid'))).toBeGreaterThan(6);
+    expect(await solid()).toBeGreaterThan(6);
     expect(errors).toEqual([]);
   });
 
   test('고대비에서도 캔버스가 정수배 크기 그대로다', async ({ page }) => {
     await page.emulateMedia({ forcedColors: 'active' });
     const dialog = await openTurn(page, seed());
-    const size = await dialog
+    const [width, shown, dpr] = await dialog
       .locator('canvas.solid')
-      .evaluate((el) => [(el as HTMLCanvasElement).width, el.getBoundingClientRect().width]);
-    expect(size[1]).toBe(size[0]);
+      .evaluate((el) => [
+        (el as HTMLCanvasElement).width,
+        el.getBoundingClientRect().width,
+        window.devicePixelRatio,
+      ]);
+    // 테두리가 캔버스를 줄이지 않는다: 보이는 크기 × 기기 배율이 캔버스 칸 수와 같고, 그 수는 64 의 정수배다
+    expect((shown ?? 0) * (dpr ?? 1)).toBe(width);
+    expect((width ?? 0) % 64).toBe(0);
   });
 
   test('WebGL 을 쓸 수 없으면 2D 그대로 두고 한 줄로 알린다', async ({ page }) => {
