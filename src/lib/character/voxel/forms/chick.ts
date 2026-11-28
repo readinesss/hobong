@@ -5,7 +5,7 @@
 import { ellipsoid, smooth, mirrorX, cutBelow, rimFill, type Grid } from '../kit.ts';
 import { G, headSdf, fillBody, regionPlate, legs, type Env } from '../parts.ts';
 
-export function build(g: Grid, env: Env): void {
+export function* build(g: Grid, env: Env): Generator<void, void, void> {
   const hy = env.headY;
   const head = headSdf(hy, { z: 0.3, rz: 9.6, ry: 9.2 });
   const belly = ellipsoid(24, hy + 14.6, 0, 13.6, 6.8, 10.8);
@@ -25,6 +25,7 @@ export function build(g: Grid, env: Env): void {
     ],
   });
   for (const pi of pset) if (g.parts[pi]!.name !== 'beak') rimFill(g, pi, 2);
+  yield;
   // 솜털: 앞으로 살짝 굽은 두 잎
   regionPlate(g, env, {
     name: 'tuft',

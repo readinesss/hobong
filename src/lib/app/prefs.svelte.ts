@@ -6,6 +6,7 @@
  * - packageGuide: 임용정보 패키지 안내 창의 상태.
  *   'pending' 첫 입력을 마쳐 안내를 보일 차례 / 'later' '나중에'를 눌렀다(다시 묻지 않는다) / 'done' 받았다.
  *   값이 없으면(예전부터 쓰던 사람·패키지로 이어한 사람) 안내 창을 띄우지 않는다.
+ * - turnAuto: 호봉이 돌려 보기(#22)에서 자동 회전을 켜 두었는지. 값이 없으면 켠다(움직임 줄이기에서는 늘 끈다).
  *
  * 저장소를 쓸 수 없으면(사생활 보호 창·정책) 이 탭의 메모리에만 둔다. 읽기·쓰기 실패는 조용히 넘긴다.
  */
@@ -17,6 +18,7 @@ export type PackageGuide = 'pending' | 'later' | 'done';
 export interface Prefs {
   onboardMode?: OnboardMode;
   packageGuide?: PackageGuide;
+  turnAuto?: boolean;
 }
 
 const MODES: readonly string[] = ['talk', 'form'];
@@ -34,6 +36,7 @@ export function parsePrefs(raw: string | null): Prefs {
       out.onboardMode = dict.onboardMode as OnboardMode;
     if (typeof dict.packageGuide === 'string' && GUIDES.includes(dict.packageGuide))
       out.packageGuide = dict.packageGuide as PackageGuide;
+    if (typeof dict.turnAuto === 'boolean') out.turnAuto = dict.turnAuto;
     return out;
   } catch {
     return {};
@@ -86,15 +89,22 @@ class PrefsStore {
     return this.value.packageGuide;
   }
 
+  get turnAuto(): boolean | undefined {
+    return this.value.turnAuto;
+  }
+
   set(patch: Prefs): void {
     this.value = { ...this.#fresh(), ...patch };
     this.#save();
   }
 
-  /** 데이터를 모두 지울 때: 패키지 안내 상태는 처음으로, 고른 입력 방식은 기기 편의라 남긴다 */
+  /** 데이터를 모두 지울 때: 패키지 안내 상태는 처음으로, 고른 입력 방식·자동 회전은 기기 편의라 남긴다 */
   resetForNewStart(): void {
-    const { onboardMode } = this.#fresh();
-    this.value = onboardMode ? { onboardMode } : {};
+    const { onboardMode, turnAuto } = this.#fresh();
+    this.value = {
+      ...(onboardMode ? { onboardMode } : {}),
+      ...(turnAuto !== undefined ? { turnAuto } : {}),
+    };
     this.#save();
   }
 

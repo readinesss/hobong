@@ -31,6 +31,7 @@
   import { defaultLook } from '../../lib/store/defaults.ts';
   import type { CharacterLook } from '../../lib/store/schema.ts';
   import ChipRadio from '../../lib/ui/ChipRadio.svelte';
+  import Hobong360Dialog from '../../lib/ui/Hobong360Dialog.svelte';
   import Icon from '../../lib/ui/Icon.svelte';
   import Sprite from '../../lib/ui/Sprite.svelte';
 
@@ -70,6 +71,8 @@
     .join(' ');
 
   let mood = $state<MoodId>('work');
+  /** 고르는 중인 모습을 옆·뒤에서 보는 창(#22) */
+  let turning = $state(false);
   let status = $state('');
   /** 넓은 화면(900px~): 미리보기를 왼쪽 열에 고정하고 고르는 칸은 오른쪽에서 스크롤한다 */
   let wide = $state(false);
@@ -339,6 +342,14 @@
         <button type="button" class="btn small" onclick={reset}>
           <Icon name="icon-undo" /> 기본으로
         </button>
+        <button
+          type="button"
+          class="btn small"
+          id="{idPrefix}-turn"
+          onclick={() => (turning = true)}
+        >
+          <Icon name="icon-turn" /> 돌려 보기
+        </button>
       </div>
       <!-- 결과 문장이 들어와도 아래가 밀리지 않게 설명 자리를 결과 문장이 대신한다(높이는 두 줄로 잡아 둔다) -->
       <div class="say">
@@ -455,6 +466,15 @@
     )}
   </div>
 </div>
+
+{#if turning}
+  <Hobong360Dialog
+    look={preview}
+    label={previewName}
+    caption="고르는 중인 모습이에요. 옆·뒤에서도 고른 색과 장식이 보여요."
+    onclose={() => (turning = false)}
+  />
+{/if}
 
 <style>
   .editor {

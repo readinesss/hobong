@@ -5,7 +5,7 @@ import type { Grid } from '../kit.ts';
 import { G, type Env } from '../parts.ts';
 import { birdBody, crest, wing, tailNub, legs, ellipsoid, union, capsule } from './bird-base.ts';
 
-export function build(g: Grid, env: Env): void {
+export function* build(g: Grid, env: Env): Generator<void, void, void> {
   const hy = env.headY; // 13
   birdBody(g, env, {
     torso: [hy + 18.6, 11.4, 6.6, 9.2, 2.8],
@@ -17,6 +17,7 @@ export function build(g: Grid, env: Env): void {
       [35.7, hy + 16.2, 0.6, 38.1, hy + 21.8, 1.8, 2.4, 2.3],
     ],
   });
+  yield;
   crest(g, env);
   wing(g, env, {
     name: 'wingL',
@@ -34,6 +35,7 @@ export function build(g: Grid, env: Env): void {
     sweep: 0.3,
     curve: 0.022,
   });
+  yield;
   // 짧은 파란 꽁지깃(뒤·옆에서만 보인다)
   tailNub(g, env, {
     sdf: union(

@@ -6,6 +6,8 @@
   import { HAND_SLOT, resolveLook, stageLabels, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import type { AchievementView } from '../lib/achievements.ts';
+  import { lookName } from '../lib/character/customize.ts';
+  import Hobong360Dialog from '../lib/ui/Hobong360Dialog.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import Modal from '../lib/ui/Modal.svelte';
   import Sprite from '../lib/ui/Sprite.svelte';
@@ -54,6 +56,8 @@
     }),
   );
   const seenCount = $derived(forms.filter((f) => f.known).length);
+  /** 돌려 보는 도감 모습(#22) */
+  let turning = $state<(typeof forms)[number] | null>(null);
 
   const unlocks = $derived(
     unlockList(characterRules).map((u) => ({
@@ -88,16 +92,19 @@
       <ul class="dex">
         {#each forms as item (item.form.id)}
           <li class="well" class:current={item.current}>
-            <div class="pic">
-              {#if item.known}
-                <Sprite
-                  look={item.look}
-                  scale={2}
-                  animate={false}
-                  pose={{ plain: true }}
-                  label="{item.form.name}의 모습"
-                />
-              {:else}
+            {#if item.known}
+              <!-- 만난 모습은 눌러서 돌려 볼 수 있다(#22) -->
+              <button
+                type="button"
+                class="pic turnable"
+                onclick={() => (turning = item)}
+                aria-label="{item.form.name}의 모습 돌려 보기"
+              >
+                <Sprite look={item.look} scale={2} animate={false} pose={{ plain: true }} />
+                <span class="turn-mark" aria-hidden="true"><Icon name="icon-turn" /></span>
+              </button>
+            {:else}
+              <div class="pic">
                 <Sprite
                   look={item.look}
                   scale={2}
@@ -105,8 +112,8 @@
                   pose={{ plain: true, silhouette }}
                   label="아직 만나지 못한 모습"
                 />
-              {/if}
-            </div>
+              </div>
+            {/if}
             <strong>{item.known ? item.form.name : '???'}</strong>
             <span class="cap muted">{item.gradeLabel}</span>
             {#if item.current}<span class="tag blue">지금</span>{:else if item.passed}<span
@@ -224,6 +231,15 @@
   </Modal>
 {/if}
 
+{#if turning}
+  <Hobong360Dialog
+    look={turning.look}
+    label="{turning.form.name}. {lookName(characterRules, turning.look)}"
+    caption="도감의 {turning.form.name}{turning.current ? '(지금 모습)' : ''}"
+    onclose={() => (turning = null)}
+  />
+{/if}
+
 <style>
   .page {
     display: grid;
@@ -260,6 +276,27 @@
     place-items: end center;
     width: 96px;
     height: 96px;
+  }
+  .turnable {
+    position: relative;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .turnable:hover {
+    background: rgba(127, 140, 160, 0.18);
+  }
+  .turnable:focus-visible {
+    outline: 2px dashed var(--ink);
+    outline-offset: 3px;
+  }
+  .turn-mark {
+    position: absolute;
+    top: 0;
+    right: 0;
+    line-height: 0;
   }
   .unlocks {
     display: grid;

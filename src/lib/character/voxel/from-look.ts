@@ -59,13 +59,22 @@ export function voxelInput(
   const layers: Layer[] = [{ sprite: body }];
   if (eyesSprite) layers.push({ sprite: eyesSprite });
   const items: VoxelItem[] = [];
+  const halos: [Uint8Array, number, number][] = [];
   for (const part of look.parts) {
     if (part.animated || part.sprite === shadow) continue;
     const raw = src.getSprite(part.sprite);
     if (!raw) continue;
     const sprite = skinSprite(raw, look.paint.body);
-    layers.push({ sprite, remap: part.remap, halo: part.halo });
     const st = stamp(sprite, base, part.remap);
+    // 테두리 빛(손 소품이 날개·꼬리 위에 겹친 칸의 밝은 1px): 2D 와 같은 칸을 소품 그림에 넣어 입체에서도 소품 둘레에 남긴다
+    if (part.halo !== undefined) {
+      const layer: Layer = { sprite, remap: part.remap };
+      const plain = compose([...layers, layer], { w: W, h: H, body }).pixels;
+      const lit = compose([...layers, { ...layer, halo: part.halo }], { w: W, h: H, body }).pixels;
+      for (let i = 0; i < W * H; i++)
+        if (lit[i] !== plain[i] && st.px[i] === TRANSPARENT) halos.push([st.px, i, part.halo]);
+    }
+    layers.push({ sprite, remap: part.remap, halo: part.halo });
     // 쥔 날개 끝(@skin) 칸: 몸 묶음으로 그린다
     let skin: Uint8Array | null = null;
     if (raw.skin) {
@@ -94,6 +103,8 @@ export function voxelInput(
     });
   }
   const ref = compose(layers, { w: W, h: H, body }).pixels;
+  // 뒤에 얹힌 부품에 가려지지 않은 테두리 빛 칸만
+  for (const [px, i, color] of halos) if (ref[i] === color) px[i] = color;
   const eyesPx = eyesSprite ? stamp(eyesSprite, base).px : new Uint8Array(W * H).fill(TRANSPARENT);
   return {
     form: look.form.id,

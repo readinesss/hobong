@@ -193,6 +193,11 @@ export interface VoxelRenderer {
   draw(yawDeg: number, pitchDeg?: number, opt?: DrawOptions): DrawInfo;
   /** 점검: 마지막으로 그린 깊이·묶음 버퍼(N×N, 위가 첫 행). [깊이(복셀), 묶음, 색 번호, 살갗, 명암 단] */
   readData(): number[][][];
+  /**
+   * 파이프라인 데우기: 그린 뒤 1px 을 읽어 GPU 가 실제로 그리게 한다. 소프트웨어 GL(SwiftShader)은 합성 셰이더를
+   * 처음 실행할 때 수백 ms 걸리므로, 아직 2D 그림이 보이는 동안 한 번 불러 그 멈춤을 입체가 처음 보이는 순간에서 떼어 낸다
+   */
+  warm(): void;
   /** GPU 자원을 놓는다(대화상자를 닫을 때) */
   dispose(): void;
 }
@@ -400,7 +405,9 @@ function build(
     const k = 2 / N,
       ky = k / cp; // 앞면 한 행이 화면 한 줄이 되게 세로를 1/cos(pitch) 늘린다
     const off = (row: readonly [number, number, number]) => row[0] * tx + row[1] * ty;
-    const lift = opt.lift ?? 0;
+    // 내려다본 정도(0 정면 ~ 1 가장 높이): 떠 있는 몸은 그만큼 띄우고 그림자는 내린다
+    const look = Math.min(1, Math.abs(pitchDeg) / view.pitch);
+    const lift = (opt.lift ?? 0) + (meta?.shadowRise ?? 0) * look;
     const M = new Float32Array([
       r0[0] * k,
       r1[0] * ky,
@@ -490,14 +497,14 @@ function build(
     gl.uniform2fv(U(pComp, 'uStampT'), stt);
     const o0 = pal(0);
     gl.uniform4f(U(pComp, 'uOutline'), o0[0] / 255, o0[1] / 255, o0[2] / 255, 1);
-    // 그림자: 발밑 바닥(24, groundY, 0)의 화면 자리. 떠 있는 몸(봉황)은 작은 그림자를 조금 더 아래에
-    const gy =
-      (meta?.groundY ?? 45.5) -
-      pivotY +
-      (meta?.shadowDrop ?? 0) * Math.min(1, Math.abs(pitchDeg) / view.pitch);
+    // 그림자: 발밑 바닥(24, groundY, 0)의 화면 자리. 떠 있는 몸(봉황)은 내려다볼수록 조금 더 아래에
+    const gy = (meta?.groundY ?? 45.5) - pivotY + (meta?.shadowDrop ?? 0) * look;
     const shadowR = opt.shadow !== false && meta ? meta.shadowR : 0;
     gl.uniform3f(U(pComp, 'uShadow'), N / 2, N / 2 - gy, shadowR); // gl_FragCoord 는 아래가 0
-    gl.uniform1f(U(pComp, 'uShadowY'), Math.min(meta?.shadowFlat ?? 9, Math.max(0.16, sp / cp)));
+    gl.uniform1f(
+      U(pComp, 'uShadowY'),
+      Math.min(meta?.shadowFlat ?? 9, Math.max(meta?.shadowFlat0 ?? 0.16, sp / cp)),
+    );
     const sc = pal(opt.shadowInk ?? view.shadowColor);
     gl.uniform3f(U(pComp, 'uShadowC'), sc[0] / 255, sc[1] / 255, sc[2] / 255);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -526,10 +533,13 @@ function build(
     }
     return out;
   }
+  function warm() {
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  }
   function dispose() {
     mesh = null;
     meta = null;
     gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
-  return { gl, N, S, setModel, draw, readData, dispose };
+  return { gl, N, S, setModel, draw, readData, warm, dispose };
 }

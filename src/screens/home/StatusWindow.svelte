@@ -8,6 +8,8 @@
   import { characterRules } from '../../lib/character/rules.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { formatKorean } from '../../lib/calc/date.ts';
+  import Hobong360Dialog from '../../lib/ui/Hobong360Dialog.svelte';
+  import Icon from '../../lib/ui/Icon.svelte';
   import Progress from '../../lib/ui/Progress.svelte';
   import Sprite from '../../lib/ui/Sprite.svelte';
   import Win from '../../lib/ui/Win.svelte';
@@ -19,6 +21,8 @@
   let { nudge }: Props = $props();
 
   let scale = $state(4);
+  /** 돌려 보기(#22) 창. 홈 무대 자체는 돌리지 않는다(무대의 끌기는 쓰다듬기 #25 자리) */
+  let turning = $state(false);
 
   onMount(() => {
     const wide = window.matchMedia('(min-width: 1100px)');
@@ -83,10 +87,21 @@
 
     <div class="stack wide info">
       <div class="stack">
-        <p class="row wrap">
+        <div class="row wrap who">
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
-        </p>
+          <!-- 돌려 보기(#22): 무대 바로 아래, 글자와 함께 늘 보이게(무대 구석의 아이콘만으로는 '새로 고침'처럼 읽혔다).
+               무대 자체는 돌리지 않는다(무대의 끌기는 쓰다듬기 #25 자리) -->
+          <button
+            type="button"
+            class="btn small turn"
+            id="status-turn"
+            onclick={() => (turning = true)}
+            aria-label="호봉이 돌려 보기"
+          >
+            <Icon name="icon-turn" /> 돌려 보기
+          </button>
+        </div>
         {#if view.showIdentityHome && view.seriesHomeText}
           <!-- 직렬은 소속을 짐작하게 할 수 있다. 설정 '홈에 직렬·계급 이름 보이기'를 켰을 때만 -->
           <p class="cap" id="status-series">{view.seriesHomeText}</p>
@@ -172,6 +187,14 @@
   </div>
 </Win>
 
+{#if turning}
+  <Hobong360Dialog
+    {look}
+    label="호봉이. {lookName(characterRules, look)}, {look.moodLabel}"
+    onclose={() => (turning = false)}
+  />
+{/if}
+
 <style>
   .status {
     display: grid;
@@ -219,6 +242,13 @@
       -3px 0 0 0 #1a1c2c,
       3px 0 0 0 #1a1c2c,
       0 3px 0 0 #1a1c2c;
+  }
+  .who {
+    margin: 0;
+  }
+  /* 돌려 보기: 이름 줄 오른쪽 끝(좁으면 다음 줄로) */
+  .turn {
+    margin-left: auto;
   }
   .nick {
     min-width: 0;

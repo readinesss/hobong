@@ -11,10 +11,10 @@
  */
 import type { Look } from '../look.ts';
 import { voxelInput, voxelKey } from './from-look.ts';
-import { generateSteps, STEP_COUNT, type VoxelResult } from './generate.ts';
+import { generateSteps, type VoxelResult } from './generate.ts';
 import { buildMesh, type VoxelMesh } from './mesh.ts';
 
-export { voxelKey, STEP_COUNT };
+export { voxelKey };
 
 export interface VoxelModel {
   key: string;
@@ -53,13 +53,15 @@ export function clearModels(): void {
 }
 
 /**
- * 프레임마다 한 단계씩 만드는 일. 돌려준 함수를 부를 때마다 한 단계(가장 긴 단계도 수십 ms 안)를 하고,
- * 더 할 일이 있으면 true, 끝났으면 done(모형 또는 null — 몸통 그림이 없을 때)을 부르고 false.
+ * 프레임마다 나눠 만드는 일. 돌려준 함수를 부를 때마다 budgetMs 를 넘기 전까지 단계를 잇달아 하고(적어도 한 단계.
+ * 가장 긴 단계도 데워진 뒤 10ms 남짓), 더 할 일이 있으면 true, 끝났으면 done(모형 또는 null — 몸통 그림이 없을 때)을 부르고 false.
+ * 빠른 기기는 두세 프레임에, 느린 기기는 한 프레임에 한 단계씩 끝난다.
  * 캐시에 있으면 첫 호출에 바로 끝난다. cancel() 하면 다음 호출에서 아무것도 하지 않고 false.
  */
 export function modelJob(
   look: Look,
   done: (m: VoxelModel | null) => void,
+  budgetMs = 8,
 ): { (): boolean; cancel(): void } {
   const key = voxelKey(look);
   let it: Generator<unknown, VoxelResult, void> | null = null;
@@ -85,7 +87,8 @@ export function modelJob(
       ref = input.ref;
       it = generateSteps(input);
     }
-    const r = it.next();
+    let r = it.next();
+    while (!r.done && performance.now() - t0 < budgetMs) r = it.next();
     ms += performance.now() - t0;
     if (!r.done) return true;
     over = true;
@@ -108,6 +111,11 @@ export function buildModel(look: Look): VoxelModel | null {
   });
   while (job());
   return out;
+}
+
+/** 들고 있던 메시를 놓는다(돌려 보기 창을 닫을 때. 모형 캐시는 작아서 그대로 둔다) */
+export function releaseMesh(): void {
+  lastMesh = null;
 }
 
 /** 모형의 메시(마지막으로 부른 모형 하나만 기억한다) */

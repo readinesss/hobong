@@ -17,6 +17,8 @@ export interface PoseOptions {
   silhouette?: number;
   /** 그림자·효과를 빼고 몸통과 소품만 */
   plain?: boolean;
+  /** 효과(움직이는 부품: 반짝이·동전 등)만 빼고 그림자는 둔다. 돌려 보기(#22)의 2D 장면이 입체와 같은 것만 그리게 */
+  still?: boolean;
   /** 그림자를 이 색(팔레트 인덱스)으로 칠한다. 어두운 바닥에서 그림자가 묻히지 않게(야근 모드) */
   shadowInk?: number;
 }
@@ -48,6 +50,7 @@ export function poseOf(look: Look, options: PoseOptions = {}) {
     const sprite = skinSprite(raw, look.paint.body);
     const isShadow = part.sprite === shadow;
     if (options.plain && (part.animated || isShadow)) continue;
+    if (options.still && part.animated) continue;
     const remap =
       isShadow && options.shadowInk !== undefined
         ? { ...part.remap, [SHADOW_COLOR]: options.shadowInk }

@@ -413,6 +413,25 @@ describe('공용 루프', () => {
     expect(activeJobs()).toBe(1);
   });
 
+  it('일 안에서 다른 일을 깨워도 다음 프레임 요청은 하나다', () => {
+    const frames = fakeFrames();
+    let inner = 0;
+    const second = () => {
+      inner += 1;
+      return true;
+    };
+    const first = () => {
+      wake(second);
+      return true;
+    };
+    wake(first);
+    frames.frame();
+    expect(frames.pending).toBe(1);
+    frames.frame();
+    expect(frames.pending).toBe(1);
+    expect(inner).toBe(1);
+  });
+
   it(`끊긴 뒤의 dt 는 ${MAX_DT}ms 로 묶는다`, () => {
     const frames = fakeFrames();
     const seen: number[] = [];

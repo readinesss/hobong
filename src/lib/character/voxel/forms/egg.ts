@@ -21,7 +21,7 @@ import {
 } from '../kit.ts';
 import { G, headSdf, fillBody, type Env } from '../parts.ts';
 
-export function build(g: Grid, env: Env): void {
+export function* build(g: Grid, env: Env): Generator<void, void, void> {
   const hy = env.headY;
   // 머리: 앞뒤 단면은 타원(q=2)이라 위에서 보면 원에 가깝고 정수리가 둥글다(비스듬히 볼 때 네모 식빵이 되지 않게)
   const head = headSdf(hy, { z: 0.4, rz: 9.4, q: 2, p: 2.2 });
@@ -44,6 +44,7 @@ export function build(g: Grid, env: Env): void {
   });
   for (const pi of pset) if (g.parts[pi]!.name !== 'beak') rimFill(g, pi, 1);
 
+  yield;
   // 껍데기: 열마다 윗가장자리(2D 에서 껍데기 칸이 처음 나오는 행)
   // 껍데기 가면: 흰 칸 + 톱니 외곽선(안쪽 선). 선 칸을 비워 두면 껍데기를 앞뒤로 꿰뚫는 틈이 되어 비스듬히 볼 때 검은 줄이 선다.
   // 그래서 껍데기에 넣고 앞면에만 검게 칠한다(앞모습은 2D 그대로, 뒤·옆은 흰 껍데기)
@@ -86,6 +87,7 @@ export function build(g: Grid, env: Env): void {
       color: env.base,
     }),
   );
+  yield;
   const shellInner = blob(24, hy + 15.6, 0, 9.5, 4.6, 8.8, 2.5);
   const cup: Sdf = (x, y, z) =>
     y < rimAt(x, z) ? 3 : Math.max(shellOuter(x, y, z), -shellInner(x, y, z));

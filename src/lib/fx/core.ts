@@ -57,8 +57,10 @@ function loop(now: number): void {
     stats.frames.push(dt);
     stats.work.push(performance.now() - t0);
   }
-  if (jobs.size > 0) frame = request(loop);
-  else last = 0;
+  // 일 안에서 wake() 를 불렀으면 이미 다음 프레임이 예약돼 있다(두 줄로 걸지 않는다)
+  if (jobs.size > 0) {
+    if (frame === null) frame = request(loop);
+  } else if (frame === null) last = 0;
 }
 
 /** 일을 루프에 올린다(이미 올라 있으면 그대로). 첫 호출은 다음 프레임에 온다 */

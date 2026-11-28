@@ -493,7 +493,7 @@ const EXTRA: Record<ExtraId, (g: Grid, env: Env, it: VoxelItem) => void> = {
       name: 'strap-ring',
       group: PG.thin,
       color: strap,
-      rowAt: (z) => ny - 1 + Math.round(Math.max(-RISE, Math.min(0, z - 2) * 0.34)),
+      rowAt: (z) => ny - 1 + Math.round(Math.max(-RISE, Math.min(0, z - 5) * 0.5)),
       skip: (x, z) => z < -1 || (z > 2 && Math.abs(x - nx) < 6.5),
     });
   },

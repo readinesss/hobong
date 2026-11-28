@@ -7,7 +7,7 @@ import type { Grid } from '../kit.ts';
 import { G, type Env } from '../parts.ts';
 import { birdBody, crest, puff, tailNub, legs, ellipsoid } from './bird-base.ts';
 
-export function build(g: Grid, env: Env): void {
+export function* build(g: Grid, env: Env): Generator<void, void, void> {
   const hy = env.headY; // 16
   birdBody(g, env, {
     torso: [hy + 17.0, 12.0, 6.3, 9.4, 2.6],
@@ -19,13 +19,14 @@ export function build(g: Grid, env: Env): void {
       [34.4, hy + 15.8, 0.0, 38.3, hy + 8.0, -7.0, 2.7, 2.3, { group: G.body, under: true }], // 번쩍 든 오른날개손: 어깨에서 위·바깥으로(뒤로 눕히지 않는다)
     ],
   });
+  yield;
   crest(g, env);
   // 내린 날개: 몸 옆에 붙은 둥근 솜깃. 뒤로 조금 길고 뒤쪽이 처져 옆에서 보면 옆구리의 접은 날개
   puff(g, env, {
     name: 'wingL',
     mask: env.mPlumeL,
     group: G.wingL,
-    center: [6.2, hy + 16.6, -2.4],
+    center: [6.2, hy + 16.6, -3.9],
     r: [5.6, 5.3, 5.0],
     lean: 0.25,
   });
@@ -39,6 +40,7 @@ export function build(g: Grid, env: Env): void {
     r: [4.8, 5.6, 2.8],
     lean: -0.12,
   });
+  yield;
   // 흰 솜 꽁지
   tailNub(g, env, {
     sdf: ellipsoid(24, hy + 19.4, -10.6, 3.0, 2.2, 2.6),

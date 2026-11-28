@@ -20,7 +20,7 @@ import {
 import { G, type Env } from '../parts.ts';
 import { birdBody, wing, legs, F_LIT } from './bird-base.ts';
 
-export function build(g: Grid, env: Env): void {
+export function* build(g: Grid, env: Env): Generator<void, void, void> {
   const hy = env.headY; // 12
   birdBody(g, env, {
     torso: [hy + 18.0, 11.4, 6.2, 9.2, 2.8],
@@ -32,6 +32,7 @@ export function build(g: Grid, env: Env): void {
       [35.8, hy + 16.4, 0.6, 39.4, hy + 21.0, 1.8, 2.4, 2.2],
     ],
   });
+  yield;
   budCrest(g, env);
   wing(g, env, {
     name: 'wingL',
@@ -49,6 +50,7 @@ export function build(g: Grid, env: Env): void {
     sweep: 0.3,
     curve: 0.02,
   });
+  yield;
   tail(g, env);
   legs(g, env, { z: 0.8, toe: 3 });
 }

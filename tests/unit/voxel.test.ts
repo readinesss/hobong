@@ -17,7 +17,6 @@ import {
   frontCheck,
   generate,
   generateSteps,
-  STEP_COUNT,
   type VoxelResult,
 } from '../../src/lib/character/voxel/generate.ts';
 import { STRIDE, TR, W } from '../../src/lib/character/voxel/kit.ts';
@@ -145,7 +144,7 @@ describe('색은 팔레트 안', () => {
 });
 
 describe('나눠 만들기', () => {
-  it('generateSteps 는 env → body → items 에서 양보하고 넷째에 끝난다. 단계마다 시간 상한 안', () => {
+  it('generateSteps 는 env → 몸 덩어리마다 → 소품마다 → 겉 복셀에서 양보한다. 단계마다 시간 상한 안', () => {
     // 데우기(격자 할당·JIT): 첫 생성은 느릴 수 있다
     generate(inputOf({ form: 'phoenix', step: 30 }));
     const worst: number[] = [];
@@ -164,24 +163,36 @@ describe('나눠 만들기', () => {
         }
         names.push(r.value);
       }
-      expect(names).toEqual(['env', 'body', 'items']);
-      expect(times).toHaveLength(STEP_COUNT);
+      const items = input.items.filter((x) => x.attach !== 'eyes');
+      expect(names[0]).toBe('env');
+      expect(names.filter((n) => n === 'body').length).toBeGreaterThanOrEqual(2);
+      expect(names.filter((n) => n === 'items').length).toBe(items.length);
+      expect(names.at(-1)).toBe('surface');
+      expect(times).toHaveLength(names.length + 1);
       worst.push(Math.max(...times));
     }
-    // 데워진 뒤 한 단계는 보통 25ms 안. CI·느린 기기를 생각해 넉넉히 잡는다
-    expect(Math.max(...worst)).toBeLessThan(250);
+    // 데워진 뒤 한 단계는 보통 12ms 안(가장 긴 것: 몸 채우기·겉 복셀). CI 의 흔들림을 생각해 그 여덟 배쯤
+    expect(Math.max(...worst)).toBeLessThan(100);
   });
 
-  it('modelJob 은 STEP_COUNT 번 불러 끝나고, 같은 그림은 캐시에서 바로 나온다', () => {
+  it('modelJob 은 한 번에 시간 예산만큼(0 이면 한 단계씩) 하고, 같은 그림은 캐시에서 바로 나온다', () => {
     clearModels();
     const look = lookOf({ form: 'bird', step: 14 });
+    const input = voxelInput(look);
+    if (!input) throw new Error('입력 없음');
+    let steps = 0;
+    for (const it = generateSteps(input); !it.next().done;) steps += 1;
     let got: unknown = undefined;
-    const job = modelJob(look, (m) => {
-      got = m;
-    });
+    const job = modelJob(
+      look,
+      (m) => {
+        got = m;
+      },
+      0,
+    );
     let calls = 0;
     while (job()) calls += 1;
-    expect(calls + 1).toBe(STEP_COUNT);
+    expect(calls).toBe(steps);
     expect(got).not.toBeNull();
     const key = voxelKey(look);
     expect(cachedModel(key)).toBe(got);

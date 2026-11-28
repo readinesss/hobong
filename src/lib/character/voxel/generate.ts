@@ -2,7 +2,7 @@
  * 복셀 호봉이 생성기: from-look.ts 가 만든 입력(꾸민 2D 몸통 + 눈 + 소품 그림 + 앵커) → 겉 복셀 바이트.
  *
  *   generate(input)        한 번에 끝까지(조합 하나 수 ms~수십 ms)
- *   generateSteps(input)   단계마다 양보하는 생성기(몸 → 소품 → 겉 복셀). 느린 기기에서 프레임 사이에 나눠 돌린다
+ *   generateSteps(input)   단계마다 양보하는 생성기(몸 덩어리마다 → 소품마다 → 겉 복셀 → 얼굴). 느린 기기에서 프레임 사이에 나눠 돌린다
  *
  * 결과 { bytes(복셀당 STRIDE=10바이트, kit.ts finish), surface, faces, solid, meta }  meta.face = 얼굴 도장(face.ts)
  */
@@ -26,20 +26,23 @@ import { buildFace, faceFront, type Face, type FaceLayer } from './face.ts';
 import { bodyEnv, isFaceDecal, foreheadStripes, type Env } from './parts.ts';
 import { addItem, shapeOf, SHAPES } from './props.ts';
 import type { VoxelInput } from './input.ts';
-import * as egg from './forms/egg.ts';
-import * as chick from './forms/chick.ts';
-import * as fledgling from './forms/fledgling.ts';
-import * as bird from './forms/bird.ts';
-import * as phoenix from './forms/phoenix.ts';
+// 이름 붙여 가져온다(import * as 는 묶음에 모듈 객체 도우미를 넣어, 빌드가 지우는 vite 모듈 로더 자리가 어긋난다)
+import { build as egg } from './forms/egg.ts';
+import { build as chick } from './forms/chick.ts';
+import { build as fledgling } from './forms/fledgling.ts';
+import { build as bird } from './forms/bird.ts';
+import { build as phoenix } from './forms/phoenix.ts';
 
 export { RAMP };
 
-export const FORMS: Readonly<Record<string, { build: (g: Grid, env: Env) => void }>> = {
-  egg,
-  chick,
-  fledgling,
-  bird,
-  phoenix,
+/** 형태 조형: 큰 덩어리(몸 → 날개·꼬리 → 다리)마다 양보한다(느린 기기에서 한 단계가 길어지지 않게) */
+export type FormBuild = (g: Grid, env: Env) => Generator<void, void, void>;
+export const FORMS: Readonly<Record<string, { build: FormBuild }>> = {
+  egg: { build: egg },
+  chick: { build: chick },
+  fledgling: { build: fledgling },
+  bird: { build: bird },
+  phoenix: { build: phoenix },
 };
 
 export interface VoxelMeta {
@@ -47,10 +50,15 @@ export interface VoxelMeta {
   float: boolean;
   zoff: number;
   depth: number;
-  /** 그림자 자리(발밑 줄 + 0.5, 떠 있으면 더 아래)·반지름·내려다볼 때 더 내려가는 칸·납작함 상한 */
+  /**
+   * 그림자 자리(발밑 줄 + 0.5. 떠 있으면 2D 그림자 shadow-float 세 줄의 가운데)·반지름·내려다볼 때 더 내려가는 칸·
+   * 그만큼 몸을 띄우는 칸·납작함(정면·상한)
+   */
   groundY: number;
   shadowR: number;
   shadowDrop: number;
+  shadowRise: number;
+  shadowFlat0: number;
   shadowFlat: number;
   face: Face;
   /** 몸 바탕·그늘 색(렌더러의 부드러운 선) */
@@ -61,10 +69,8 @@ export interface VoxelMeta {
 export interface VoxelResult extends Surface {
   meta: VoxelMeta;
 }
-/** generateSteps 가 양보할 때 내는 단계 이름 */
-export type VoxelStep = 'env' | 'body' | 'items';
-/** 단계 수(양보 횟수 + 마지막 겉 복셀) */
-export const STEP_COUNT = 4;
+/** generateSteps 가 양보할 때 내는 단계 이름(몸은 형태마다 두세 번, 소품은 하나마다 한 번) */
+export type VoxelStep = 'env' | 'body' | 'items' | 'surface';
 
 export function* generateSteps(input: VoxelInput): Generator<VoxelStep, VoxelResult, void> {
   const g = createGrid();
@@ -74,12 +80,16 @@ export function* generateSteps(input: VoxelInput): Generator<VoxelStep, VoxelRes
   const hats = items.filter((it) => shapeOf(it).sit);
   env.hideHead = hats.length ? maskOf((i, j) => hats.some((it) => it.px[j * W + i] !== TR)) : null;
   yield 'env';
-  (FORMS[input.form] ?? egg).build(g, env);
+  const body = (FORMS[input.form]?.build ?? egg)(g, env);
+  while (!body.next().done) yield 'body';
   yield 'body';
-  for (const it of items) addItem(g, env, it);
-  yield 'items';
+  for (const it of items) {
+    addItem(g, env, it);
+    yield 'items';
+  }
   despeckle(g);
   const surf = finish(g);
+  yield 'surface';
   // 얼굴 도장: 몸의 볼 칸 → 이마 줄무늬 → 눈 → 눈 앵커 소품(볼 터치·안경·선글라스)을 층 순서로
   const { reg, R, px } = env;
   const cheek = new Uint8Array(W * 48).fill(TR);
@@ -105,12 +115,15 @@ export function* generateSteps(input: VoxelInput): Generator<VoxelStep, VoxelRes
     float: input.float,
     zoff: ZOFF,
     depth: D,
-    // 떠 있는 몸(봉황): 작고 납작한 그림자를 발끝보다 4.5칸 아래에 두고, 내려다볼수록 shadowDrop(5.6) 칸까지 더 내린다
-    // — 어느 각도에서도 뒤로 누운 꼬리 끝과 그림자 사이가 세 줄 이상 빈다
-    groundY: input.anchors.ground[1] + 0.5 + (input.float ? 4.5 : 0),
-    shadowR: input.float ? 8 : 10,
-    shadowDrop: input.float ? 5.6 : 0,
-    shadowFlat: input.float ? 0.18 : 9,
+    // 떠 있는 몸(봉황): 정면은 2D 그림자(shadow-float 10·12·10, 발밑 줄부터 세 줄)와 같은 줄·같은 폭.
+    // 내려다볼수록 그림자는 shadowDrop(4) 칸 내리고 몸은 shadowRise(2) 칸 띄워, 뒤로 누운 꼬리 끝과 그림자 사이를 벌린다
+    // — 그림자 아랫줄은 늘 무대(64칸)의 60째 줄 안이다
+    groundY: input.anchors.ground[1] + (input.float ? 1.5 : 0.5),
+    shadowR: input.float ? 6 : 10,
+    shadowDrop: input.float ? 4 : 0,
+    shadowRise: input.float ? 2 : 0,
+    shadowFlat0: input.float ? 0.27 : 0.16,
+    shadowFlat: input.float ? 0.27 : 9,
     face,
     base: env.base,
     shade: env.shade,
