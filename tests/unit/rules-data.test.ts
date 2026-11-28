@@ -58,6 +58,8 @@ const TRACK_TEXT_KEYS = new Set([
   'quotaNote',
   'discretionNote',
   'label',
+  // 연가보상비 끝수 각주(compRoundingNote.text, #33)
+  'text',
 ]);
 function trackTexts(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) value.forEach((v) => trackTexts(v, out));
@@ -227,6 +229,9 @@ describe('규정 파일 형식', () => {
             'localService',
             'localAllowance',
             'localHoliday',
+            'payDirective',
+            'treasuryAct',
+            'localAccountingAct',
           ].sort(),
         );
       }
@@ -2034,5 +2039,200 @@ describe('지방 일반직(#31): 같은 값 감시', () => {
     expect(lg.payday.defaultDay).not.toBe(r.payday.defaultDay);
     expect(long.reviewLeadDays).toBeNull();
     expect(lg.leaveUnits?.halfDayHours).toBeNull();
+  });
+});
+
+// ───────────────────────── 연가보상비·연가 저축(#33): 발췌본과 대조 ─────────────────────────
+describe('연가보상비·연가 저축(#33): 발췌본과 대조', () => {
+  const snap = (name: string) => readFileSync(join(ROOT, 'docs/sources/2026', name), 'utf8');
+  const body = (name: string) =>
+    snap(name)
+      .split('\n')
+      .filter((l) => !l.startsWith('#'))
+      .join('\n');
+  const squash = (text: string) => text.replace(/\s+/g, '');
+  const comp = r2026.leave.compensation;
+  const saving = r2026.leave.saving;
+  const items = r2026.tracks.items;
+  const NEW = [
+    'pay-directive-leave-comp.txt',
+    'service-directive-saving.txt',
+    'service-reg-saving.txt',
+    'treasury-act-art47.txt',
+    'local-accounting-act-art55.txt',
+  ];
+
+  it('새 발췌본 5개는 머리말 4줄(제목·출처·조회·비고) 형식이다', () => {
+    for (const name of NEW) {
+      const head = snap(name).split('\n').slice(0, 5);
+      expect(head[0], name).toMatch(/^# \S/);
+      expect(head[1], name).toMatch(/^# 출처: .+\[시행 \d{4}\. \d{1,2}\. \d{1,2}\.\] \[.+제\d+호/);
+      expect(head[2], name).toMatch(/^# 조회: \d{4}-\d{2}-\d{2}/);
+      expect(head[3], name).toMatch(/^# 비고: /);
+      expect(head[4], name).toBe('');
+    }
+  });
+
+  it('6월 30일 기준(5일분, 남은 연가 10일 이상)·퇴직(10일 이내)은 수당규정 제18조의5제3항·제4항과 같다', () => {
+    const t = body('allowance-reg-articles.txt');
+    const m3 = /6월 30일 현재 연가잔여일수가 (\d+)일 이상인 사람/.exec(t);
+    const m31 = /6월 30일 현재의 월봉급액의 (\d+)퍼센트 × 1\/(\d+) × (\d+)일/.exec(t);
+    const m41 = /6월 30일 이전에 퇴직하는 경우: .*연가보상일수\((\d+)일 이내\)/.exec(t);
+    expect(Number(m3?.[1])).toBe(comp.midYear.minRemainingDays);
+    expect(Number(m31?.[1]) / 100).toBe(comp.rate);
+    expect(Number(m31?.[2])).toBe(comp.divisor);
+    expect(Number(m31?.[3])).toBe(comp.midYear.days);
+    expect(Number(m41?.[1])).toBe(comp.retire.beforeJulyMaxDays);
+    expect(comp.midYear).toMatchObject({ month: 6, day: 30 });
+    expect(t).toContain('6월 30일 및 12월 31일 현재의 월봉급액');
+    expect(t).toContain('퇴직일 전일의 월봉급액');
+    // 상반기 지급은 기관이 하지 않을 수 있다(업무지침 가.4))
+    expect(body('pay-directive-leave-comp.txt')).toContain(
+      '12월 31일 기준으로 연 1회만 연가보상비를 지급할 수 있다',
+    );
+    expect(comp.midYear.optional).toBe(true);
+    // 20일 상한(복무규정 제16조제5항)
+    const m20 = /연가대상 일수는 (\d+)일을 초과할 수 없다/.exec(body('service-reg-leave.txt'));
+    expect(Number(m20?.[1])).toBe(comp.maxDays);
+  });
+
+  it('끝수: 국가는 국고금 관리법 제47조제1항(10원 미만 버림), 시·도가 주면 지방회계법 제55조(버림이 선택)', () => {
+    const m = /(\d+)원 미만의 끝수가 있을 때에는 그 끝수는 계산하지 아니하고/.exec(
+      body('treasury-act-art47.txt'),
+    );
+    expect(Number(m?.[1])).toBe(comp.roundTo);
+    expect(comp.source.also?.map((a) => a.law)).toEqual(
+      expect.arrayContaining(['service', 'payDirective', 'treasuryAct']),
+    );
+    expect(body('local-accounting-act-art55.txt')).toContain('10원 미만은 계산하지 아니할 수 있고');
+    for (const id of ['fire', 'localGeneral'] as const) {
+      const note = items[id].compRoundingNote;
+      expect(note?.source, id).toMatchObject({
+        law: 'localAccountingAct',
+        article: '제55조',
+        snapshot: 'local-accounting-act-art55.txt',
+      });
+      expect(note?.text, id).toContain('지방회계법 제55조');
+    }
+    // 국가가 지급하는 직종에는 각주가 없다
+    for (const id of ['general', 'police', 'coastGuard', 'teacher'] as const)
+      expect(items[id].compRoundingNote, id).toBeUndefined();
+  });
+
+  it("업무지침 절 번호는 '제7장 Ⅶ. 3. 연가보상비'(Ⅲ 은 가계보전수당)", () => {
+    expect(snap('pay-directive-leave-comp.txt').split('\n')[0]).toContain('제7장 Ⅶ. 3. 연가보상비');
+    const also = comp.source.also?.find((a) => a.law === 'payDirective');
+    expect(also).toMatchObject({
+      article: '제7장 Ⅶ. 3. 연가보상비',
+      snapshot: 'pay-directive-leave-comp.txt',
+    });
+  });
+
+  it('업무지침 예시 금액(449,100·556,140·278,070·666,410)과 정산(107,040 지급·171,030 환수)을 같은 줄의 봉급·일수로 다시 셈한다', () => {
+    const t = body('pay-directive-leave-comp.txt');
+    const num = (s: string) => Number(s.replaceAll(',', ''));
+    const re = /([\d,]+)원 × 86% × 1\/30 × (\d+) = ([\d,]+)원/g;
+    const seen = new Set<number>();
+    for (const m of t.matchAll(re)) {
+      const [monthly, days, amount] = [num(m[1] as string), Number(m[2]), num(m[3] as string)];
+      const won = Math.floor(
+        (monthly * Math.round(comp.rate * 1000) * days) / (1000 * comp.divisor),
+      );
+      expect(Math.floor(won / comp.roundTo) * comp.roundTo, m[0]).toBe(amount);
+      seen.add(amount);
+    }
+    expect([...seen].sort((a, b) => a - b)).toEqual([278_070, 449_100, 556_140, 666_410]);
+    expect(t).toContain('449,100원을 제외한 107,040원을 지급함');
+    expect(t).toContain('449,100원을 제외한 171,030원을 환수함');
+    expect(556_140 - 449_100).toBe(107_040);
+    expect(278_070 - 449_100).toBe(-171_030);
+    // 예시의 봉급은 2026년 봉급표 7급 10·11호봉, 5급 15호봉이다
+    expect(r2026.salary.table['7'][9]).toBe(3_133_300);
+    expect(r2026.salary.table['7'][10]).toBe(3_233_400);
+    expect(r2026.salary.table['5'][14]).toBe(4_649_400);
+  });
+
+  it('연가 저축: 다음 해 1월 1일·다음 달 1일부터, 먼저 저축한 것부터, 소멸시효 폐지, 끝자리 자동 저축, 권장 연가 10일·3월 31일', () => {
+    const d = squash(body('service-directive-saving.txt'));
+    expect(d).toContain(squash('저축연가는 저축하는 연도의 다음해 1월 1일부터 사용할 수 있음'));
+    expect(saving.availableFrom).toBe('nextYear');
+    expect(d).toContain(squash('이월 저축한 연가는 익월 1일부터 사용할 수 있음'));
+    expect(saving.overtimeAvailableFrom).toBe('nextMonth');
+    expect(d).toContain(squash('최초 저축한 연가일수부터'));
+    expect(saving.order).toBe('oldest-first');
+    expect(d).toContain(squash('저축연가 소멸시효 폐지'));
+    expect(saving.expires).toBe('never');
+    expect(d).toContain(squash('8시간 미만의 잔여연가는 자동으로 이월·저축'));
+    expect(saving.autoCarryUnderDay).toBe(true);
+    const r = squash(body('service-reg-leave.txt'));
+    expect(r).toContain(squash('매년 3월 31일까지'));
+    expect(r).toContain(squash('10일 이상의 권장 연가 일수'));
+    expect(saving.recommended).toEqual({ minDays: 10, noticeBy: '03-31' });
+    expect(r).toContain(
+      squash(
+        '인사혁신처장이 정하는 사유를 제외하고는 제16조제5항에 따른 연가보상비를 지급하지 않는다',
+      ),
+    );
+    expect(saving.compensated).toBe(false);
+  });
+
+  it('가산 힌트(#33 묶음 2): 제15조제3항제2호와 예규 (2)(나)·(다)의 판정 글이 발췌본에 있다. 지방 일반직은 준비 중', () => {
+    expect(saving.uncompensatedBonus?.source).toMatchObject({
+      law: 'service',
+      article: '제15조제3항제2호',
+      snapshot: 'service-reg-leave.txt',
+    });
+    const r = squash(body('service-reg-leave.txt'));
+    expect(r).toContain(
+      squash('제16조제5항에 따른 연가보상비를 받지 못한 연가 일수가 남아 있는 공무원'),
+    );
+    const d = squash(body('service-directive-saving.txt'));
+    expect(d).toContain(squash('1월 2일 이후 임용자는 제외'));
+    expect(d).toContain(squash('지급일수를 초과한 미사용 연가 일수가 1일 이상 있는 경우에'));
+    expect(d).toContain(squash('연가보상을 받고 남은 연가를 모두 저축하였다면'));
+    const lg = items.localGeneral.leaveSaving;
+    expect(lg && isAvailable(lg) ? lg.uncompensatedBonus : 'off').toBeNull();
+  });
+
+  it('직종별 연가 저축: 경찰·해양경찰·소방은 국가 규정 적용, 교원은 해당 없음, 지방 일반직은 지방 원문', () => {
+    expect(items.police.applies?.leaveSaving).toMatchObject({ law: 'policeService' });
+    expect(items.coastGuard.applies?.leaveSaving).toMatchObject({ law: 'policeService' });
+    expect(items.fire.applies?.leaveSaving).toMatchObject({ law: 'fireService' });
+    const teacher = items.teacher.leaveSaving;
+    expect(teacher).toMatchObject({ status: 'none' });
+    expect((teacher as { reason: string }).reason).toContain('제16조의3');
+    expect(body('teacher-leave-directive.txt')).toMatch(/제10조[^\n]*제16조의3/);
+    // 지방: 지방 원문에 있는 칸만 값이 있고, 국가 예규에서 온 칸은 null(준비 중)
+    const lg = items.localGeneral.leaveSaving;
+    if (!lg || !isAvailable(lg)) throw new Error('지방 일반직 연가 저축이 꺼져 있다');
+    expect(lg.source).toMatchObject({
+      law: 'localService',
+      snapshot: 'local-service-reg-leave.txt',
+    });
+    expect(lg).toMatchObject({
+      availableFrom: null,
+      overtimeAvailableFrom: null,
+      order: null,
+      expires: null,
+      recommended: null,
+      autoCarryUnderDay: true,
+      compensated: false,
+    });
+    const sv = squash(body('local-service-reg-leave.txt'));
+    expect(sv).toContain(
+      squash('8시간 미만의 연가 잔여분에 대해서는 연가보상비를 지급하지 않고 이월ㆍ저축한다'),
+    );
+    expect(sv).toContain(squash('이월ㆍ저축한 연가에 대해서는 연가보상비를 지급하지 않는다'));
+  });
+
+  it('연가 화면 문구(leaveScreen.savingCarryOver)와 연가 저축 항목이 어긋나지 않는다(false ⇔ 해당 없음)', () => {
+    for (const [id, t] of Object.entries(items) as [string, TrackRules][]) {
+      if (!t.leaveScreen) continue;
+      const none =
+        t.leaveSaving !== undefined &&
+        !isAvailable(t.leaveSaving) &&
+        (t.leaveSaving as { status: string }).status === 'none';
+      expect(t.leaveScreen.savingCarryOver, id).toBe(!none);
+    }
   });
 });

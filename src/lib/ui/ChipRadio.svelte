@@ -7,6 +7,8 @@
   interface Option {
     value: T;
     label: string;
+    /** 지금은 고를 수 없다(aria-disabled. 화살표 키로 옮길 때 건너뛴다) */
+    disabled?: boolean;
   }
 
   interface Props {
@@ -25,28 +27,32 @@
   let group = $state<HTMLDivElement>();
   const checkedIndex = $derived(options.findIndex((o) => o.value === value));
 
-  function choose(index: number) {
+  function choose(index: number, step = 1) {
     const count = options.length;
     if (count === 0) return;
-    const next = ((index % count) + count) % count;
+    let next = ((index % count) + count) % count;
+    // 고를 수 없는 칩은 건너뛴다(모두 고를 수 없으면 그대로 둔다)
+    for (let i = 0; i < count && options[next]?.disabled; i += 1)
+      next = (((next + step) % count) + count) % count;
     const option = options[next] as Option;
+    if (option.disabled) return;
     if (option.value !== value) onchange(option.value);
     group?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
   }
 
   function onkeydown(event: KeyboardEvent, index: number) {
-    const moves: Record<string, number> = {
-      ArrowRight: index + 1,
-      ArrowDown: index + 1,
-      ArrowLeft: index - 1,
-      ArrowUp: index - 1,
-      Home: 0,
-      End: options.length - 1,
+    const moves: Record<string, [number, number]> = {
+      ArrowRight: [index + 1, 1],
+      ArrowDown: [index + 1, 1],
+      ArrowLeft: [index - 1, -1],
+      ArrowUp: [index - 1, -1],
+      Home: [0, 1],
+      End: [options.length - 1, -1],
     };
     const next = moves[event.key];
     if (next === undefined) return;
     event.preventDefault();
-    choose(next);
+    choose(next[0], next[1]);
   }
 </script>
 
@@ -64,8 +70,11 @@
       class="chip"
       role="radio"
       aria-checked={option.value === value}
+      aria-disabled={option.disabled ? 'true' : undefined}
       tabindex={i === (checkedIndex >= 0 ? checkedIndex : 0) ? 0 : -1}
-      onclick={() => onchange(option.value)}
+      onclick={() => {
+        if (!option.disabled) onchange(option.value);
+      }}
       onkeydown={(e) => onkeydown(e, i)}
     >
       {option.label}

@@ -28,6 +28,13 @@
       ? (view.careerRules.track.applies?.diligence?.note ?? '')
       : '',
   );
+  /** 연가보상비(어림) 한 줄(#33): 지급 시기는 업무지침을 근거로 둔 직종만 적는다 */
+  const comp = $derived(view.leaveCompBonus);
+  const compDirective = $derived(
+    view.leaveComp && view.leaveComp.kind !== 'needsGrant'
+      ? (view.leaveComp.rule.source.also?.some((a) => a.law === 'payDirective') ?? false)
+      : false,
+  );
   /** '직급'·'계급'(교원은 호봉만) */
   const noun = $derived(view.careerRules.ladder?.noun ?? '');
 </script>
@@ -137,6 +144,26 @@
       </div>
     {/if}
 
+    {#if comp}
+      <!-- 다가오는 보너스 3개와 따로 한 줄(정근수당·명절휴가비를 밀어내지 않는다). 배지·D-day 없음 -->
+      <div class="well comp" id="wallet-leave-comp">
+        <div class="kv">
+          <span class="row"><Icon name="icon-coin" /> 연가보상비(어림)</span>
+          <span><Money value={comp.amount} approx /></span>
+        </div>
+        <p class="cap muted">
+          {[
+            `${comp.basis === 'mid' ? '6월 30일' : '12월 31일'} 기준`,
+            compDirective ? (comp.basis === 'mid' ? '7월 중 기관이 정하는 날' : '12월 중') : '',
+            comp.midPaid ? `${comp.days}일분에서 6월분을 뺀 정산` : `${comp.days}일분`,
+            '실제 지급 여부와 일수는 기관에 따라 달라요',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      </div>
+    {/if}
+
     {#each bonusOff as item (item.label)}
       <OffNote label={item.label} off={item.off} />
     {/each}
@@ -159,7 +186,8 @@
     display: grid;
     gap: 9px;
   }
-  .bonus li {
+  .bonus li,
+  .comp {
     display: grid;
     gap: 3px;
   }

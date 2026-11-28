@@ -167,6 +167,24 @@
       "effective": "2018-07-10",
       "promulgation": "대통령령 제29036호, 2018. 7. 10., 제정",
       "url": "https://www.law.go.kr/법령/지방공휴일에관한규정"
+    },
+    "payDirective": {
+      "name": "공무원보수 등의 업무지침",
+      "effective": "2026-10-01",
+      "promulgation": "인사혁신처예규 제226호, 2026. 10. 1., 일부개정",
+      "url": "https://www.law.go.kr/행정규칙/공무원보수등의업무지침"
+    },
+    "treasuryAct": {
+      "name": "국고금 관리법",
+      "effective": "2026-01-02",
+      "promulgation": "법률 제21065호, 2025. 10. 1., 타법개정",
+      "url": "https://www.law.go.kr/법령/국고금관리법"
+    },
+    "localAccountingAct": {
+      "name": "지방회계법",
+      "effective": "2026-10-20",
+      "promulgation": "법률 제22084호, 2026. 10. 20., 일부개정",
+      "url": "https://www.law.go.kr/법령/지방회계법"
     }
   },
   "retirement": {
@@ -338,12 +356,50 @@
       "rate": 0.86,
       "divisor": 30,
       "maxDays": 20,
+      "roundTo": 10,
+      "midYear": { "month": 6, "day": 30, "minRemainingDays": 10, "days": 5, "optional": true },
+      "retire": { "beforeJulyMaxDays": 10 },
       "payCondition": "권장연가 등 기관 방침",
       "source": {
         "law": "allowance",
-        "article": "제18조의5제3항",
+        "article": "제18조의5제2항·제3항·제4항",
         "snapshot": "allowance-reg-articles.txt",
-        "note": "월봉급액의 86% × 1/30 × 연가보상일수. 보상 대상 일수는 20일 이내(복무규정 제16조제5항). 권장연가 등으로 지급하지 않을 수 있어요(복무규정 제16조의2)."
+        "also": [
+          { "law": "service", "article": "제16조제5항", "snapshot": "service-reg-leave.txt" },
+          { "law": "payDirective", "article": "제7장 Ⅶ. 3. 연가보상비", "snapshot": "pay-directive-leave-comp.txt" },
+          { "law": "treasuryAct", "article": "제47조제1항", "snapshot": "treasury-act-art47.txt" }
+        ],
+        "note": "월봉급액의 86% × 1/30 × 연가보상일수를 곱한 뒤 10원 미만은 버려요(국고금 관리법 제47조제1항, 업무지침의 예시 금액과 같아요). 보상 대상 일수는 20일 이내예요(복무규정 제16조제5항). 6월 30일 현재 남은 연가가 10일 이상이면 5일분을 먼저 받고, 12월 31일에 나머지를 정산해요(모자라면 돌려내요). 6월 30일 기준은 기관이 하지 않고 12월 31일에 한 번만 줄 수도 있어요(업무지침 가.4)). 6월 30일 이전에 퇴직하면 퇴직일 전날 봉급으로 10일 이내를 셈해요(제4항제1호). 권장연가 등으로 지급하지 않을 수 있어요(복무규정 제16조의2). 연봉제 공무원의 기준 금액(성과연봉을 뺀 연봉월액의 78% 등, 업무지침 다.4)나))과 30일 이상 국외출장 같은 제외기간(다.5)②)은 반영하지 않아요."
+      }
+    },
+    "saving": {
+      "availableFrom": "nextYear",
+      "overtimeAvailableFrom": "nextMonth",
+      "order": "oldest-first",
+      "autoCarryUnderDay": true,
+      "expires": "never",
+      "compensated": false,
+      "recommended": { "minDays": 10, "noticeBy": "03-31" },
+      "uncompensatedBonus": {
+        "source": {
+          "law": "service",
+          "article": "제15조제3항제2호",
+          "snapshot": "service-reg-leave.txt",
+          "also": [
+            { "law": "serviceDirective", "article": "제8장 4. 가. (2) (나)·(다)", "snapshot": "service-directive-saving.txt" }
+          ],
+          "note": "그 해 결근·휴직·정직·강등·직위해제 등이 없고 연가보상비를 받지 못한 연가 일수가 남은 사람은 다음 해에만 연가 1일을 더해요(제15조제3항제2호). 한도(규정 20일 또는 기관이 정한 일수)를 넘는 미사용 연가가 1일 이상일 때이고, 한도 안에서 덜 받고 남긴 날이나 모두 저축한 날은 해당하지 않으며, 1월 2일 이후 임용한 해는 제외해요(예규). 앱은 내년 부여 일수에 저절로 더하지 않고 알리기만 해요."
+        }
+      },
+      "source": {
+        "law": "service",
+        "article": "제16조의3, 제16조의2제1항, 제11조제4항",
+        "snapshot": "service-reg-leave.txt",
+        "also": [
+          { "law": "service", "article": "제11조·제16조의2·제16조의4, 부칙(대통령령 제29012호 제3조, 제34660호 제2조)", "snapshot": "service-reg-saving.txt" },
+          { "law": "serviceDirective", "article": "제8장 4. 가. (6)·(9)·(10)", "snapshot": "service-directive-saving.txt" }
+        ],
+        "note": "그 해 마지막 날 기준으로 남은 연가 중 연가보상비를 받을 수 있는 날과 시간외근무를 바꾼 연가를 저축할 수 있어요(제16조의3제1항). 저축연가는 다음 해 1월 1일부터, 시간외근무를 바꾼 연가는 다음 달 1일부터 쓰고, 먼저 저축한 것부터 써요(예규). 8시간 미만의 끝자리 연가는 저절로 이월·저축돼요(퇴직하는 해는 예외, 예규). 저축연가의 소멸시효는 2024. 7. 2. 없어졌어요(예규). 저축연가에는 정해진 몇 가지 경우(사망 등)를 빼고 연가보상비가 없어요(제16조의3제2항). 기관은 3월 31일까지 10일 이상의 권장 연가 일수를 공지해요(제16조의2제1항). 저축할 수 있는 날에 20일 상한이 걸리는지는 원문으로 확인하지 못했어요."
       }
     },
     "longService": {
@@ -924,18 +980,40 @@
           "rate": 0.86,
           "divisor": 30,
           "maxDays": 20,
+          "roundTo": 10,
+          "midYear": {"month": 6, "day": 30, "minRemainingDays": 10, "days": 5, "optional": true},
+          "retire": {"beforeJulyMaxDays": 10},
           "payCondition": "소속 지방자치단체의 조례와 예산, 기관 방침",
           "source": {
             "law": "localAllowance",
-            "article": "제18조의5제1항·제3항",
+            "article": "제18조의5제1항·제2항·제3항·제4항",
             "snapshot": "local-allowance-reg-articles.txt",
-            "also": [{"law": "localService", "article": "제7조제4항", "snapshot": "local-service-reg-leave.txt"}],
-            "note": "월봉급액의 86% × 1/30 × 연가보상일수. 보상 대상 일수는 20일 이내이고, 8시간 미만의 연가 잔여분은 보상하지 않고 이월·저축해요(복무규정 제7조제4항). 연가보상비는 소속 지방자치단체의 조례가 정하는 바에 따라 예산의 범위에서 지급해요(제1항)."
+            "also": [
+              {"law": "localService", "article": "제7조제4항", "snapshot": "local-service-reg-leave.txt"},
+              {"law": "localAccountingAct", "article": "제55조", "snapshot": "local-accounting-act-art55.txt"}
+            ],
+            "note": "월봉급액의 86% × 1/30 × 연가보상일수. 보상 대상 일수는 20일 이내이고, 8시간 미만의 연가 잔여분은 보상하지 않고 이월·저축해요(복무규정 제7조제4항). 6월 30일과 12월 31일 현재의 월봉급액으로 나누어 줄 수 있고(제2항), 6월 30일 기준은 그날 남은 연가가 10일 이상인 사람에게 5일분이에요(제3항). 6월 30일 이전에 퇴직하면 퇴직일 전날 봉급으로 10일 이내를 셈해요(제4항제1호). 연가보상비는 소속 지방자치단체의 조례가 정하는 바에 따라 예산의 범위에서 지급해요(제1항). 10원 미만은 버려 셈하지만, 지방회계법 제55조는 버림을 '할 수 있다'로 두어 기관에 따라 다를 수 있어요."
           }
         },
         "leaveLongService": {
           "status": "external",
           "reason": "지방공무원 복무규정에는 장기재직휴가 조문이 없어요. 이 영에 없는 특별휴가는 조례로 정해요(제7조의7제1항). 소속 기관에 확인해 주세요."
+        },
+        "leaveSaving": {
+          "availableFrom": null,
+          "overtimeAvailableFrom": null,
+          "order": null,
+          "autoCarryUnderDay": true,
+          "expires": null,
+          "compensated": false,
+          "recommended": null,
+          "uncompensatedBonus": null,
+          "source": {
+            "law": "localService",
+            "article": "제7조의10제1항·제3항, 제7조제4항",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "그 해의 마지막 날을 기준으로 남은 연가 중 연가보상비 지급대상인 날과 제4조제4항에 따라 전환된 연가를 이월·저축할 수 있어요(제7조의10제1항). 8시간 미만의 연가 잔여분은 보상하지 않고 이월·저축해요(제7조제4항). 저축연가에는 직권면직(지방공무원법 제62조제1항제1호)·사망 말고는 연가보상비가 없어요(제7조의10제3항). 저축연가를 언제부터 어떤 순서로 쓰는지, 소멸하는지, 권장 연가 일수, 연가보상비를 받지 못한 날이 남을 때의 다음 해 가산(제7조제3항)을 어떻게 가리는지는 지방 원문으로 확인하지 못해 준비 중이에요(국가 예규의 값으로 대신하지 않아요)."
+          }
         },
         "diligence": {
           "diligence": {
@@ -1070,6 +1148,15 @@
             "note": "연도 중 신규임용되거나 퇴직하는 해는 (그해 근무 개월 수 ÷ 12) × 연가 일수. 15일 이상은 1개월, 미만은 버림, 소수점 반올림. 개월 수는 임용일부터 달력의 달로 세요(이 서비스의 해석이에요)."
           }
         },
+        "compRoundingNote": {
+          "text": "10원 미만 처리는 기관에 따라 다를 수 있어요(지방회계법 제55조).",
+          "source": {
+            "law": "localAccountingAct",
+            "article": "제55조",
+            "snapshot": "local-accounting-act-art55.txt",
+            "note": "지방공무원의 보수는 지방자치단체가 지급해요. 지방회계법 제55조는 10원 미만을 '계산하지 아니할 수 있고'로 두어 기관에 따라 다를 수 있어요. 이 서비스는 국가와 같이 10원 미만을 버려 셈해요."
+          }
+        },
         "leaveScreen": {
           "recordSystem": "소속 기관 인사시스템",
           "savingCarryOver": true,
@@ -1193,6 +1280,7 @@
           "leaveAdvance": {"law": "policeService", "article": "제20조", "snapshot": "police-service-rule.txt"},
           "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
           "leaveLongService": {"law": "policeService", "article": "제20조", "snapshot": "police-service-rule.txt"},
+          "leaveSaving": {"law": "policeService", "article": "제20조", "snapshot": "police-service-rule.txt"},
           "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
           "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
@@ -1294,6 +1382,7 @@
           "leaveAdvance": {"law": "policeService", "article": "제1조, 제20조", "snapshot": "police-service-rule.txt"},
           "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
           "leaveLongService": {"law": "policeService", "article": "제1조, 제20조", "snapshot": "police-service-rule.txt"},
+          "leaveSaving": {"law": "policeService", "article": "제1조, 제20조", "snapshot": "police-service-rule.txt"},
           "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"}
         },
@@ -1402,6 +1491,15 @@
             "note": "직급보조비(월). 소방총감은 비고 제2호로 월 300,000원을 더해요. 금액 계산에는 반영하지 않아요."
           }
         },
+        "compRoundingNote": {
+          "text": "시·도 소속이면 10원 미만 처리가 기관에 따라 다를 수 있어요(지방회계법 제55조).",
+          "source": {
+            "law": "localAccountingAct",
+            "article": "제55조",
+            "snapshot": "local-accounting-act-art55.txt",
+            "note": "시·도 소속 소방공무원의 보수는 지방자치단체가 지급해요. 지방회계법 제55조는 10원 미만을 '계산하지 아니할 수 있고'로 두어 기관에 따라 다를 수 있어요. 이 서비스는 국가와 같이 10원 미만을 버려 셈해요."
+          }
+        },
         "applies": {
           "stepRaise": {"law": "pay", "article": "제13조제1항·제3항", "snapshot": "pay-reg-articles.txt"},
           "promotionStep": {"law": "pay", "article": "제11조제1항·제2항, 별표 28 가목", "snapshot": "pay-reg-table28-promotion-step.txt"},
@@ -1413,6 +1511,7 @@
           },
           "leaveAdvance": {"law": "fireService", "article": "제10조", "snapshot": "fire-service-rule.txt"},
           "leaveCompensation": {"law": "allowance", "article": "제18조의5제1항", "snapshot": "allowance-reg-articles.txt"},
+          "leaveSaving": {"law": "fireService", "article": "제10조", "snapshot": "fire-service-rule.txt"},
           "diligence": {"law": "allowance", "article": "제7조제1항", "snapshot": "allowance-reg-articles.txt"},
           "holidayBonus": {"law": "allowance", "article": "제18조의3", "snapshot": "allowance-reg-articles.txt"},
           "seniorAllowance": {"law": "allowance", "article": "제6조의2제1항", "snapshot": "allowance-reg-articles.txt"}
@@ -1473,6 +1572,7 @@
           }
         },
         "leaveCompensation": {"status": "none", "reason": "방학이 있는 학교의 교육공무원은 연가보상비를 받지 않아요(공무원수당 등에 관한 규정 제18조의5제1항제1호)."},
+        "leaveSaving": {"status": "none", "reason": "교원에게는 국가공무원 복무규정 제16조의3(연가 저축)을 적용하지 않아요(교원휴가 예규 제10조)."},
         "positionAllowance": {"status": "external", "reason": "교사는 직급보조비 표(별표 15)에 행이 없고, 비고 제8호에 따라 인사혁신처장이 정해요. 이 서비스에서는 계산하지 않아요."},
         "applies": {
           "stepRaise": {

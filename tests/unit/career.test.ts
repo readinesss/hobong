@@ -337,6 +337,7 @@ describe('외무·군무원·그 밖의 특정직', () => {
       'leave.advance': c.leave.advance,
       'leave.compensation': c.leave.compensation,
       'leave.longService': c.leave.longService,
+      'leave.saving': c.leave.saving,
       'allowances.diligence': c.allowances.diligence,
       'allowances.diligenceExtra': c.allowances.diligenceExtra,
       'allowances.holidayBonus': c.allowances.holidayBonus,

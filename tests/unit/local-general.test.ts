@@ -16,13 +16,13 @@ import { Calendar } from '../../src/lib/calc/calendar.ts';
 import {
   annualLeaveDays,
   checkNewLeave,
-  compensationPerDay,
   grantTimeline,
   hoursOfKind,
   HALF_DAY_PENDING_MESSAGE,
   pendingGrantChange,
   summarizeLeave,
 } from '../../src/lib/calc/leave.ts';
+import { compensationAmount } from '../../src/lib/calc/leave-bank.ts';
 import { buildMilestones } from '../../src/lib/calc/milestones.ts';
 import { longServiceInfo } from '../../src/lib/calc/promotion.ts';
 import type { CareerProfile } from '../../src/lib/calc/career-profile.ts';
@@ -203,9 +203,9 @@ describe('지방 일반직: 연가 일수는 연초 재직기간 기준(tenureBa
     const s = summarizeLeave(L(), '2021-03-10', leave, '2026-01-05');
     expect(s).toMatchObject({ grantedHours: 160, overridden: true, pendingChange: null });
   });
-  it('연가보상비 하루 61,146원(9급 1호봉, 국가와 같은 비율·같은 표)', () => {
-    expect(compensationPerDay(L(), 2_133_000)).toBe(61_146);
-    expect(compensationPerDay(L(), 2_133_000)).toBe(compensationPerDay(G(), 2_133_000));
+  it('연가보상비 1일분 61,140원(9급 1호봉, 국가와 같은 비율·같은 표, 일수까지 곱한 뒤 10원 미만 버림)', () => {
+    expect(compensationAmount(L(), 2_133_000, 1)).toBe(61_140);
+    expect(compensationAmount(L(), 2_133_000, 1)).toBe(compensationAmount(G(), 2_133_000, 1));
   });
 });
 

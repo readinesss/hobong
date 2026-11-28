@@ -5,6 +5,7 @@ import {
   makeSeedV4,
   makeSeedV5,
   makeSeedV6,
+  makeSeedV7,
   openApp,
   PACKAGE_OPEN,
   startForm,
@@ -202,6 +203,39 @@ test.describe('반응형과 조작', () => {
     await expect(dialog.getByRole('alert')).toContainText('암호가 틀렸거나');
     expect(await page.evaluate(smallTargets), '암호 묻기 화면').toEqual([]);
     expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+
+  test('320px: 연말 정리의 값(끝자리 자동 저축·사라지는 날)이 잘리지 않는다(#33 검토 반영)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    const record = { id: 'r1', date: '2026-11-02', hours: 3, kind: 'hours', memo: '' };
+    await openApp(page, {
+      seed: makeSeed({}, { leave: { records: [record], grantOverrideHours: {} } }),
+      hash: 'leave',
+    });
+    await page.locator('#leave-comp').getByRole('button', { name: '연말 정리' }).click();
+    const dialog = page.getByRole('dialog');
+    /** 행마다 넘침이 없고, 값 칸이 대화상자 안에 보인다 */
+    const clipped = () =>
+      dialog.locator('dl.rows .kv').evaluateAll((rows) =>
+        rows.flatMap((row) => {
+          const dd = row.querySelector('dd') as HTMLElement;
+          const box = row.getBoundingClientRect();
+          const value = dd.getBoundingClientRect();
+          const bad =
+            row.scrollWidth > row.clientWidth + 1 || value.width < 8 || value.right > box.right + 1;
+          return bad ? [row.textContent?.trim() ?? ''] : [];
+        }),
+      );
+    await expect(dialog).toContainText('8시간 미만 끝자리는 저절로 저축돼요');
+    expect(await clipped()).toEqual([]);
+    await dialog.getByLabel('보상하지 않는 일수(권장 연가·사용 촉진)').fill('13');
+    await expect(dialog).toContainText('사라지는 날');
+    expect(await clipped()).toEqual([]);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+    ).toBeLessThanOrEqual(0);
   });
 
   test('첫 화면과 입력 폼도 누를 수 있는 것은 44px 이상이다', async ({ page }) => {
@@ -453,6 +487,36 @@ test.describe('반응형과 조작', () => {
       expect(Math.abs(guided.left - guided.right), '열 끝 차이(패키지 안내)').toBeLessThanOrEqual(
         360,
       );
+    });
+  }
+
+  // #33: 홈 연가 창의 저축연가 한 줄·지갑의 연가보상비(어림) 줄이 더해져도 두 열 끝이 크게 벌어지지 않는다(#30 I34)
+  for (const width of [720, 900]) {
+    test(`${width}px 두 열: 저축연가·연가보상비 줄이 있어도 두 열 끝 차이가 작다`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const env = JSON.parse(makeSeedV7()) as { data: { leave: { savings: unknown[] } } };
+      env.data.leave.savings = [
+        { id: 'o1', kind: 'opening', year: 2025, month: null, hours: 27, memo: '' },
+        { id: 'ot', kind: 'overtime', year: 2026, month: '2026-11', hours: 6, memo: '' },
+      ];
+      await openApp(page, { seed: JSON.stringify(env) });
+      await expect(page.locator('#leave-mini-saved')).toBeVisible();
+      await expect(page.locator('#wallet-leave-comp')).toBeVisible();
+      const ends = await page.evaluate(() => {
+        const bottom = (ids: string[]) =>
+          Math.max(...ids.map((id) => document.getElementById(id)!.getBoundingClientRect().bottom));
+        const r = (id: string) => document.getElementById(id)!.getBoundingClientRect();
+        return {
+          left: bottom(['status', 'career', 'lifetime', 'upcoming']),
+          right: bottom(['today', 'growth', 'leave-mini', 'wallet']),
+          gap: r('wallet').top - r('leave-mini').bottom,
+        };
+      });
+      expect(Math.abs(ends.left - ends.right), '열 끝 차이').toBeLessThanOrEqual(240);
+      expect(ends.gap, '연가 ↔ 지갑').toBeLessThanOrEqual(24);
+      expect(ends.gap, '연가 ↔ 지갑').toBeGreaterThan(0);
     });
   }
 

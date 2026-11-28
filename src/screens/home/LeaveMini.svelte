@@ -3,6 +3,7 @@
   import { view } from '../../lib/app/view.svelte.ts';
   import { leaveBalance } from '../../lib/app/format.ts';
   import { formatLeaveHours } from '../../lib/calc/leave.ts';
+  import { dayText } from '../../lib/app/leave-comp-copy.ts';
   import { isAvailable } from '../../lib/rules/index.ts';
   import type { Unavailable } from '../../lib/rules/types.ts';
   import OffNote from '../../lib/ui/OffNote.svelte';
@@ -23,7 +24,26 @@
     nav.editGrantRequested = true;
     nav.go('leave');
   }
+  function openYearEnd() {
+    nav.yearEndRequested = true;
+    nav.go('leave');
+  }
+  /** 저축연가 통장에 넣은 것이 있으면 한 줄(#33). 남은 것이 없어도 넣은 사람에게는 0을 보인다 */
+  const saved = $derived(view.savings && view.savings.lots.length > 0 ? view.savings : null);
 </script>
+
+{#snippet savedLine()}
+  {#if saved}
+    <p class="kv cap" id="leave-mini-saved">
+      <span>저축연가</span>
+      <span>
+        {formatLeaveHours(saved.availableHours, hpd)}{saved.pendingHours > 0 && saved.nextFrom
+          ? ` · ${dayText(saved.nextFrom)}부터 ${formatLeaveHours(saved.pendingHours, hpd)} 더`
+          : ''}
+      </span>
+    </p>
+  {/if}
+{/snippet}
 
 <Win title="연가" icon="icon-palm" id="leave-mini" area="leave">
   {#snippet aside()}{leave.year}년{/snippet}
@@ -38,6 +58,7 @@
       {/if}
       <p class="note" id="leave-mini-manual">올해 부여 일수를 넣으면 남은 연가를 셀 수 있어요.</p>
       {#if annualOff}<OffNote label="연가 일수" off={annualOff} />{/if}
+      {@render savedLine()}
       <div class="btn-row">
         <button type="button" class="btn" onclick={openGrant}>부여 일수 넣기</button>
         <button type="button" class="btn" onclick={() => nav.go('leave')}>연가 장부 열기</button>
@@ -61,7 +82,13 @@
           ? ` (예정 ${formatLeaveHours(leave.plannedHours, hpd)} 포함)`
           : ''} · 사용률 {balance.rateText}
       </p>
+      {@render savedLine()}
       <button type="button" class="btn wide" onclick={() => nav.go('leave')}>연가 장부 열기</button>
+    {/if}
+    {#if view.yearEndPrompt}
+      <button type="button" class="btn wide" onclick={openYearEnd} id="leave-mini-year-end">
+        {view.yearEndYear}년 연말 정리 해 보기
+      </button>
     {/if}
   </div>
 </Win>

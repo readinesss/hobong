@@ -477,6 +477,12 @@ canvas {
   color: var(--accent-ink);
 }
 
+/* 지금은 고를 수 없는 칩(저축연가가 없을 때의 '저축연가' 등). 까닭은 칩 묶음의 설명이 알린다 */
+.chip[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 /* 색만으로 구분하지 않도록 선택된 칩에는 표시를 붙인다 */
 .chip[aria-pressed='true']::before,
 .chip[aria-checked='true']::before,

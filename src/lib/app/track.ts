@@ -49,6 +49,7 @@ export const FEATURE_LABEL: Record<FeatureKey | 'pay', string> = {
   leaveAdvance: '연가 미리 쓰기',
   leaveCompensation: '연가보상비',
   leaveLongService: '장기재직휴가',
+  leaveSaving: '연가 저축',
   diligence: '정근수당',
   holidayBonus: '명절휴가비',
   seniorAllowance: '대우공무원수당',
@@ -68,6 +69,8 @@ export function featureValue(c: CareerRules, key: FeatureKey | 'pay'): Avail<obj
       return c.leave.compensation;
     case 'leaveLongService':
       return c.leave.longService;
+    case 'leaveSaving':
+      return c.leave.saving;
     case 'diligence':
       return c.allowances.diligence;
     case 'holidayBonus':
@@ -103,6 +106,7 @@ const FEATURE_ORDER: readonly (FeatureKey | 'pay')[] = [
   'leaveAdvance',
   'leaveCompensation',
   'leaveLongService',
+  'leaveSaving',
   'diligence',
   'holidayBonus',
   'seniorAllowance',

@@ -194,18 +194,71 @@ export interface LeaveRules {
   units: LeaveUnitsRules & { halfDayHours: number };
   firstYear: { minDaysForMonth: number; rounding: 'half-up'; source: SourceRef };
   advance: { tiers: MonthTier[]; source: SourceRef };
-  compensation: {
-    rate: number;
-    divisor: number;
-    maxDays: number;
-    /**
-     * 보상 일수와 지급 여부가 무엇에 따라 달라지는지(연가 화면 문장 '…는 ○○에 따라 달라요'의 ○○).
-     * 국가 '권장연가 등 기관 방침'(복무규정 제16조의2), 지방 '소속 지방자치단체의 조례와 예산'(수당규정 제18조의5제1항)
-     */
-    payCondition: string;
-    source: SourceRef;
-  };
+  compensation: LeaveCompensationRules;
+  /** 연가 저축(#33). 직종의 덮어쓰기(leaveSaving)로 끄거나 다른 근거로 바꿀 수 있다 */
+  saving: LeaveSavingRules;
   longService: { tiers: LongLeaveTier[]; source: SourceRef };
+}
+
+/**
+ * 연가보상비(수당규정 제18조의5, 복무규정 제16조제5항, 공무원보수 등의 업무지침 제7장 Ⅶ. 3.).
+ * 금액 = 월봉급액 × rate × 일수 ÷ divisor 를 원 미만 버린 뒤 roundTo 원 미만 버림(일수까지 곱한 뒤 한 번 버린다)
+ */
+export interface LeaveCompensationRules {
+  rate: number;
+  divisor: number;
+  /** 연가보상비를 지급할 수 있는 연가대상 일수의 상한(20일) */
+  maxDays: number;
+  /** 끝수 처리 단위(원). 국가가 지급하면 국고금 관리법 제47조제1항 '10원 미만의 끝수는 계산하지 아니하고' */
+  roundTo: number;
+  /**
+   * 6월 30일 기준 연가보상비(제18조의5제3항제1호): 그날 남은 연가가 minRemainingDays 일 이상이면 days 일분.
+   * optional: 기관이 6월 30일 기준을 하지 않고 12월 31일 기준으로 한 번만 줄 수 있다(업무지침 가.4))
+   */
+  midYear: {
+    month: number;
+    day: number;
+    minRemainingDays: number;
+    days: number;
+    optional: boolean;
+  };
+  /** 연도 중 퇴직(제18조의5제4항): 6월 30일 이전에 퇴직하면 보상일수는 beforeJulyMaxDays 일 이내 */
+  retire: { beforeJulyMaxDays: number };
+  /**
+   * 보상 일수와 지급 여부가 무엇에 따라 달라지는지(연가 화면 문장 '…는 ○○에 따라 달라요'의 ○○).
+   * 국가 '권장연가 등 기관 방침'(복무규정 제16조의2), 지방 '소속 지방자치단체의 조례와 예산'(수당규정 제18조의5제1항)
+   */
+  payCondition: string;
+  source: SourceRef;
+}
+
+/**
+ * 연가 저축(국가: 복무규정 제16조의3·제11조제4항, 예규 제8장 4. 가. (6)·(9)·(10). 지방: 지방공무원 복무규정 제7조의10·제7조제4항).
+ * null 인 칸은 그 직종의 원문으로 확인하지 못한 것이다(준비 중 — 다른 직종의 값으로 대신하지 않는다).
+ * 저축연가 통장·연말 정리(calc/leave-bank.ts)가 이 값으로 셈한다.
+ */
+export interface LeaveSavingRules {
+  /** 연말 저축·처음 잔액을 쓰기 시작하는 때: 'nextYear' = 저축한 해의 다음 해 1월 1일 */
+  availableFrom: 'nextYear' | null;
+  /** 시간외근무를 바꾼 연가를 쓰기 시작하는 때: 'nextMonth' = 저축한 달의 다음 달 1일 */
+  overtimeAvailableFrom: 'nextMonth' | null;
+  /** 쓰는 순서: 'oldest-first' = 먼저 저축한 것부터 */
+  order: 'oldest-first' | null;
+  /** 8시간 미만의 끝자리 연가는 저절로 이월·저축된다(퇴직하는 해는 예외 — 국가 예규) */
+  autoCarryUnderDay: boolean | null;
+  /** 저축연가의 소멸: 'never' = 소멸시효 없음(2024. 7. 2. 폐지) */
+  expires: 'never' | null;
+  /** 저축연가에 연가보상비를 주는지(정해진 몇 가지 예외는 셈하지 않는다) */
+  compensated: boolean;
+  /** 권장 연가(최소 일수, 공지 기한 'MM-DD'). 화면 안내와 입력 하한에만 쓴다 */
+  recommended: { minDays: number; noticeBy: string } | null;
+  /**
+   * 연가보상비를 받지 못한 연가 일수가 남으면 다음 해 연가 1일 가산(국가 복무규정 제15조제3항제2호)을
+   * 예규 (2)(나)·(다)의 판정(한도를 넘는 미사용·미저축 1일 이상, 1월 2일 이후 임용한 해 제외)으로 힌트만 보인다.
+   * null 이면 그 판정을 그 직종의 원문으로 확인하지 못했다(힌트 없이 '준비 중')
+   */
+  uncompensatedBonus: { source: SourceRef } | null;
+  source: SourceRef;
 }
 
 /** monthsByGrade 의 키는 계급 사다리의 계급 키(일반직 '9'~'1', 경찰 '순경' 등) */
@@ -345,6 +398,7 @@ export type FeatureKey =
   | 'leaveAdvance'
   | 'leaveCompensation'
   | 'leaveLongService'
+  | 'leaveSaving'
   | 'diligence'
   | 'holidayBonus'
   | 'seniorAllowance'
@@ -361,6 +415,7 @@ export const FEATURE_KEYS: readonly FeatureKey[] = [
   'leaveAdvance',
   'leaveCompensation',
   'leaveLongService',
+  'leaveSaving',
   'diligence',
   'holidayBonus',
   'seniorAllowance',
@@ -385,16 +440,29 @@ export interface CareerOverrides {
   leaveAdvance?: Avail<LeaveRules['advance']>;
   leaveCompensation?: Avail<LeaveRules['compensation']>;
   leaveLongService?: Avail<LeaveRules['longService']>;
+  leaveSaving?: Avail<LeaveRules['saving']>;
   diligence?: Avail<DiligenceRules>;
   holidayBonus?: Avail<AllowanceRules['holidayBonus']>;
   seniorAllowance?: Avail<AllowanceRules['seniorTreatment']>;
   positionAllowance?: Avail<PositionAllowanceRules>;
 }
 
-/** 연가 화면 문구(교원: 나이스, 저축·이월 없음). 없으면 기본(e-사람 등, 저축·이월 있음) */
+/**
+ * 연가 화면 문구(교원: 나이스, 저축·이월 없음). 없으면 기본(e-사람 등, 저축·이월 있음).
+ * savingCarryOver 는 연가 저축 항목(leaveSaving)과 어긋나지 않아야 한다(false ⇔ leaveSaving 이 '해당 없음' — 테스트가 본다)
+ */
 export interface LeaveScreenRules {
   recordSystem: string;
   savingCarryOver: boolean;
+  source: SourceRef;
+}
+
+/**
+ * 연가보상비 어림 창의 끝수 처리 각주(#33). 지방자치단체가 보수를 지급할 수 있는 직종(시·도 소속 소방, 지방 일반직)에만 둔다:
+ * 지방회계법 제55조는 10원 미만 버림을 '할 수 있다'로 둔다. 화면은 직종 이름이 아니라 이 칸이 있는지만 본다
+ */
+export interface CompRoundingNote {
+  text: string;
   source: SourceRef;
 }
 
@@ -437,6 +505,8 @@ export interface TrackRules extends CareerOverrides {
   workHoursNote?: string;
   leaveNote?: string;
   leaveScreen?: LeaveScreenRules;
+  /** 연가보상비의 끝수 처리가 기관에 따라 다를 수 있을 때의 각주(지방회계법 제55조) */
+  compRoundingNote?: CompRoundingNote;
   /** 연가 단위를 기본 구역과 다른 근거로 정할 때(지방: 하루 8시간은 원문, 반일은 준비 중 → halfDayHours null) */
   leaveUnits?: LeaveUnitsRules;
   /**

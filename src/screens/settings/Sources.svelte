@@ -52,6 +52,7 @@
     leaveAdvance: 'leave',
     leaveCompensation: 'leave',
     leaveLongService: 'leave',
+    leaveSaving: 'leave',
     diligence: 'allowances',
     holidayBonus: 'allowances',
     seniorAllowance: 'allowances',
@@ -167,6 +168,9 @@
       if (feature === 'leaveAnnual')
         for (const s of c.sources.filter((s) => s.feature === 'leaveScreen'))
           add('leaveScreen', '연가 화면(기록 시스템·저축)', yearOfSection(c, 'tracks'), s.source);
+      if (feature === 'leaveCompensation')
+        for (const s of c.sources.filter((s) => s.feature === 'compRounding'))
+          add('compRounding', '연가보상비 · 끝수 처리', yearOfSection(c, 'tracks'), s.source);
     }
     // 기본 구역(공통 규정)과 다른 근거로 정한 월급날·연가 단위(지방 일반직: 지방공무원 보수규정 제19조, 복무규정)
     for (const s of c.sources.filter((s) => s.feature === 'payday'))

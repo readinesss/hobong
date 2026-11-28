@@ -107,6 +107,12 @@ test.describe('직종별 첫 입력 → 홈', () => {
     const main = page.locator('#main');
     await expect(main).not.toContainText('연가보상비 1일 단가');
     await expect(page.locator('#leave-compensation-off')).toContainText('해당 없음');
+    // 연가보상비가 없는 직종에는 어림 창이 없다(#33)
+    await expect(page.locator('#leave-comp')).toHaveCount(0);
+    // 저축연가 통장·'저축연가에서 쓰기'도 없고, 해당 없음을 한 줄로 알린다
+    await expect(page.locator('#leave-savings')).toHaveCount(0);
+    await expect(page.getByRole('radio', { name: '저축연가' })).toHaveCount(0);
+    await expect(page.locator('#leave-saving-off')).toContainText('해당 없음');
     await expect(main).not.toContainText('저축·이월');
     await expect(main).not.toContainText('e-사람');
     await expect(main).toContainText('나이스');

@@ -69,6 +69,15 @@ describe('v7 의 새 칸은 카드·결산 카드·공유 문구·탭 제목에 
     }
   });
 
+  it('연가보상비 어림(#33)은 카드·결산 카드·공유 문구에 나가지 않는다(금액·보상 일수는 이 화면에서만)', () => {
+    for (const path of OUTWARD) {
+      const text = sources.find((f) => f.path === path)?.text ?? '';
+      expect(text, path).not.toMatch(
+        /leave-bank|leaveComp|compensation|연가보상비|yearEnd|leaveYearPlan|저축|usedSavedHours/,
+      );
+    }
+  });
+
   it('검사가 헛돌지 않는다: 저장 형식 파일은 새 칸을 읽는다', () => {
     const readers = sources.filter((f) => V7_READ.test(f.text)).map((f) => f.path);
     for (const path of [

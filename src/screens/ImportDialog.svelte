@@ -224,6 +224,17 @@
           <dt>연가 기록</dt>
           <dd>{ok.data.leave.records.length}건</dd>
         </div>
+        {#if ok.data.leave.savings.length > 0 || (app.data?.leave.savings.length ?? 0) > 0}
+          <!-- 저축연가 통장(#33): 불러오면 지금 통장을 바꾼다는 것을 미리 보인다 -->
+          <div class="kv" id="import-savings">
+            <dt>저축연가 통장</dt>
+            <dd>
+              {ok.data.leave.savings.length}줄{(app.data?.leave.savings.length ?? 0) > 0
+                ? ` (지금 ${app.data?.leave.savings.length ?? 0}줄 대신)`
+                : ''}
+            </dd>
+          </div>
+        {/if}
         <div class="kv">
           <dt>배지</dt>
           <dd>{Object.keys(ok.data.achievements).length}개</dd>

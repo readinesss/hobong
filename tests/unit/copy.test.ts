@@ -222,3 +222,20 @@ describe('첫 만남의 대사(data/talk.json)', () => {
     }
   });
 });
+
+describe('연말 정리·연가보상비 문구(#33 검토 반영)', () => {
+  const dialog = read('src/screens/leave/YearEndDialog.svelte');
+  const comp = read('src/screens/leave/LeaveCompWindow.svelte');
+  it('가산 힌트는 예규 (2)(나)대로 1월 1일자 임용을 넣는다("1월 2일 이후에 임용되지 않았을 때")', () => {
+    expect(dialog).toContain('그 해 1월 2일 이후에 임용되지 않았을 때');
+    expect(dialog).not.toContain('1월 1일 전에 임용');
+  });
+  it('상한·한도를 넘는 날의 저축(T25·T26)은 확정처럼 말하지 않고 "원문으로 확인하지 못했어요"', () => {
+    expect(dialog).not.toContain('원문에 정해져 있지 않아요');
+    expect(dialog).toMatch(/저축할 수 있는지는 원문으로\s+확인하지\s+못했어요/);
+    expect(dialog).toContain('split.poolDays > split.capDays');
+  });
+  it('하반기 퇴직자 상반기 제외 문장은 국가 업무지침을 근거로 둔 직종에만 보인다', () => {
+    expect(comp).toContain('end.retiringSecondHalf && !mid.beforeHire && directive');
+  });
+});

@@ -13,7 +13,6 @@ import {
   type Ymd,
 } from './date.ts';
 import type { Calendar } from './calendar.ts';
-import { floorRate } from './money.ts';
 import {
   isAvailable,
   type Avail,
@@ -26,7 +25,7 @@ import type { LeaveData, LeaveKind, LeaveRecord } from '../store/schema.ts';
 /**
  * 연가 계산이 받는 규정. 기본 구역(LeaveRules)도, 직종별 해석 결과(CareerRules['leave'])도 받는다.
  * 꺼진 항목(pending·none)이면 숫자를 만들지 않는다: 연가 일수는 자동 부여 0(직접 넣기),
- * 미리 쓰기·연가보상비는 null. 첫해 비례(firstYear)는 연가 일수를 따라간다.
+ * 미리 쓰기·연가보상비는 null(연가보상비 금액은 leave-bank.ts 의 compensationAmount). 첫해 비례(firstYear)는 연가 일수를 따라간다.
  */
 export interface LeaveRulesLike {
   annual: Avail<LeaveRules['annual']>;
@@ -214,14 +213,16 @@ export interface LeaveSummary {
    * 못해 숫자 없이 날짜만 둔다(자동 계산일 때만. 지난 날이어도 올해 안이면 둔다 — 올해 일수에 걸린 일이다)
    */
   pendingChange: { date: Ymd } | null;
-  /** 올해 기록 전체(예정 포함) */
+  /** 올해 연가에서 쓴 올해 기록(예정 포함). 저축연가에서 쓴 기록(pool 'saved')은 빼고 usedSavedHours 에 센다 */
   usedHours: number;
   /** 그중 오늘 이후 날짜(예정) */
   plannedHours: number;
+  /** 저축연가에서 쓴 올해 기록(예정 포함, #33) */
+  usedSavedHours: number;
   remainingHours: number;
   /** 사용률 0~1(부여가 0이면 0) */
   rate: number;
-  /** 월별 사용 시간(1월~12월) */
+  /** 월별 사용 시간(1월~12월). 쉰 것은 쉰 것이라 저축연가에서 쓴 기록도 센다 */
   byMonth: number[];
   /** 오늘까지의 마지막 사용일 */
   lastUseDate: Ymd | null;
@@ -264,13 +265,19 @@ export function summarizeLeave(
   const byMonth = new Array<number>(12).fill(0);
   let usedHours = 0;
   let plannedHours = 0;
+  let usedSavedHours = 0;
   let todayHours = 0;
   for (const record of recordsOfYear(leave.records, year)) {
-    usedHours += record.hours;
     const month = Number(record.date.slice(5, 7));
     byMonth[month - 1] = (byMonth[month - 1] as number) + record.hours;
-    if (record.date > today) plannedHours += record.hours;
     if (record.date === today) todayHours += record.hours;
+    // 저축연가에서 쓴 기록은 올해 연가(부여 − 사용)에서 빼지 않는다(#33)
+    if (record.pool === 'saved') {
+      usedSavedHours += record.hours;
+      continue;
+    }
+    usedHours += record.hours;
+    if (record.date > today) plannedHours += record.hours;
   }
 
   let lastUseDate: Ymd | null = null;
@@ -291,6 +298,7 @@ export function summarizeLeave(
     pendingChange,
     usedHours,
     plannedHours,
+    usedSavedHours,
     remainingHours: grantedHours - usedHours,
     rate: grantedHours > 0 ? usedHours / grantedHours : 0,
     byMonth,
@@ -404,19 +412,6 @@ export function workdaysInRange(cal: Calendar, from: Ymd, to: Ymd, limit = 62): 
     if (cal.isWorkday(cur)) out.push(cur);
   }
   return out;
-}
-
-/**
- * 연가보상비 1일 단가(원 미만 버림): 월봉급액 × 86% ÷ 30 (수당규정 제18조의5).
- * 보상비가 없거나(교원) 준비 중인 직종은 null.
- */
-export function compensationPerDay(
-  rules: Pick<LeaveRulesLike, 'compensation'>,
-  monthlySalary: number,
-): number | null {
-  if (!isAvailable(rules.compensation)) return null;
-  const { rate, divisor } = rules.compensation;
-  return floorRate(monthlySalary, rate, 1, divisor);
 }
 
 /**

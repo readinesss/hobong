@@ -23,7 +23,10 @@ import { defaultSettings, newUserData } from '../store/defaults.ts';
 import type {
   CharacterLook,
   LeaveKind,
+  LeavePool,
   LeaveRecord,
+  LeaveYearPlan,
+  SavingsEntry,
   Profile,
   Settings,
   UserData,
@@ -44,7 +47,7 @@ import {
   type KeyValueStore,
 } from '../store/storage.ts';
 import { cleanText, isRetireMonthOrNull } from '../store/validate.ts';
-import { LIMITS } from '../store/schema.ts';
+import { LIMITS, YEAR_MONTH_KEY_RE } from '../store/schema.ts';
 import type { EventBadgeId } from '../achievements.ts';
 
 export const APP_VERSION: string = __APP_VERSION__;
@@ -173,6 +176,51 @@ function growthMarkOf(profile: Profile, today: Ymd) {
     today: day,
   });
   return { rank: profile.rank, step, form, label: rankStepLabel(c, step), career: c };
+}
+
+/** 저축 한 칸의 형식을 맞춘다(저장본 검사와 같은 범위). 틀리면 null */
+function savingOf(entry: Omit<SavingsEntry, 'id'>): Omit<SavingsEntry, 'id'> | null {
+  const { kind, year, month, hours } = entry;
+  if (!Number.isInteger(year) || year < LIMITS.minLeaveYear || year > LIMITS.maxLeaveYear)
+    return null;
+  const overtime = kind === 'overtime';
+  if (overtime ? month === null || !month.startsWith(`${year}-`) : month !== null) return null;
+  if (overtime && !YEAR_MONTH_KEY_RE.test(month as string)) return null;
+  const max = overtime ? LIMITS.maxOvertimeSavingHours : LIMITS.maxSavingHours;
+  if (!Number.isInteger(hours) || hours < 1 || hours > max) return null;
+  return { kind, year, month, hours, memo: cleanText(entry.memo, LIMITS.memoMax) };
+}
+
+/** 한 해의 정리 값에 patch 를 얹는다. 범위 밖 값이면 null */
+function leaveYearOf(
+  now: LeaveYearPlan | undefined,
+  patch: Partial<LeaveYearPlan>,
+): LeaveYearPlan | null {
+  const next: LeaveYearPlan = {
+    unpaidDays: null,
+    capDays: null,
+    midYear: null,
+    compDays: null,
+    ...now,
+    ...patch,
+  };
+  for (const key of ['unpaidDays', 'capDays', 'compDays'] as const) {
+    const v = next[key];
+    if (v !== null && (!Number.isInteger(v) || v < 0 || v > LIMITS.maxLeaveYearDays)) return null;
+  }
+  if (next.midYear !== null && next.midYear !== 'paid' && next.midYear !== 'none') return null;
+  return next;
+}
+
+/** 네 칸이 모두 null 이면 그 해 키를 지운다 */
+function putLeaveYear(years: Record<string, LeaveYearPlan>, year: number, next: LeaveYearPlan) {
+  const empty =
+    next.unpaidDays === null &&
+    next.capDays === null &&
+    next.midYear === null &&
+    next.compDays === null;
+  if (empty) delete years[String(year)];
+  else years[String(year)] = next;
 }
 
 function newId(): string {
@@ -794,7 +842,9 @@ class AppStore {
   // 연가·꾸미기·설정을 바꾸는 동작은 이 탭의 데이터에 남았으면 true, 다른 탭이 바꾼 저장본을 따라가느라 버렸으면
   // false 를 돌려준다(버렸다는 알림은 여기서 띄운다. 화면은 '기록했어요' 같은 말을 하지 않는다).
 
-  addLeave(entries: { date: Ymd; kind: LeaveKind; hours: number; memo?: string }[]): boolean {
+  addLeave(
+    entries: { date: Ymd; kind: LeaveKind; hours: number; memo?: string; pool?: LeavePool }[],
+  ): boolean {
     if (entries.length === 0) return false;
     return this.#userWrite((d) => {
       for (const entry of entries) {
@@ -804,8 +854,8 @@ class AppStore {
           hours: entry.hours,
           kind: entry.kind,
           memo: cleanText(entry.memo ?? '', LIMITS.memoMax),
-          // 저축연가에서 쓰는 기록(#33)은 아직 고를 수 없다 — 늘 그해 연가
-          pool: 'annual',
+          // 저축연가에서 쓴 기록(#33)은 올해 연가에서 빼지 않고 저축연가 통장에서 뺀다
+          pool: entry.pool ?? 'annual',
         };
         d.leave.records.push(record);
       }
@@ -856,6 +906,142 @@ class AppStore {
     );
     if (outcome === 'discarded') return retry ? this.restoreLeave(record, false) : false;
     return true;
+  }
+
+  /** 기록이 어느 몫에서 나갔는지 바꾼다(올해 연가 ↔ 저축연가, #33). 없는 기록이거나 버렸으면 false */
+  setLeavePool(id: string, pool: LeavePool): boolean {
+    const found = this.data?.leave.records.find((r) => r.id === id);
+    if (!found || found.pool === pool) return false;
+    return this.#userWrite((d) => {
+      const record = d.leave.records.find((r) => r.id === id);
+      if (record) record.pool = pool;
+    });
+  }
+
+  // ── 저축연가 통장·연가 정리(#33) ─────────────────────────────────────
+  // 형식(칸 수·시간 범위·달)은 입력 대화상자가 맞춘다. 여기서는 저장본 검사에 걸릴 값만 한 번 더 막는다.
+
+  /** 저축 한 칸을 넣는다. 넣었으면 그 id, 형식이 틀렸거나 버렸으면 null */
+  addSaving(entry: Omit<SavingsEntry, 'id'>, base?: number): string | null {
+    const clean = savingOf(entry);
+    if (!clean || !this.data || this.data.leave.savings.length >= LIMITS.maxSavings) return null;
+    const id = newId();
+    const kept = this.#userWrite(
+      (d) => {
+        d.leave.savings.push({ id, ...clean });
+      },
+      true,
+      base,
+    );
+    return kept ? id : null;
+  }
+
+  /** 저축 한 칸을 고친다. 없거나 형식이 틀렸거나 버렸으면 false */
+  updateSaving(id: string, entry: Omit<SavingsEntry, 'id'>, base?: number): boolean {
+    const clean = savingOf(entry);
+    if (!clean || !this.data?.leave.savings.some((s) => s.id === id)) return false;
+    return this.#userWrite(
+      (d) => {
+        const at = d.leave.savings.findIndex((s) => s.id === id);
+        if (at >= 0) d.leave.savings[at] = { id, ...clean };
+      },
+      true,
+      base,
+    );
+  }
+
+  /** 저축 한 칸을 지운다(알림의 [되돌리기]가 restoreSaving 으로 되살린다) */
+  removeSaving(id: string): SavingsEntry | null {
+    const found = this.data?.leave.savings.find((s) => s.id === id) ?? null;
+    if (!found) return null;
+    const copy = { ...found };
+    const kept = this.#userWrite((d) => {
+      d.leave.savings = d.leave.savings.filter((s) => s.id !== id);
+    });
+    return kept ? copy : null;
+  }
+
+  /** 지운 저축 칸을 되살린다. 다른 탭 때문에 버려졌으면 따라간 값 위에 한 번 더 한다(restoreLeave 와 같다) */
+  restoreSaving(entry: SavingsEntry, retry = true): boolean {
+    const outcome = this.#write(
+      (d) => {
+        if (d.leave.savings.some((s) => s.id === entry.id)) return;
+        if (d.leave.savings.length >= LIMITS.maxSavings) return;
+        d.leave.savings.push(entry);
+      },
+      { count: true, auto: retry },
+    );
+    if (outcome === 'discarded') return retry ? this.restoreSaving(entry, false) : false;
+    return true;
+  }
+
+  /**
+   * 새 해의 정리 값을 더하면 저장본 한도(LIMITS.maxLeaveYearPlans)를 넘는지. 넘으면 알리고 true(메모리도 바꾸지 않는다).
+   * 넘긴 채 메모리에 두면 저장 검사가 그 뒤의 모든 저장을 막는다.
+   */
+  #tooManyLeaveYears(year: number, next: LeaveYearPlan): boolean {
+    const years = this.data?.leave.years;
+    if (!years || String(year) in years) return false;
+    const empty =
+      next.unpaidDays === null &&
+      next.capDays === null &&
+      next.midYear === null &&
+      next.compDays === null;
+    if (empty || Object.keys(years).length < LIMITS.maxLeaveYearPlans) return false;
+    this.toast(
+      `연가 정리 값은 ${LIMITS.maxLeaveYearPlans}해까지 넣을 수 있어요. 이 해의 값은 저장하지 않았어요.`,
+      'warn',
+      'icon-warn',
+    );
+    return true;
+  }
+
+  /**
+   * 한 해의 연가 정리 값을 고친다(넣은 칸만 바꾼다). 네 칸이 모두 null 이 되면 그 해 키를 지운다(저장본에 빈 칸을 두지 않는다).
+   */
+  setLeaveYear(year: number, patch: Partial<LeaveYearPlan>, base?: number): boolean {
+    const next = leaveYearOf(this.data?.leave.years[String(year)], patch);
+    if (!next || this.#tooManyLeaveYears(year, next)) return false;
+    return this.#userWrite(
+      (d) => {
+        putLeaveYear(d.leave.years, year, next);
+      },
+      true,
+      base,
+    );
+  }
+
+  /**
+   * 연말 정리를 한 번에 저장한다: 그 해 정리 값(보상하지 않는 일수·한도·보상 일수)과 그 해 말 저축(carry) 한 칸.
+   * carryHours 가 0 이면 그 해 첫 carry 칸을 지운다. 같은 해 carry 가 여럿이면 첫 칸만 고친다(나머지는 화면이 알린다).
+   */
+  applyYearEnd(
+    year: number,
+    patch: Pick<LeaveYearPlan, 'unpaidDays' | 'capDays' | 'compDays'>,
+    carryHours: number,
+    base?: number,
+  ): boolean {
+    const next = leaveYearOf(this.data?.leave.years[String(year)], patch);
+    if (!next || !this.data || this.#tooManyLeaveYears(year, next)) return false;
+    const hours = Math.round(carryHours);
+    if (!Number.isInteger(hours) || hours < 0 || hours > LIMITS.maxSavingHours) return false;
+    const first = this.data.leave.savings.find((s) => s.kind === 'carry' && s.year === year);
+    if (!first && hours > 0 && this.data.leave.savings.length >= LIMITS.maxSavings) return false;
+    return this.#userWrite(
+      (d) => {
+        putLeaveYear(d.leave.years, year, next);
+        const at = d.leave.savings.findIndex((s) => s.kind === 'carry' && s.year === year);
+        if (hours === 0) {
+          if (at >= 0) d.leave.savings.splice(at, 1);
+        } else if (at >= 0) {
+          d.leave.savings[at] = { ...(d.leave.savings[at] as SavingsEntry), hours };
+        } else {
+          d.leave.savings.push({ id: newId(), kind: 'carry', year, month: null, hours, memo: '' });
+        }
+      },
+      true,
+      base,
+    );
   }
 
   /**

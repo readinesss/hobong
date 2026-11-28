@@ -13,7 +13,7 @@ import { newAppStore, type AppStoreType as AppStore } from '../../src/lib/app/st
 import { rulesFor } from '../../src/lib/rules/index.ts';
 import { makeEnvelope, serializeBackup } from '../../src/lib/store/backup.ts';
 import { defaultSettings, newUserData } from '../../src/lib/store/defaults.ts';
-import type { Profile, UserData } from '../../src/lib/store/schema.ts';
+import { LIMITS, type Profile, type UserData } from '../../src/lib/store/schema.ts';
 import { KEYS, type KeyValueStore } from '../../src/lib/store/storage.ts';
 
 const ROOT = process.cwd();
@@ -614,5 +614,111 @@ describe('버린 뒤의 알림·결과', () => {
     expect(toastTexts(tab)).toContain('지금은 저장할 수 없어요');
     expect(tab.undoImport()).toBe('blocked');
     expect(storage.map.get(KEYS.data)).toBe('{"app":"hobong", 깨짐');
+  });
+});
+
+describe('저축연가 통장·연가 정리(#33): 저장하고, 다른 탭의 변경을 덮어쓰지 않는다', () => {
+  it('저축 넣기·고치기·지우기·되살리기, 형식 밖 값은 넣지 않는다', () => {
+    const storage = seeded();
+    const { tab } = openTab(storage);
+    const id = tab.addSaving({ kind: 'opening', year: 2025, month: null, hours: 27, memo: '' });
+    expect(id).not.toBeNull();
+    expect(stored(storage)?.leave.savings).toEqual([
+      { id, kind: 'opening', year: 2025, month: null, hours: 27, memo: '' },
+    ]);
+    expect(
+      tab.addSaving({ kind: 'overtime', year: 2026, month: '2025-03', hours: 8, memo: '' }),
+    ).toBeNull();
+    expect(
+      tab.addSaving({ kind: 'overtime', year: 2026, month: '2026-03', hours: 201, memo: '' }),
+    ).toBeNull();
+    expect(
+      tab.addSaving({ kind: 'carry', year: 2026, month: null, hours: 0, memo: '' }),
+    ).toBeNull();
+    expect(
+      tab.updateSaving(id as string, {
+        kind: 'opening',
+        year: 2025,
+        month: null,
+        hours: 30,
+        memo: '',
+      }),
+    ).toBe(true);
+    expect(stored(storage)?.leave.savings[0]?.hours).toBe(30);
+    const removed = tab.removeSaving(id as string);
+    expect(stored(storage)?.leave.savings).toEqual([]);
+    otherTabWrites(storage, (d) => (d.profile.nickname = '다른 탭'));
+    expect(tab.restoreSaving(removed as NonNullable<typeof removed>)).toBe(true);
+    expect(stored(storage)?.profile.nickname).toBe('다른 탭');
+    expect(stored(storage)?.leave.savings.map((s) => s.id)).toEqual([id]);
+  });
+
+  it('기록의 몫 바꾸기와 저축연가에서 쓴 기록', () => {
+    const storage = seeded();
+    const { tab } = openTab(storage);
+    expect(tab.addLeave([{ date: '2026-11-20', kind: 'day', hours: 8, pool: 'saved' }])).toBe(true);
+    const record = stored(storage)?.leave.records[0];
+    expect(record?.pool).toBe('saved');
+    expect(tab.setLeavePool(record?.id as string, 'annual')).toBe(true);
+    expect(stored(storage)?.leave.records[0]?.pool).toBe('annual');
+    expect(tab.setLeavePool(record?.id as string, 'annual')).toBe(false);
+  });
+
+  it('그 해 정리 값: 넣은 칸만 바꾸고, 네 칸이 모두 비면 그 해 키를 지운다', () => {
+    const storage = seeded();
+    const { tab } = openTab(storage);
+    expect(tab.setLeaveYear(2026, { midYear: 'paid' })).toBe(true);
+    expect(tab.setLeaveYear(2026, { compDays: 4 })).toBe(true);
+    expect(stored(storage)?.leave.years).toEqual({
+      '2026': { unpaidDays: null, capDays: null, midYear: 'paid', compDays: 4 },
+    });
+    expect(tab.setLeaveYear(2026, { compDays: 61 })).toBe(false);
+    expect(tab.setLeaveYear(2026, { midYear: null, compDays: null })).toBe(true);
+    expect(stored(storage)?.leave.years).toEqual({});
+  });
+
+  it('정리 값이 이미 60해이면 새 해는 넣지 않고(메모리도 그대로) 있던 해는 고칠 수 있다 — 그 뒤 저장이 막히지 않는다', () => {
+    const storage = fakeStorage();
+    const data = dataOf('김주무관');
+    const plan = { unpaidDays: 0, capDays: null, midYear: null, compDays: null };
+    for (let y = 1960; y < 1960 + LIMITS.maxLeaveYearPlans; y += 1)
+      data.leave.years[String(y)] = plan;
+    storage.map.set(KEYS.data, envelopeOf(data));
+    const { tab } = openTab(storage);
+    expect(tab.setLeaveYear(2026, { midYear: 'paid' })).toBe(false);
+    expect(tab.applyYearEnd(2026, { unpaidDays: 1, capDays: null, compDays: 2 }, 8)).toBe(false);
+    expect(Object.keys(tab.data?.leave.years ?? {})).toHaveLength(LIMITS.maxLeaveYearPlans);
+    expect(tab.setLeaveYear(1960, { compDays: 3 })).toBe(true);
+    expect(tab.addLeave([{ date: '2026-11-20', kind: 'day', hours: 8 }])).toBe(true);
+    expect(stored(storage)?.leave.records).toHaveLength(1);
+    expect(stored(storage)?.leave.years['1960']?.compDays).toBe(3);
+  });
+
+  it('연말 정리: 정리 값과 그 해 말 저축 한 칸을 한 번에(0이면 그 칸을 지운다), 버려지면 둘 다 쓰지 않는다', () => {
+    const storage = seeded();
+    const { tab } = openTab(storage);
+    expect(tab.applyYearEnd(2026, { unpaidDays: 10, capDays: null, compDays: 4 }, 19)).toBe(true);
+    let data = stored(storage);
+    expect(data?.leave.years['2026']).toEqual({
+      unpaidDays: 10,
+      capDays: null,
+      midYear: null,
+      compDays: 4,
+    });
+    expect(data?.leave.savings).toMatchObject([
+      { kind: 'carry', year: 2026, month: null, hours: 19 },
+    ]);
+    expect(tab.applyYearEnd(2026, { unpaidDays: 10, capDays: null, compDays: 6 }, 3)).toBe(true);
+    expect(stored(storage)?.leave.savings).toMatchObject([{ kind: 'carry', year: 2026, hours: 3 }]);
+    expect(tab.applyYearEnd(2026, { unpaidDays: null, capDays: null, compDays: null }, 0)).toBe(
+      true,
+    );
+    data = stored(storage);
+    expect([data?.leave.years, data?.leave.savings]).toEqual([{}, []]);
+
+    const base = tab.dataGeneration;
+    const theirs = otherTabWrites(storage, (d) => (d.profile.nickname = '다른 탭'));
+    expect(tab.applyYearEnd(2026, { unpaidDays: 1, capDays: 2, compDays: 3 }, 8, base)).toBe(false);
+    expect(storage.map.get(KEYS.data)).toBe(theirs);
   });
 });

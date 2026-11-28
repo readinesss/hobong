@@ -10,7 +10,8 @@ import { Calendar } from './calendar.ts';
 import { careerOf, careerStepOn, type CareerProfile } from './career-profile.ts';
 import { addDays, diffDays } from './date.ts';
 import { upcomingBonuses } from './bonus.ts';
-import { advanceLimitDays, annualLeaveDays, compensationPerDay, summarizeLeave } from './leave.ts';
+import { advanceLimitDays, annualLeaveDays, summarizeLeave } from './leave.ts';
+import { compensationAmount } from './leave-bank.ts';
 import { buildMilestones } from './milestones.ts';
 import {
   longServiceInfo,
@@ -568,7 +569,7 @@ describe('§5.5 연가·수당', () => {
     expect(annualLeaveDays(c.leave, '2015-03-01', TODAY)).toBe(
       annualLeaveDays(R.leave, '2015-03-01', TODAY),
     );
-    expect(compensationPerDay(c.leave, 3_000_000)).toBeNull();
+    expect(compensationAmount(c.leave, 3_000_000, 1)).toBeNull();
     // 교원휴가에 관한 예규 제5조제6항 표: 6월 미만 3일, 6월 이상 1년 미만 4일(일반직은 1년 미만 5일)
     expect(advanceLimitDays(c.leave, '2026-08-01', TODAY)).toBe(3);
     expect(advanceLimitDays(c.leave, '2026-03-01', TODAY)).toBe(4);
@@ -587,7 +588,7 @@ describe('§5.5 연가·수당', () => {
     );
     expect(own).toMatchObject({ grantedHours: 168, needsManualGrant: false, overridden: true });
     expect(advanceLimitDays(c.leave, '2015-03-01', TODAY)).toBeNull();
-    expect(compensationPerDay(c.leave, 3_000_000)).toBeNull();
+    expect(compensationAmount(c.leave, 3_000_000, 1)).toBeNull();
   });
   it('정근수당·명절휴가비: 경찰·교원은 그 봉급표로, 그 밖의 특정직은 목록에서 빠진다', () => {
     const police = person({ track: 'police', rank: '경위', step: 9 });

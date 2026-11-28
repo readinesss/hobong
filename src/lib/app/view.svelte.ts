@@ -15,6 +15,12 @@ import {
 } from '../achievements.ts';
 import { missingHolidayYearForBonuses, upcomingBonuses } from '../calc/bonus.ts';
 import { findBridges } from '../calc/bridge.ts';
+import {
+  compensationYear,
+  savingsLedger,
+  type CompensationYear,
+  type CompPlan,
+} from '../calc/leave-bank.ts';
 import { Calendar } from '../calc/calendar.ts';
 import {
   careerMaxStep,
@@ -33,13 +39,7 @@ import {
   yearOf,
   type Ymd,
 } from '../calc/date.ts';
-import {
-  advanceLimitDays,
-  compensationPerDay,
-  dayLeaveKind,
-  summarizeLeave,
-  type DayLeave,
-} from '../calc/leave.ts';
+import { advanceLimitDays, dayLeaveKind, summarizeLeave, type DayLeave } from '../calc/leave.ts';
 import {
   diligenceLeft,
   newYearsLeft,
@@ -502,10 +502,97 @@ class View {
       yearOf(this.retireDate) === yearOf(this.today) &&
       !this.retireDate.endsWith('-12-31'),
   );
-  /** 연가보상비 1일 단가. 보상비가 없거나(교원) 준비 중이거나 봉급이 없으면 null */
-  leaveDayPrice = $derived(
-    this.salary ? compensationPerDay(this.careerRules.leave, this.salary.amount) : null,
+  /**
+   * 올해 연가보상비 어림(#33). 상반기 지급 여부·12월 보상 일수는 화면이 고른 값(plan)으로 받고, 고르지 않으면
+   * '모름'·'최대로'다. 보상비가 없거나(교원) 준비 중이거나 올해 재직하지 않으면 null. 금액은 봉급이 꺼지면 null
+   */
+  leaveCompFor(
+    plan: CompPlan | null,
+    year: number = this.leave.year,
+    opts: { excludeCarry?: boolean } = {},
+  ): CompensationYear | null {
+    return compensationYear({
+      rules: rulesFor,
+      profile: this.profile,
+      leave: this.data.leave,
+      year,
+      today: this.today,
+      retireDate: this.retireDate ?? undefined,
+      plan,
+      excludeCarry: opts.excludeCarry ?? false,
+    });
+  }
+  /** 올해 연가 정리 값(저장된 것, v7 leave.years). 넣지 않았으면 null */
+  leaveYearPlan = $derived(this.data.leave.years[String(this.leave.year)] ?? null);
+  /** 저장된 올해 정리 값(상반기 지급 여부·보상 일수·한도·보상하지 않는 일수)으로 본 어림. 넣지 않았으면 '모름'·'최대로' */
+  leaveComp = $derived(this.leaveCompFor(this.leaveYearPlan));
+  /**
+   * 지갑의 '연가보상비(어림)' 한 줄(#33 묶음 3). 다가오는 보너스(3개)와 다가오는 일정(5개)의 자리를 차지하지 않는다.
+   * - 6월 30일 기준: 그날 남은 연가가 하한 이상(예정 기록 포함)이고, 받았다·받지 않았다고 하지 않았으면 7월 31일까지
+   * - 12월 31일 기준: 정산 값이 0보다 클 때(환수는 보너스가 아니다)
+   * 정년퇴직하는 해의 퇴직 줄, 셀 수 없는 해, 봉급이 꺼진 직종은 없다(null)
+   */
+  leaveCompBonus = $derived.by<{
+    basis: 'mid' | 'end';
+    amount: number;
+    days: number;
+    midPaid: boolean;
+  } | null>(() => {
+    const c = this.leaveComp;
+    if (this.retired || !c || c.kind !== 'year') return null;
+    const plan = this.leaveYearPlan;
+    const y = c.year;
+    const julyEnd = `${y}-07-31`;
+    if (
+      this.today <= julyEnd &&
+      c.mid.eligible &&
+      (plan?.midYear ?? null) === null &&
+      c.mid.amount !== null &&
+      c.mid.amount > 0
+    )
+      return { basis: 'mid', amount: c.mid.amount, days: c.mid.days, midPaid: false };
+    if (this.today > julyEnd || !c.mid.eligible || plan?.midYear != null) {
+      if (c.end.net !== null && c.end.net > 0 && !c.end.retireDate)
+        return {
+          basis: 'end',
+          amount: c.end.net,
+          days: c.end.chosenDays,
+          midPaid: (c.end.midPaid ?? 0) > 0,
+        };
+    }
+    return null;
+  });
+  /**
+   * 저축연가 통장(#33). 연가 저축 항목이 꺼진 직종(교원 '해당 없음', 준비 중)은 null.
+   * 넣은 칸이 없어도 빈 통장을 돌려준다(처음 잔액을 넣게 한다)
+   */
+  savings = $derived.by(() => {
+    const rule = this.careerRules.leave.saving;
+    if (!isAvailable(rule)) return null;
+    return savingsLedger(rule, this.data.leave.savings, this.data.leave.records, this.today);
+  });
+  /**
+   * 연말 정리를 할 해: 1월에는 지난해(12월 31일 기준으로 남은 연가를 나눈다), 그 밖에는 올해
+   */
+  yearEndYear = $derived(
+    Number(this.today.slice(5, 7)) === 1 ? this.leave.year - 1 : this.leave.year,
   );
+  /** 그 해를 정리했는지(보상 일수를 넣었거나 그 해 말 저축 칸이 있다) */
+  yearEndDone = $derived(
+    this.data.leave.years[String(this.yearEndYear)]?.compDays != null ||
+      this.data.leave.savings.some((s) => s.kind === 'carry' && s.year === this.yearEndYear),
+  );
+  /** 12월·1월에 아직 정리하지 않았으면 홈·연가 화면에서 [연말 정리 해 보기]를 권한다(저축을 쓰는 직종만) */
+  yearEndPrompt = $derived.by(() => {
+    const month = Number(this.today.slice(5, 7));
+    if (month !== 12 && month !== 1) return false;
+    if (this.retired || this.savings === null || this.yearEndDone) return false;
+    const comp = this.leaveCompFor(
+      this.data.leave.years[String(this.yearEndYear)] ?? null,
+      this.yearEndYear,
+    );
+    return comp !== null && comp.kind !== 'needsGrant';
+  });
   leaveCompensationOff = $derived(offOf(this.careerRules.leave.compensation));
   /** 미리 쓸 수 있는 연가 일수. 준비 중인 직종은 null */
   advanceLimit = $derived(

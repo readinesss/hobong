@@ -74,6 +74,7 @@ export type CareerSourceKey =
   | 'track'
   | 'rankLimit'
   | 'leaveScreen'
+  | 'compRounding'
   | 'payday'
   | 'leaveUnits'
   | 'leaveFirstYear'
@@ -110,6 +111,8 @@ export interface CareerRules {
     advance: Avail<LeaveRules['advance']>;
     compensation: Avail<LeaveRules['compensation']>;
     longService: Avail<LeaveRules['longService']>;
+    /** 연가 저축(#33). 교원은 '해당 없음', 지방 일반직은 지방 원문(제7조의10·제7조제4항)으로 덮어쓴다 */
+    saving: Avail<LeaveRules['saving']>;
     /**
      * 직종의 덮어쓰기(track.leaveUnits)가 있으면 그것, 없으면 기본 구역(8시간·4시간).
      * halfDayHours 가 null 이면 반일 연가 단위를 확인하지 못한 직종이다(지방 일반직)
@@ -180,6 +183,7 @@ const OVERRIDE_KEYS: readonly (keyof CareerOverrides)[] = [
   'leaveAdvance',
   'leaveCompensation',
   'leaveLongService',
+  'leaveSaving',
   'diligence',
   'holidayBonus',
   'seniorAllowance',
@@ -211,6 +215,8 @@ function baseValue(rules: Rules, feature: FeatureKey): object {
       return rules.leave.compensation;
     case 'leaveLongService':
       return rules.leave.longService;
+    case 'leaveSaving':
+      return rules.leave.saving;
     case 'diligence':
       return {
         diligence: rules.allowances.diligence,
@@ -345,11 +351,14 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
   const advance = feature<LeaveRules['advance']>('leaveAdvance');
   const compensation = feature<LeaveRules['compensation']>('leaveCompensation');
   const leaveLong = feature<LeaveRules['longService']>('leaveLongService');
+  const saving = feature<LeaveRules['saving']>('leaveSaving');
   const diligence = feature<DiligenceRules>('diligence');
   const holidayBonus = feature<AllowanceRules['holidayBonus']>('holidayBonus');
   const seniorAllowance = feature<AllowanceRules['seniorTreatment']>('seniorAllowance');
   const position = feature<PositionAllowanceRules>('positionAllowance');
   if (track.leaveScreen) sources.push({ feature: 'leaveScreen', source: track.leaveScreen.source });
+  if (track.compRoundingNote)
+    sources.push({ feature: 'compRounding', source: track.compRoundingNote.source });
   if (track.leaveUnits) sources.push({ feature: 'leaveUnits', source: track.leaveUnits.source });
   if (track.leaveFirstYear)
     sources.push({ feature: 'leaveFirstYear', source: track.leaveFirstYear.source });
@@ -416,6 +425,7 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
       advance,
       compensation,
       longService: leaveLong,
+      saving,
       units: track.leaveUnits ?? rules.leave.units,
       firstYear: track.leaveFirstYear ?? rules.leave.firstYear,
     },

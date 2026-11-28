@@ -3,6 +3,7 @@
   import { theme } from '../lib/app/theme.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
+  import { formatLeaveHours } from '../lib/calc/leave.ts';
   import { HAND_SLOT, resolveLook, stageLabels, unlockList } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import type { AchievementView } from '../lib/achievements.ts';
@@ -73,6 +74,24 @@
   const yearVisits = $derived(view.yearGrid.filter((d) => d.opened).length);
   const allVisits = $derived(view.data.visits.days.length);
   const holidaysKnown = $derived(calendar.hasHolidayData(year));
+  /**
+   * 올해 연가 정리(#33): 연말 정리에서 넣은 보상 일수와 그 해 말 저축. 정리한 해만 한 줄(결산 화면에만 — 카드·공유에는 넣지 않는다)
+   */
+  const yearSettled = $derived.by(() => {
+    const plan = view.data.leave.years[String(year)];
+    const carry = view.data.leave.savings
+      .filter((e) => e.kind === 'carry' && e.year === year)
+      .reduce((sum, e) => sum + e.hours, 0);
+    const comp = plan?.compDays ?? null;
+    if (comp === null && carry === 0) return null;
+    const hpd = view.careerRules.leave.units.hoursPerDay;
+    return [
+      carry > 0 ? `저축 ${formatLeaveHours(carry, hpd)}` : '',
+      comp !== null ? `보상 ${comp}일` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  });
 
   const badges = $derived(view.badges);
   const total = $derived(badges.length);
@@ -195,6 +214,9 @@
           hoursPerDay={view.careerRules.leave.units.hoursPerDay}
           {holidaysKnown}
         />
+        {#if yearSettled}
+          <p class="cap" id="visits-leave-settled">{year}년 연가 정리: {yearSettled}(넣은 값)</p>
+        {/if}
         <p class="cap muted">
           호봉이를 들여다본 날마다 도장이 하나 찍혀요. 며칠 건너뛰어도 사라지지 않아요. 연가는 연가
           장부의 기록을 그대로 보여 줘요.{holidaysKnown

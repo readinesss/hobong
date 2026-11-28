@@ -29,7 +29,6 @@ import {
   advanceLimitDays,
   annualLeaveDays,
   checkNewLeave,
-  compensationPerDay,
   firstYearMonths,
   serviceMonthsInYear,
   formatLeaveHours,
@@ -64,6 +63,7 @@ import {
   upcomingBonuses,
 } from './bonus.ts';
 import { floorRate } from './money.ts';
+import { compensationAmount } from './leave-bank.ts';
 import {
   buildMilestones,
   longLeaveNotices,
@@ -532,9 +532,9 @@ describe('연가 (복무규정 제15조~제17조)', () => {
       '2026-12-29',
     ]);
   });
-  it('연가보상비 1일 단가와 미리 쓰기 한도', () => {
-    expect(compensationPerDay(L, 2_133_000)).toBe(61_146);
-    expect(compensationPerDay(L, 3_331_900)).toBe(95_514);
+  it('연가보상비 1일분 지급액(일수까지 곱한 뒤 10원 미만 버림)과 미리 쓰기 한도', () => {
+    expect(compensationAmount(L, 2_133_000, 1)).toBe(61_140);
+    expect(compensationAmount(L, 3_331_900, 1)).toBe(95_510);
     expect(advanceLimitDays(L, '2026-03-01', '2026-11-25')).toBe(5);
     expect(advanceLimitDays(L, '2024-03-01', '2026-11-25')).toBe(7);
     expect(advanceLimitDays(L, '2015-03-01', '2026-11-25')).toBe(10);

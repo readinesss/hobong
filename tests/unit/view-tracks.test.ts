@@ -109,7 +109,19 @@ describe('모든 직종 시드로 view 의 모든 값을 읽어도 예외가 없
           expect(v.earn, iso).toBeNull();
           expect(v.cumulative, iso).toBeNull();
           expect(v.yearToDate, iso).toBeNull();
-          expect(v.leaveDayPrice, iso).toBeNull();
+          // 연가보상비 어림(#33)도 일수만 있고 금액은 없다
+          const comp = v.leaveComp as {
+            kind: string;
+            mid?: { amount: number | null };
+            end?: { total: number | null; net: number | null };
+            total?: number | null;
+          } | null;
+          if (comp?.kind === 'year') {
+            expect(comp.mid?.amount === null || comp.mid?.amount === 0, iso).toBe(true);
+            expect(comp.end?.total, iso).toBeNull();
+            expect(comp.end?.net, iso).toBeNull();
+          }
+          if (comp?.kind === 'retire') expect(comp.total, iso).toBeNull();
           expect(v.bonuses, iso).toEqual([]);
           expect(v.payOff, iso).not.toBeNull();
         }
@@ -165,7 +177,7 @@ describe('직종 저장본 픽스처', () => {
     expect(view.salary).toMatchObject({ annex: '별표 11' });
     expect(view.rankStepLabel).toMatch(/^\d+호봉$/);
     expect(view.retire?.age).toBe(62);
-    expect(view.leaveDayPrice).toBeNull();
+    expect(view.leaveComp).toBeNull();
     expect(view.leaveCompensationOff?.status).toBe('none');
     expect(view.longService.applicable).toBe(false);
     expect(view.longServiceOff?.status).toBe('none');

@@ -4,9 +4,7 @@
     busiestMonthText,
     formatMonthBarValue,
     formatMonthDayMaybeYear,
-    formatWon,
     leaveBalance,
-    MASKED_WON,
     josa,
     withRo,
   } from '../lib/app/format.ts';
@@ -31,10 +29,12 @@
     recordsOfYear,
     workdaysInRange,
   } from '../lib/calc/leave.ts';
+  import { savingsAvailableOn, savingsFits } from '../lib/calc/leave-bank.ts';
   import { isAvailable } from '../lib/rules/index.ts';
   import type { Unavailable } from '../lib/rules/types.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
-  import { LIMITS, type LeaveKind } from '../lib/store/schema.ts';
+  import { LIMITS, type LeaveKind, type LeavePool } from '../lib/store/schema.ts';
+  import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import OffNote from '../lib/ui/OffNote.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
   import Icon from '../lib/ui/Icon.svelte';
@@ -43,7 +43,10 @@
   import Stepper from '../lib/ui/Stepper.svelte';
   import Win from '../lib/ui/Win.svelte';
   import LeaveCalendar from './leave/LeaveCalendar.svelte';
+  import LeaveCompWindow from './leave/LeaveCompWindow.svelte';
   import LongLeaveWindow from './leave/LongLeaveWindow.svelte';
+  import SavingsWindow from './leave/SavingsWindow.svelte';
+  import YearEndDialog from './leave/YearEndDialog.svelte';
 
   const leave = $derived(view.leave);
   const hpd = $derived(leave.hoursPerDay);
@@ -69,10 +72,21 @@
         }
       : null,
   );
-  /** 연가 화면 문구: 교원은 나이스, 저축·이월 연가 없음(교원휴가 예규 제10조). 없으면 일반 문구 */
+  /** 연가 화면 문구: 교원은 나이스(교원휴가 예규). 없으면 일반 문구 */
   const screen = $derived(career.track.leaveScreen ?? null);
-  const compensation = $derived(
-    isAvailable(career.leave.compensation) ? career.leave.compensation : null,
+  /**
+   * 연가 저축이 '해당 없음'인 직종(교원 — 교원휴가 예규 제10조): 부여 일수 도움말에 저축을 말하지 않는다.
+   * 직종 이름이 아니라 규정 데이터의 연가 저축 항목(leaveSaving)을 본다
+   */
+  const savingNone = $derived(
+    !isAvailable(career.leave.saving) &&
+      (career.leave.saving as unknown as Unavailable).status === 'none',
+  );
+  /** 연가 저축 규정(꺼져 있으면 null — 통장·'저축연가에서 쓰기'가 없다) */
+  const savingRule = $derived(isAvailable(career.leave.saving) ? career.leave.saving : null);
+  /** 연가 저축이 꺼진 까닭(교원 '해당 없음', 준비 중). 켜져 있으면 null */
+  const savingOff = $derived(
+    isAvailable(career.leave.saving) ? null : (career.leave.saving as unknown as Unavailable),
   );
   const advance = $derived(isAvailable(career.leave.advance) ? career.leave.advance : null);
   /** 연가 일수 계산이 꺼진 직종(준비 중): 재직기간 계산·제15조 문구를 쓰지 않고, 넣기 전에는 남은 숫자도 보이지 않는다 */
@@ -115,6 +129,10 @@
   let showGrant = $state(false);
   let showRange = $state(false);
   let entryEl = $state<HTMLElement>();
+  /** 기록할 몫(#33): 올해 연가 / 저축연가 */
+  let pool = $state<LeavePool>('annual');
+  /** 연말 정리 대화상자가 정리하는 해(닫혀 있으면 null) */
+  let yearEnd = $state<number | null>(null);
 
   const selectedIsWorkday = $derived(calendar.isWorkday(selected));
   const selectedHoliday = $derived(calendar.holidayName(selected));
@@ -125,6 +143,32 @@
   const listYear = $derived(yearOf(month));
   const yearRecords = $derived([...recordsOfYear(view.data.leave.records, listYear)].reverse());
   const maxMonthHours = $derived(Math.max(hpd, ...leave.byMonth));
+  /** 고른 날 새 기록으로 쓸 수 있는 저축연가(그날 쓰기 시작한 것만, 뒤의 예정 기록 몫은 남긴다) */
+  const savedOn = (date: Ymd) =>
+    savingRule
+      ? savingsAvailableOn(savingRule, view.data.leave.savings, view.data.leave.records, date)
+      : 0;
+  const savedSelected = $derived(savedOn(selected));
+  const POOL_LABEL: Record<LeavePool, string> = { annual: '올해 연가', saved: '저축연가' };
+  const poolOptions = $derived([
+    { value: 'annual' as const, label: POOL_LABEL.annual },
+    { value: 'saved' as const, label: POOL_LABEL.saved, disabled: savedSelected === 0 },
+  ]);
+  // 고른 날 쓸 저축연가가 없으면 올해 연가로 돌린다
+  $effect(() => {
+    if (pool === 'saved' && savedSelected === 0) pool = 'annual';
+  });
+  /** 그 기록(올해 연가)을 저축연가로 바꿀 수 있는지: 그날 쓸 수 있는 저축연가가 그 기록 시간 이상 */
+  const canMoveToSaved = (date: Ymd, need: number) =>
+    savingRule !== null &&
+    view.data.leave.savings.length > 0 &&
+    savingsFits(savingRule, view.data.leave.savings, view.data.leave.records, date, need);
+  /** 저축연가가 모자라면 그 까닭(없으면 '') */
+  function savedShort(date: Ymd, need: number): string {
+    const have = savedOn(date);
+    if (need <= have) return '';
+    return `저축연가가 모자라요. ${formatMonthDay(date, false)}에 쓸 수 있는 저축연가는 ${formatLeaveHours(have, hpd)}이에요.`;
+  }
 
   function select(date: Ymd) {
     selected = date;
@@ -141,19 +185,23 @@
       view.profile.hireDate,
       entry,
     );
-    if (problem) {
-      message = problem;
+    const amount = hoursOfKind(rules, kind, hours);
+    const short = problem ? '' : pool === 'saved' ? savedShort(selected, amount) : '';
+    if (problem || short) {
+      message = problem ?? short;
       return;
     }
     message = '';
-    const amount = hoursOfKind(rules, kind, hours);
     const before = new Set(view.data.leave.records.map((r) => r.id));
+    const from = pool;
     // 다른 탭이 바꾼 데이터를 따라가느라 버렸으면 app 이 알린다(메모는 남겨 다시 누르면 된다)
-    if (!app.addLeave([{ date: selected, kind, hours: amount, memo }])) return;
+    if (!app.addLeave([{ date: selected, kind, hours: amount, memo, pool: from }])) return;
     const added = view.data.leave.records.filter((r) => !before.has(r.id)).map((r) => r.id);
     memo = '';
+    // 다음 기록이 모르고 저축연가에서 나가지 않게, 기록한 뒤에는 늘 올해 연가로 돌린다
+    pool = 'annual';
     app.toast(
-      `${formatMonthDay(selected)} ${kindLabel(kind, amount)} 연가를 ${selected > view.today ? '예정으로 ' : ''}기록했어요.`,
+      `${formatMonthDay(selected)} ${kindLabel(kind, amount)} 연가를 ${from === 'saved' ? '저축연가에서 ' : ''}${selected > view.today ? '예정으로 ' : ''}기록했어요.`,
       'good',
       'icon-palm',
       6000,
@@ -206,6 +254,46 @@
     }
   });
 
+  // ── 연말 정리·저축연가(#33) ─────────────────────────────────────────
+  function openYearEnd() {
+    yearEnd = untrack(() => view.yearEndYear);
+  }
+  // 홈 연가 창의 [연말 정리 해 보기]로 들어오면 대화상자를 바로 연다
+  $effect(() => {
+    if (nav.yearEndRequested) {
+      nav.yearEndRequested = false;
+      untrack(openYearEnd);
+    }
+  });
+  /** 기록이 나간 몫을 바꾼다(올해 연가 ↔ 저축연가) */
+  function switchPool(id: string, to: LeavePool, date: Ymd, amount: number) {
+    if (to === 'saved') {
+      const short = savedShort(date, amount);
+      if (short) {
+        app.toast(short, 'warn', 'icon-warn');
+        return;
+      }
+    }
+    if (!app.setLeavePool(id, to)) return;
+    app.toast(
+      `${formatMonthDay(date)} 기록을 ${to === 'saved' ? '저축연가에서 쓴 것으로' : '올해 연가에서 쓴 것으로'} 바꿨어요.`,
+      'good',
+      'icon-pencil',
+      6000,
+      {
+        label: '되돌리기',
+        run: () => void app.setLeavePool(id, to === 'saved' ? 'annual' : 'saved'),
+      },
+    );
+  }
+  /** 통장의 '모자란 기록'에서 그날로 간다(달력·기록 목록이 그 달로 옮긴다) */
+  function pickRecord(date: Ymd) {
+    select(date);
+    document
+      .getElementById('leave-records')
+      ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
   // ── 여러 날 한꺼번에 ─────────────────────────────────────────────────
   let rangeFrom = $state<Ymd | ''>('');
   let rangeTo = $state<Ymd | ''>('');
@@ -221,22 +309,33 @@
     rangeTo = selected;
     showRange = true;
   }
+  /** 여러 날을 저축연가에서 쓸 때 모자란지(마지막 날 기준으로 합계를 본다) */
+  const rangeShort = $derived(
+    pool === 'saved' && rangeDays.length > 0
+      ? savedShort(rangeDays[rangeDays.length - 1] as Ymd, rangeDays.length * hpd)
+      : '',
+  );
   function saveRange() {
     const days = rangeDays;
-    if (days.length === 0) return;
+    if (days.length === 0 || rangeShort) return;
     const before = new Set(view.data.leave.records.map((r) => r.id));
+    const from = pool;
     const kept = app.addLeave(
-      days.map((date) => ({ date, kind: 'day' as const, hours: hpd, memo })),
+      days.map((date) => ({ date, kind: 'day' as const, hours: hpd, memo, pool: from })),
     );
     showRange = false;
     if (!kept) return;
     const added = view.data.leave.records.filter((r) => !before.has(r.id)).map((r) => r.id);
     memo = '';
+    pool = 'annual';
     select(days[0] as Ymd);
-    app.toast(`${days.length}일 연가를 기록했어요.`, 'good', 'icon-palm', 6000, {
-      label: '되돌리기',
-      run: () => app.removeLeaves(added),
-    });
+    app.toast(
+      `${days.length}일 연가를 ${from === 'saved' ? '저축연가에서 ' : ''}기록했어요.`,
+      'good',
+      'icon-palm',
+      6000,
+      { label: '되돌리기', run: () => app.removeLeaves(added) },
+    );
   }
 
   /** 징검다리 고르기: 하루면 그 날을 고르고, 이틀 이상이면 '여러 날 한꺼번에'를 그 기간으로 연다 */
@@ -323,6 +422,15 @@
               </dd>
             </div>
           {/if}
+          {#if leave.usedSavedHours > 0}
+            <!-- 사용률은 올해 연가 기준이다. 저축연가에서 쓴 기록은 따로 센다(#33) -->
+            <div class="kv" id="leave-saved-used">
+              <dt>저축연가에서</dt>
+              <dd>
+                {formatLeaveHours(leave.usedSavedHours, hpd)} <span class="cap muted">(따로)</span>
+              </dd>
+            </div>
+          {/if}
           {#if !leave.needsManualGrant}
             <div class="kv">
               <dt>사용률</dt>
@@ -330,6 +438,16 @@
             </div>
           {/if}
         </dl>
+        {#if !savingRule && leave.usedSavedHours > 0}
+          <!-- 직종을 바꾸었거나 불러온 기록: 이 직종은 통장이 없어 저축연가 기록이 따로 남는다 -->
+          <p class="note" id="leave-saved-orphan">
+            이 직종은 저축연가 통장을 쓰지 않아요. 저축연가로 적힌 기록({formatLeaveHours(
+              leave.usedSavedHours,
+              hpd,
+            )})은 올해 연가 사용에 넣지 않았어요. 올해 연가에서 쓴 것이면 기록 목록의 [올해
+            연가로]를 눌러 바꿔 주세요.
+          </p>
+        {/if}
         {#if leave.nextChange}
           <p class="note">
             {formatKorean(leave.nextChange.date)}부터 재직기간이 늘어 올해 연가가 {withRo(
@@ -355,7 +473,9 @@
           <p class="note warn">
             부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요{advance
               ? `(${lawOf(advance.source.law)} ${advance.source.article})`
-              : ''}.
+              : ''}.{savingRule
+              ? " 저축연가가 있으면 그 기록을 '저축연가'로 바꿀 수 있어요(기록 목록의 [저축연가로]). 남은 연가를 넘겨 쓰면 저축연가에서 빼고, 저축연가도 없으면 결근으로 볼 수 있어요(예규)."
+              : ''}
           </p>
         {/if}
         <div class="btn-row">
@@ -363,13 +483,24 @@
             <Icon name="icon-pencil" />
             {leave.needsManualGrant ? '부여 일수 넣기' : '부여 일수 고치기'}
           </button>
+          {#if view.yearEndPrompt}
+            <button
+              type="button"
+              class="btn primary small"
+              onclick={openYearEnd}
+              id="leave-year-end-prompt"
+            >
+              <Icon name="icon-calendar" />
+              {view.yearEndYear}년 연말 정리
+            </button>
+          {/if}
         </div>
         <!-- 연가 일수가 준비 중인 직종은 위 안내가 같은 말을 하므로 일반직용 도움말을 쓰지 않는다 -->
         {#if !annualOff}
           <p class="cap muted">
-            {screen && !screen.savingCarryOver
+            {savingNone
               ? '성실 근무 가산(총 2일 이내)이 있으면 부여 일수를 직접 고쳐 주세요.'
-              : '가산·저축·이월 연가가 있으면 부여 일수를 직접 고쳐 주세요.'}
+              : `가산 연가가 있으면 부여 일수를 직접 고쳐 주세요. 저축연가는 더하지 않아요.${savingRule ? ' 저축연가는 저축연가 통장에 따로 넣어요.' : ''}`}
           </p>
         {/if}
         <p class="note" id="leave-reference">
@@ -415,6 +546,25 @@
           <p class="note">
             {yearOf(selected)}년 공휴일이 아직 반영되지 않아, 이날이 공휴일인지는 확인하지 못했어요.
           </p>
+        {/if}
+        {#if savingRule}
+          <div class="stack pool">
+            <span class="cap muted" id="leave-pool-label">어디서 쓰나요</span>
+            <ChipRadio
+              options={poolOptions}
+              value={pool}
+              onchange={(v) => (pool = v)}
+              labelledby="leave-pool-label"
+              describedby="leave-pool-hint"
+            />
+            <span class="cap muted" id="leave-pool-hint">
+              {savedSelected > 0
+                ? pool === 'saved'
+                  ? `저축연가 ${formatLeaveHours(savedSelected, hpd)} 중에서 써요.`
+                  : `이날 쓸 수 있는 저축연가 ${formatLeaveHours(savedSelected, hpd)}`
+                : '이날 쓸 수 있는 저축연가가 없어요. 저축연가 통장에 넣으면 고를 수 있어요.'}
+            </span>
+          </div>
         {/if}
         <div class="units">
           <button
@@ -494,6 +644,8 @@
         </div>
       </div>
     </section>
+    <!-- 저축연가 통장(#33): 기록하기 바로 다음(좁은 화면 grid-area: savings). 넓은 화면에서는 첫 열(가장 짧은 열) 끝 -->
+    <SavingsWindow onEditGrant={openGrant} onYearEnd={openYearEnd} onPick={pickRecord} />
   </div>
   <div class="col">
     <Win title="달력" icon="icon-calendar" id="leave-calendar" area="calendar">
@@ -544,6 +696,8 @@
     </Win>
   </div>
   <div class="col c3">
+    <!-- 연가보상비 어림(#33): 좁은 화면에서는 저축연가 통장 다음(grid-area: comp), 넓은 화면에서는 기록 열 맨 위 -->
+    <LeaveCompWindow onEditGrant={openGrant} onYearEnd={openYearEnd} />
     <Win title="기록" icon="icon-document" id="leave-records" area="records">
       {#snippet aside()}{listYear}년 · {yearRecords.length}건{/snippet}
       {#if yearRecords.length === 0}
@@ -558,11 +712,30 @@
                 <span>
                   {formatKorean(record.date)}
                   {#if record.date > view.today}<span class="tag">예정</span>{/if}
+                  {#if record.pool === 'saved'}<span class="tag gold">저축</span>{/if}
                 </span>
                 <span class="cap muted">
                   {kindLabel(record.kind, record.hours)}{record.memo ? ` · ${record.memo}` : ''}
                 </span>
               </div>
+              {#if record.pool === 'saved' || canMoveToSaved(record.date, record.hours)}
+                <button
+                  type="button"
+                  class="btn small pool-switch"
+                  onclick={() =>
+                    switchPool(
+                      record.id,
+                      record.pool === 'saved' ? 'annual' : 'saved',
+                      record.date,
+                      record.hours,
+                    )}
+                  aria-label="{formatMonthDay(record.date)} 기록을 {record.pool === 'saved'
+                    ? '올해 연가로'
+                    : '저축연가로'} 바꾸기"
+                >
+                  {record.pool === 'saved' ? '올해 연가로' : '저축연가로'}
+                </button>
+              {/if}
               <button
                 type="button"
                 class="btn small"
@@ -634,17 +807,11 @@
         )}).
       {/if}
     </p>
-    {#if view.leaveDayPrice !== null && compensation}
-      <p class="note">
-        연가보상비 1일 단가: {view.data.settings.hideAmounts
-          ? MASKED_WON
-          : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(compensation.rate * 100)}%
-        ÷
-        {compensation.divisor}, {cite(compensation.source)}). 보상 일수와 지급 여부는 {compensation.payCondition}에
-        따라 달라요(최대 {compensation.maxDays}일).
-      </p>
-    {:else if view.leaveCompensationOff}
+    {#if view.leaveCompensationOff}
       <OffNote label="연가보상비" off={view.leaveCompensationOff} id="leave-compensation-off" />
+    {/if}
+    {#if savingOff}
+      <OffNote label="저축연가" off={savingOff} id="leave-saving-off" />
     {/if}
     {#if career.track.leaveNote}
       <p class="note" id="leave-track-note">{career.track.leaveNote}</p>
@@ -684,9 +851,9 @@
       <p>
         {annualOff
           ? '이 직종의 연가 일수는 아직 계산하지 않아요. 소속 기관 인사시스템에 나온 올해 연가 일수를 그대로 넣어 주세요.'
-          : screen && !screen.savingCarryOver
-            ? `성실 근무 가산 연가(총 2일 이내), 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen.recordSystem.replace(/\(.*\)$/, '')}에 나온 일수를 그대로 넣어 주세요.`
-            : `가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen ? screen.recordSystem.replace(/\(.*\)$/, '') : 'e-사람'}에 나온 일수를 그대로 넣어 주세요.`}
+          : savingNone
+            ? `성실 근무 가산 연가(총 2일 이내), 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${(screen?.recordSystem ?? '소속 기관 인사시스템').replace(/\(.*\)$/, '')}에 나온 일수를 그대로 넣어 주세요.`
+            : `가산 연가나 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen ? screen.recordSystem.replace(/\(.*\)$/, '') : 'e-사람'}에 나온 올해 연가 일수를 넣어 주세요. 저축연가는 더하지 않아요.${savingRule ? ' 저축연가는 저축연가 통장에 따로 넣어요.' : ''}`}
       </p>
       <div class="grant">
         <Stepper id="grant-days" label="일" bind:value={grantDays} min={0} max={60} unit="일" />
@@ -714,6 +881,10 @@
   </Modal>
 {/if}
 
+{#if yearEnd !== null}
+  <YearEndDialog year={yearEnd} onclose={() => (yearEnd = null)} />
+{/if}
+
 {#if showRange}
   <Modal title="여러 날 한꺼번에" icon="icon-calendar" onclose={() => (showRange = false)}>
     <div class="stack wide">
@@ -733,6 +904,10 @@
           </strong>을 하루 연가로 기록해요.
         </p>
       {/if}
+      {#if savingRule && pool === 'saved'}
+        <p class="cap" id="range-pool">저축연가에서 써요(기록하기 창에서 고른 대로).</p>
+      {/if}
+      {#if rangeShort}<p class="note warn" role="alert">{rangeShort}</p>{/if}
       {#if memo.trim()}
         <p class="cap muted" id="range-memo">메모 "{memo.trim()}"도 날마다 함께 적어요.</p>
       {/if}
@@ -743,7 +918,7 @@
         type="button"
         class="btn primary"
         onclick={saveRange}
-        disabled={rangeDays.length === 0}
+        disabled={rangeDays.length === 0 || rangeShort !== ''}
       >
         {rangeDays.length}일 기록
       </button>
@@ -759,6 +934,8 @@
     grid-template-areas:
       'summary'
       'entry'
+      'savings'
+      'comp'
       'calendar'
       'long'
       'records'
@@ -777,6 +954,12 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+  }
+  .pool {
+    gap: 3px;
+  }
+  .pool-switch {
+    white-space: nowrap;
   }
   .units {
     display: grid;
