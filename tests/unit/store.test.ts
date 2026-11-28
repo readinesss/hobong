@@ -25,6 +25,7 @@ import {
   newUserData,
 } from '../../src/lib/store/defaults.ts';
 import {
+  LIMITS,
   SCHEMA_VERSION,
   YEAR_MONTH_KEY_RE,
   type Profile,
@@ -74,6 +75,7 @@ function sampleProfile(over: Partial<Profile> = {}): Profile {
     hireDate: '2020-01-01',
     track: 'general',
     series: null,
+    seriesJikryu: null,
     payTable: 'table3',
     rank: '8',
     rankDate: '2024-07-01',
@@ -81,6 +83,7 @@ function sampleProfile(over: Partial<Profile> = {}): Profile {
     nextStepDate: '2027-01-01',
     stepAsOf: '2026-11-25',
     overrides: { longServiceDate: null, seniorDate: '2028-08-01', rankLimitDate: null },
+    priorService: null,
     ...over,
   };
 }
@@ -106,11 +109,13 @@ function sampleData(): UserData {
   };
   data.leave = {
     records: [
-      { id: 'a1', date: '2026-03-03', hours: 8, kind: 'day', memo: '가족 여행' },
-      { id: 'a2', date: '2026-03-04', hours: 4, kind: 'am', memo: '' },
-      { id: 'a3', date: '2026-08-10', hours: 2, kind: 'hours', memo: '병원' },
+      { id: 'a1', date: '2026-03-03', hours: 8, kind: 'day', memo: '가족 여행', pool: 'annual' },
+      { id: 'a2', date: '2026-03-04', hours: 4, kind: 'am', memo: '', pool: 'annual' },
+      { id: 'a3', date: '2026-08-10', hours: 2, kind: 'hours', memo: '병원', pool: 'annual' },
     ],
     grantOverrideHours: { '2026': 184 },
+    savings: [],
+    years: {},
   };
   data.achievements = { hire: { at: '2020-01-01' }, 'first-leave': { at: '2026-03-03' } };
   data.character = {
@@ -136,12 +141,34 @@ function asV6(v5: any): any {
 }
 
 /**
- * v4 데이터가 지금 형식(v6)으로 바뀔 때 더해지는 것(지금과 같은 모습·동작의 기본값). 나머지는 그대로다.
- * v5 에서 직렬·꾸미기·소리 등, v6 에서 퇴직 예정 달(없음).
+ * v6 데이터가 v7 로 바뀔 때 더해지는 것(#31·#33·#34 의 칸 — 지금과 같은 동작의 기본값). 나머지는 그대로다.
+ * 직류 없음·군 복무 없음, 모든 연가 기록은 그해 연가(pool 'annual'), 저축연가 통장 비어 있음, 연가 정리 값 없음.
+ */
+function asV7(v6: any): any {
+  return {
+    ...v6,
+    profile: { ...v6.profile, seriesJikryu: null, priorService: null },
+    leave: {
+      ...v6.leave,
+      records: v6.leave.records.map((r: any) => ({ ...r, pool: 'annual' })),
+      savings: [],
+      years: {},
+    },
+  };
+}
+
+/** v5 데이터가 지금 형식(v7)으로 바뀔 때: v6 의 퇴직 예정 달(없음)과 v7 의 기본값 */
+function fromV5(v5: any): any {
+  return asV7(asV6(v5));
+}
+
+/**
+ * v4 데이터가 지금 형식(v7)으로 바뀔 때 더해지는 것(지금과 같은 모습·동작의 기본값). 나머지는 그대로다.
+ * v5 에서 직렬·꾸미기·소리 등, v6 에서 퇴직 예정 달(없음), v7 에서 직류·군 복무·연가 몫·저축연가·연가 정리 값.
  */
 function asNow(v4: any): any {
   const d = defaultSettings(R);
-  return asV6({
+  return fromV5({
     ...v4,
     profile: { ...v4.profile, series: null },
     settings: {
@@ -236,6 +263,7 @@ describe('구버전(v1) 파일 변환', () => {
       hireDate: '2022-09-01',
       track: 'general',
       series: null,
+      seriesJikryu: null,
       payTable: 'table3',
       rank: '9',
       rankDate: '2022-09-01',
@@ -244,11 +272,12 @@ describe('구버전(v1) 파일 변환', () => {
       // 확인한 날은 알 수 없으므로 파일을 내보낸 날로 채운다
       stepAsOf: '2026-06-15',
       overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+      priorService: null,
     });
     expect(parsed.data.leave.records).toEqual([
-      { id: 'v1-1', date: '2026-01-02', hours: 8, kind: 'day', memo: '' },
-      { id: 'v1-2', date: '2026-03-13', hours: 4, kind: 'am', memo: '' },
-      { id: 'v1-3', date: '2026-05-04', hours: 2, kind: 'hours', memo: '' },
+      { id: 'v1-1', date: '2026-01-02', hours: 8, kind: 'day', memo: '', pool: 'annual' },
+      { id: 'v1-2', date: '2026-03-13', hours: 4, kind: 'am', memo: '', pool: 'annual' },
+      { id: 'v1-3', date: '2026-05-04', hours: 2, kind: 'hours', memo: '', pool: 'annual' },
     ]);
     expect(parsed.data.leave.grantOverrideHours).toEqual({ '2026': 128 });
     expect(parsed.data.achievements).toEqual({
@@ -767,6 +796,7 @@ describe('입력 폼 검사', () => {
         {
           ...base,
           overrides: { longServiceDate: '2020-01-01', seniorDate: null, rankLimitDate: null },
+          priorService: null,
         },
         ctx,
       ).longServiceDate,
@@ -1147,6 +1177,7 @@ describe('저장 형식 v4: 직종·봉급표·계급 키', () => {
         {
           ...sampleProfile(),
           overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: '2000-01-01' },
+          priorService: null,
         },
         ctx,
       ),
@@ -1337,10 +1368,10 @@ describe('저장 형식 v5: 직렬·꾸미기·소리·포인터(고도화 2차)
     const parsed = parseBackup(text, ctx);
     expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
     if (!parsed.ok) return;
-    // v5 → v6 은 퇴직 예정 달(없음) 한 칸만 더한다. v5 의 값은 하나도 바뀌지 않는다
+    // v5 → v6 은 퇴직 예정 달(없음) 한 칸, v6 → v7 은 기본값만 더한다. v5 의 값은 하나도 바뀌지 않는다
     expect(parsed.migrated).toBe(true);
     expect(parsed.fromVersion).toBe(5);
-    expect(parsed.data).toEqual(asV6(JSON.parse(text).data));
+    expect(parsed.data).toEqual(fromV5(JSON.parse(text).data));
     // 다시 내보내면 지금 버전 파일이고, 변환 없이 같은 값으로 열린다
     const again = parseBackup(
       serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-26T09:00:00.000Z')),
@@ -1546,8 +1577,8 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
   };
   const errorsOf = (r: ReturnType<typeof validateUserData>) => (r.ok ? [] : r.errors).join('\n');
 
-  it('지금 저장 형식은 v6 이고, 새 사용자는 퇴직 예정 달이 없다(정년까지)', () => {
-    expect(SCHEMA_VERSION).toBe(6);
+  it('새 사용자는 퇴직 예정 달이 없다(정년까지). 지금 저장 형식은 v6 다음 판(v7)이다', () => {
+    expect(SCHEMA_VERSION).toBe(7);
     const data = newUserData(sampleProfile(), defaultSettings(R), NOW, TODAY);
     expect(data.plan).toEqual({ retireMonth: null });
     expect(validateUserData(data, stored).ok).toBe(true);
@@ -1558,7 +1589,7 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
     expect(YEAR_MONTH_KEY_RE.flags).toBe(YEAR_MONTH_RE.flags);
   });
 
-  it('S1: v5 파일 → v6 은 퇴직 예정 달(없음)만 더하고 나머지 값은 그대로다', () => {
+  it('S1: v5 파일 → v6 은 퇴직 예정 달(없음)만 더하고 나머지 값은 그대로다(v7 의 기본값은 따로 더해진다)', () => {
     const text = fixture('backup-v5.json');
     const parsed = parseBackup(text, ctx);
     expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
@@ -1567,7 +1598,8 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
     expect(parsed.migrated).toBe(true);
     expect(parsed.data.plan).toEqual({ retireMonth: null });
     const { plan: _plan, ...rest } = parsed.data;
-    expect(rest).toEqual(JSON.parse(text).data);
+    const { plan: _plan7, ...rest7 } = asV7({ ...JSON.parse(text).data, plan: null });
+    expect(rest).toEqual(rest7);
   });
 
   it('S1: v5 파일에 퇴직 예정 달이 섞여 있어도 옮겨 담지 않는다(v5 앱은 그 칸을 읽지도 저장하지도 않았다)', () => {
@@ -1608,7 +1640,7 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
       expect(parsed.migrated, name).toBe(true);
       expect(parsed.data.plan, name).toEqual({ retireMonth: null });
       const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.2.0', NOW)), ctx);
-      expect(again.ok && again.fromVersion, name).toBe(6);
+      expect(again.ok && again.fromVersion, name).toBe(SCHEMA_VERSION);
       expect(again.ok && again.migrated, name).toBe(false);
       expect(again.ok && again.data, name).toEqual(parsed.data);
     }
@@ -1619,13 +1651,15 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
     const parsed = parseBackup(text, ctx);
     expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
     if (!parsed.ok) return;
-    expect(parsed.migrated).toBe(false);
+    // v7 에서는 v6 파일을 바꿔 연다(v7 의 기본값만 더한다). 글자까지 같은 왕복은 v7 파일이 본다(아래 V3)
+    expect(parsed.migrated).toBe(true);
     expect(parsed.fromVersion).toBe(6);
-    expect(parsed.data).toEqual(JSON.parse(text).data);
+    expect(parsed.data).toEqual(asV7(JSON.parse(text).data));
     expect(parsed.data.plan).toEqual({ retireMonth: '2030-03' });
-    // 같은 겉봉으로 다시 내보내면 글자까지 같다
     const out = serializeBackup(makeEnvelope(parsed.data, '0.2.0', '2026-11-27T09:00:00.000Z'));
-    expect(out).toBe(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+    const reopened = parseBackup(out, ctx);
+    expect(reopened.ok && reopened.migrated).toBe(false);
+    expect(reopened.ok && reopened.data).toEqual(parsed.data);
     // 저장 → 모두 지우기 → 파일에서 되살리기
     const store = memoryStore();
     expect(saveData(store, parsed.data, '0.2.0', NOW)).toBe(true);
@@ -1725,6 +1759,519 @@ describe('저장 형식 v6: 퇴직 예정 달(#30 생애 봉급)', () => {
     expect(store.getItem(KEYS.data)).toBe(newer);
     expect(hasCorrupt(store)).toBe(false);
     // 손상본 보관함으로 옮기지도, 되돌리기 보관본으로 삼지도 않는다
+    expect(readCorrupt(store)).toEqual([]);
+    expect(loadUndo(store, stored)).toBeNull();
+  });
+});
+
+describe('저장 형식 v7: 지방 일반직·직류(#31), 연가 몫·저축연가·연가 정리(#33), 임용 전 군 복무(#34)', () => {
+  const fixture = (name: string) =>
+    readFileSync(join(process.cwd(), 'tests/fixtures', name), 'utf8');
+  const stored = { ...ctx, stored: true };
+  const envelope = (data: unknown, version = SCHEMA_VERSION) =>
+    JSON.stringify({
+      app: 'hobong',
+      schemaVersion: version,
+      appVersion: '0.3.0',
+      exportedAt: NOW,
+      data,
+    });
+  const v7data = () => JSON.parse(fixture('backup-v7.json')).data as Record<string, any>;
+  const patched = (patch: (d: Record<string, any>) => void, from = v7data) => {
+    const data = JSON.parse(JSON.stringify(from())) as Record<string, any>;
+    patch(data);
+    return data;
+  };
+  const errorsOf = (r: ReturnType<typeof validateUserData>) => (r.ok ? [] : r.errors).join('\n');
+  /** 저장본(stored)·파일(ctx) 두 길 모두 같은 판정인지 */
+  const both = (data: unknown) => [validateUserData(data, stored), validateUserData(data, ctx)];
+  const rejectedWith = (data: unknown, word: string, label: string) => {
+    for (const r of both(data)) {
+      expect(r.ok, label).toBe(false);
+      const message = errorsOf(r);
+      expect(message, label).toContain(word);
+      // 사유에 내부 키 이름을 쓰지 않는다
+      expect(message, label).not.toMatch(
+        /seriesJikryu|priorService|savings|years|pool|unpaidDays|capDays|compDays|midYear|localGeneral/,
+      );
+    }
+  };
+
+  it('V1: 지금 저장 형식은 v7 이고, 새 사용자는 직류·군 복무 없음, 빈 저축연가 통장·연가 정리 값이다', () => {
+    expect(SCHEMA_VERSION).toBe(7);
+    const data = newUserData(sampleProfile(), defaultSettings(R), NOW, TODAY);
+    expect(data.leave).toEqual({ records: [], grantOverrideHours: {}, savings: [], years: {} });
+    expect(validateUserData(data, stored).ok).toBe(true);
+    const r = validateUserData(data, stored);
+    expect(r.ok && r.value.profile).toMatchObject({ seriesJikryu: null, priorService: null });
+  });
+
+  it('V2: v6 파일 → v7 은 기본값만 더하고 나머지 값은 그대로다', () => {
+    const text = fixture('backup-v6.json');
+    const parsed = parseBackup(text, ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.fromVersion).toBe(6);
+    expect(parsed.migrated).toBe(true);
+    const before = JSON.parse(text).data;
+    expect(parsed.data.profile).toEqual({
+      ...before.profile,
+      seriesJikryu: null,
+      priorService: null,
+    });
+    expect(parsed.data.leave).toEqual({
+      ...before.leave,
+      records: before.leave.records.map((r: any) => ({ ...r, pool: 'annual' })),
+      savings: [],
+      years: {},
+    });
+    const { profile: _p, leave: _l, ...rest } = parsed.data;
+    const { profile: _bp, leave: _bl, ...beforeRest } = before;
+    expect(rest).toEqual(beforeRest);
+  });
+
+  it('V2: v6 파일에 v7 이름의 칸이 섞여 있어도 옮겨 담지 않고 기본값으로 덮는다(v6 앱은 그 칸을 몰랐다)', () => {
+    const env = JSON.parse(fixture('backup-v6.json'));
+    env.data.profile.seriesJikryu = '교육행정';
+    env.data.profile.priorService = { kind: 'enlisted', months: 21, days: 0 };
+    env.data.leave.records[0].pool = 'saved';
+    env.data.leave.savings = [
+      { id: 's1', kind: 'opening', year: 2025, month: null, hours: 8, memo: '' },
+    ];
+    env.data.leave.years = { '2025': { unpaidDays: 1, capDays: 10, midYear: 'paid', compDays: 5 } };
+    for (const text of [JSON.stringify(env)]) {
+      const parsed = parseBackup(text, ctx);
+      expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+      if (!parsed.ok) return;
+      expect(parsed.data.profile).toMatchObject({ seriesJikryu: null, priorService: null });
+      expect(parsed.data.leave.records.map((r) => r.pool)).toEqual(['annual']);
+      expect(parsed.data.leave.savings).toEqual([]);
+      expect(parsed.data.leave.years).toEqual({});
+      // 저장본 자리에 있어도 같다
+      const store = memoryStore();
+      store.setItem(KEYS.data, text);
+      const loaded = loadData(store, stored);
+      expect(loaded.status === 'ok' && loaded.data.leave.savings).toEqual([]);
+      expect(loaded.status === 'ok' && loaded.data.profile.priorService).toBeNull();
+    }
+  });
+
+  it('V2: v1~v5 파일도 v7 까지 이어서 바뀌고, 다시 내보내면 변환 없이 같은 값으로 열린다', () => {
+    for (const name of [
+      'backup-v1.json',
+      'backup-v2.json',
+      'backup-v3.json',
+      'backup-v4-police.json',
+      'backup-v4-teacher.json',
+      'backup-v4-other.json',
+      'backup-v5.json',
+      'backup-v6.json',
+    ]) {
+      const parsed = parseBackup(fixture(name), ctx);
+      expect(parsed.ok ? '' : parsed.details.join('\n'), name).toBe('');
+      if (!parsed.ok) continue;
+      expect(parsed.migrated, name).toBe(true);
+      expect(parsed.data.profile.seriesJikryu, name).toBeNull();
+      expect(parsed.data.profile.priorService, name).toBeNull();
+      expect(parsed.data.leave.savings, name).toEqual([]);
+      expect(parsed.data.leave.years, name).toEqual({});
+      expect(
+        parsed.data.leave.records.every((r) => r.pool === 'annual'),
+        name,
+      ).toBe(true);
+      const again = parseBackup(serializeBackup(makeEnvelope(parsed.data, '0.3.0', NOW)), ctx);
+      expect(again.ok && again.fromVersion, name).toBe(7);
+      expect(again.ok && again.migrated, name).toBe(false);
+      expect(again.ok && again.data, name).toEqual(parsed.data);
+    }
+  });
+
+  it('V3: v7 파일(지방 일반직·직류·군 복무·저축연가·연가 정리 값)은 글자까지 같게 왕복한다', () => {
+    const text = fixture('backup-v7.json');
+    const parsed = parseBackup(text, ctx);
+    expect(parsed.ok ? '' : parsed.details.join('\n')).toBe('');
+    if (!parsed.ok) return;
+    expect(parsed.migrated).toBe(false);
+    expect(parsed.fromVersion).toBe(7);
+    expect(parsed.data).toEqual(JSON.parse(text).data);
+    expect(parsed.data.profile).toMatchObject({
+      track: 'localGeneral',
+      series: '행정',
+      seriesJikryu: '감사',
+      payTable: null,
+      priorService: { kind: 'enlisted', months: 18, days: 0 },
+    });
+    const out = serializeBackup(makeEnvelope(parsed.data, '0.3.0', '2026-11-27T09:00:00.000Z'));
+    expect(out).toBe(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+    // 저장 → 모두 지우기 → 파일에서 되살리기
+    const store = memoryStore();
+    expect(saveData(store, parsed.data, '0.3.0', NOW)).toBe(true);
+    clearAll(store);
+    expect(loadData(store, stored).status).toBe('empty');
+    const restored = parseBackup(out, ctx);
+    expect(restored.ok && restored.data).toEqual(parsed.data);
+    if (!restored.ok) return;
+    expect(saveData(store, restored.data, '0.3.0', NOW)).toBe(true);
+    const loaded = loadData(store, stored);
+    expect(loaded.status === 'ok' && loaded.migrated).toBe(false);
+    expect(loaded.status === 'ok' && loaded.data).toEqual(parsed.data);
+  });
+
+  it('V4: 지방 일반직의 계급 키는 1~9 뿐이고 봉급표는 고르지 않는다(null 만)', () => {
+    for (const rank of ['9', '1', null]) {
+      const data = patched((d) => (d.profile.rank = rank));
+      expect(errorsOf(validateUserData(data, stored)), String(rank)).toBe('');
+    }
+    for (const rank of ['순경', '10', '0', '경위']) {
+      const data = patched((d) => (d.profile.rank = rank));
+      expect(validateUserData(data, stored).ok, rank).toBe(false);
+      expect(validateUserData(data, ctx).ok, rank).toBe(false);
+    }
+    for (const payTable of ['table3', 'table4', 'table10']) {
+      const data = patched((d) => (d.profile.payTable = payTable));
+      rejectedWith(data, '봉급표', payTable);
+    }
+    // 직종 목록 밖은 거부한다(계산 키). 'local' 같은 비슷한 이름도
+    for (const track of ['local', 'localgeneral', 'LocalGeneral']) {
+      const data = patched((d) => (d.profile.track = track));
+      rejectedWith(data, '직종', track);
+    }
+    // 입력 폼: 그 해 규칙의 사다리(1~9급)에서 고른다. 9급이 첫 기본
+    const form = checkProfile(
+      { ...v7data().profile, rank: '9', rankDate: '2021-03-10', priorService: null },
+      ctx,
+    );
+    expect(form).toEqual({});
+  });
+
+  it('V5: 직렬 키는 형식만 보고, 직종을 일반직 ↔ 지방 일반직으로 바꿔도 지우지 않는다', () => {
+    for (const [track, payTable] of [
+      ['general', 'table3'],
+      ['localGeneral', null],
+      ['police', null],
+    ] as const) {
+      const data = patched((d) => {
+        d.profile.track = track;
+        d.profile.payTable = payTable;
+        d.profile.rank = track === 'police' ? '순경' : '8';
+        d.profile.series = '보건진료';
+      });
+      const r = validateUserData(data, stored);
+      expect(errorsOf(r), track).toBe('');
+      expect(r.ok && r.value.profile.series, track).toBe('보건진료');
+      expect(r.ok && r.value.profile.seriesJikryu, track).toBe('감사');
+    }
+  });
+
+  it('V5: 직류는 null 이거나 직렬 키 형식이다 — 목록에 없거나 짝이 안 맞아도 보존, 칸이 없으면 null', () => {
+    for (const value of ['교육행정', '감사', '없는직류', '도시교통설계', null]) {
+      const data = patched((d) => (d.profile.seriesJikryu = value));
+      for (const r of both(data)) {
+        expect(errorsOf(r), String(value)).toBe('');
+        expect(r.ok && r.value.profile.seriesJikryu, String(value)).toBe(value);
+      }
+    }
+    const missing = patched((d) => delete d.profile.seriesJikryu);
+    for (const r of both(missing)) {
+      expect(errorsOf(r)).toBe('');
+      expect(r.ok && r.value.profile.seriesJikryu).toBeNull();
+    }
+    // 직렬이 없는데 직류만 있으면 거부하지 않고 null 로 읽는다
+    const orphan = patched((d) => (d.profile.series = null));
+    for (const r of both(orphan)) {
+      expect(errorsOf(r)).toBe('');
+      expect(r.ok && r.value.profile.seriesJikryu).toBeNull();
+    }
+    for (const value of [
+      '',
+      ' 감사',
+      '감사 ',
+      '감\n사',
+      'a'.repeat(21),
+      12,
+      ['감사'],
+      { name: '감사' },
+    ]) {
+      const data = patched((d) => (d.profile.seriesJikryu = value));
+      rejectedWith(data, '직류', JSON.stringify(value));
+    }
+  });
+
+  it('V6: 임용 전 군 복무는 null 이거나 {형태 5개 중 하나, 개월 0~480, 일 0~29, 합 > 0} 이다(형식만)', () => {
+    const ok = [
+      { kind: 'enlisted', months: 18, days: 0 },
+      { kind: 'alternative', months: 0, days: 1 },
+      { kind: 'conversion', months: 480, days: 29 },
+      { kind: 'cadre', months: 48, days: 15 },
+      { kind: 'special', months: 34, days: 0 },
+      null,
+    ];
+    for (const value of ok) {
+      const data = patched((d) => (d.profile.priorService = value));
+      for (const r of both(data)) {
+        expect(errorsOf(r), JSON.stringify(value)).toBe('');
+        expect(r.ok && r.value.profile.priorService, JSON.stringify(value)).toEqual(value);
+      }
+    }
+    // 알 수 없는 키는 버리고 새 객체로 옮겨 담는다. 임용일·생년월일·오늘과 견주지 않는다(40년 복무도 받는다)
+    const extra = patched(
+      (d) => (d.profile.priorService = { kind: 'cadre', months: 480, days: 0, from: '1990-01-01' }),
+    );
+    const r = validateUserData(extra, stored);
+    expect(r.ok && r.value.profile.priorService).toEqual({ kind: 'cadre', months: 480, days: 0 });
+    expect(r.ok && r.value.profile.priorService).not.toBe(extra.profile.priorService);
+    const missing = patched((d) => delete d.profile.priorService);
+    for (const r2 of both(missing)) {
+      expect(errorsOf(r2)).toBe('');
+      expect(r2.ok && r2.value.profile.priorService).toBeNull();
+    }
+    const bad = [
+      { kind: 'navy', months: 21, days: 0 },
+      { kind: 'Enlisted', months: 21, days: 0 },
+      { months: 21, days: 0 },
+      { kind: 'enlisted', months: 481, days: 0 },
+      { kind: 'enlisted', months: 21, days: 30 },
+      { kind: 'enlisted', months: 0, days: 0 },
+      { kind: 'enlisted', months: -1, days: 5 },
+      { kind: 'enlisted', months: 1.5, days: 0 },
+      { kind: 'enlisted', months: '21', days: 0 },
+      { kind: 'enlisted', months: 21 },
+      'enlisted',
+      21,
+      [],
+    ];
+    for (const value of bad) {
+      const data = patched((d) => (d.profile.priorService = value));
+      rejectedWith(data, '군 복무', JSON.stringify(value));
+    }
+  });
+
+  it('V7: 연가 기록의 몫은 그해 연가·저축연가 둘이다. 칸이 없으면 그해 연가로 읽고 장부를 거부하지 않는다', () => {
+    const missing = patched((d) => {
+      for (const rec of d.leave.records) delete rec.pool;
+    });
+    for (const r of both(missing)) {
+      expect(errorsOf(r)).toBe('');
+      expect(r.ok && r.value.leave.records.map((x) => x.pool)).toEqual([
+        'annual',
+        'annual',
+        'annual',
+      ]);
+    }
+    const kept = validateUserData(v7data(), stored);
+    expect(kept.ok && kept.value.leave.records.map((x) => x.pool)).toEqual([
+      'annual',
+      'saved',
+      'annual',
+    ]);
+    for (const pool of ['x', 'Saved', null, 1]) {
+      const data = patched((d) => (d.leave.records[1].pool = pool));
+      rejectedWith(data, '연가 기록 2번째', JSON.stringify(pool));
+    }
+  });
+
+  it('V8: 저축연가 통장 — 칸이 없으면 [], 세 종류의 칸은 그대로 옮겨 담고 메모는 다듬는다', () => {
+    const missing = patched((d) => delete d.leave.savings);
+    for (const r of both(missing)) {
+      expect(errorsOf(r)).toBe('');
+      expect(r.ok && r.value.leave.savings).toEqual([]);
+    }
+    const tidy = patched((d) => {
+      d.leave.savings[0].memo = '  처음‮ 잔액  ';
+      d.leave.savings[0].extra = 1;
+      delete d.leave.savings[1].month;
+      delete d.leave.savings[1].memo;
+    });
+    const r = validateUserData(tidy, stored);
+    expect(errorsOf(r)).toBe('');
+    expect(r.ok && r.value.leave.savings).toEqual([
+      { id: 's1', kind: 'opening', year: 2024, month: null, hours: 32, memo: '처음 잔액' },
+      { id: 's2', kind: 'carry', year: 2025, month: null, hours: 20, memo: '' },
+      { id: 's3', kind: 'overtime', year: 2026, month: '2026-05', hours: 6, memo: '' },
+    ]);
+    // 모자란 저축(저축보다 많이 쓴 기록)·같은 해 carry 여럿·정년퇴직하는 해의 carry 는 거부하지 않는다
+    const odd = patched((d) => {
+      d.leave.savings.push({
+        id: 's4',
+        kind: 'carry',
+        year: 2025,
+        month: null,
+        hours: 1600,
+        memo: '',
+      });
+      d.leave.savings.push({
+        id: 's5',
+        kind: 'carry',
+        year: 2054,
+        month: null,
+        hours: 8,
+        memo: '',
+      });
+    });
+    expect(errorsOf(validateUserData(odd, stored))).toBe('');
+    // 상한 500칸까지는 받는다
+    const many = patched((d) => {
+      d.leave.savings = Array.from({ length: LIMITS.maxSavings }, (_, i) => ({
+        id: `s${i}`,
+        kind: 'opening',
+        year: 2020,
+        month: null,
+        hours: 1,
+        memo: '',
+      }));
+    });
+    expect(errorsOf(validateUserData(many, stored))).toBe('');
+  });
+
+  it('V8: 저축연가 통장의 형식 밖 칸은 이유와 함께 거부한다(통장 전체)', () => {
+    const cases: [string, (s: any[]) => void][] = [
+      ['종류 모름', (s) => (s[0].kind = 'gift')],
+      ['0시간', (s) => (s[0].hours = 0)],
+      ['1601시간', (s) => (s[0].hours = 1601)],
+      ['1.5시간', (s) => (s[0].hours = 1.5)],
+      ['시간외 201시간', (s) => (s[2].hours = 201)],
+      ['시간외가 아닌데 달', (s) => (s[0].month = '2024-12')],
+      ['시간외인데 달 없음', (s) => (s[2].month = null)],
+      ['시간외 달의 연도가 다름', (s) => (s[2].month = '2025-05')],
+      ['시간외 달 형식', (s) => (s[2].month = '2026-5')],
+      ['연도 범위', (s) => (s[0].year = 1929)],
+      ['연도 범위', (s) => (s[0].year = 2151)],
+      ['연도 정수', (s) => (s[0].year = '2024')],
+      ['id 겹침', (s) => (s[1].id = 's1')],
+      ['id 형식', (s) => (s[0].id = 'a b')],
+      ['칸이 객체가 아님', (s) => (s[0] = 'opening')],
+    ];
+    for (const [label, patch] of cases) {
+      const data = patched((d) => patch(d.leave.savings));
+      rejectedWith(data, '저축연가 통장', label);
+    }
+    for (const value of [{}, 'x', null]) {
+      const data = patched((d) => (d.leave.savings = value));
+      rejectedWith(data, '저축연가 통장', JSON.stringify(value));
+    }
+    const tooMany = patched((d) => {
+      d.leave.savings = Array.from({ length: LIMITS.maxSavings + 1 }, (_, i) => ({
+        id: `s${i}`,
+        kind: 'opening',
+        year: 2020,
+        month: null,
+        hours: 1,
+        memo: '',
+      }));
+    });
+    rejectedWith(tooMany, '저축연가 통장', '501칸');
+  });
+
+  it('V9: 연가 정리 값 — 칸이 없으면 {}, 빈 해는 버리고, 보상 일수가 한도보다 커도 거부하지 않는다', () => {
+    const missing = patched((d) => delete d.leave.years);
+    for (const r of both(missing)) {
+      expect(errorsOf(r)).toBe('');
+      expect(r.ok && r.value.leave.years).toEqual({});
+    }
+    const empty = patched((d) => {
+      d.leave.years['2024'] = { unpaidDays: null, capDays: null, midYear: null, compDays: null };
+      d.leave.years['2023'] = {};
+      d.leave.years['2026'] = { capDays: 10, compDays: 15, note: 'x' };
+    });
+    const r = validateUserData(empty, stored);
+    expect(errorsOf(r)).toBe('');
+    expect(r.ok && r.value.leave.years).toEqual({
+      '2025': { unpaidDays: 0, capDays: null, midYear: 'paid', compDays: 10 },
+      '2026': { unpaidDays: null, capDays: 10, midYear: null, compDays: 15 },
+    });
+    // 다시 내보내면 빈 해의 키가 없다
+    if (r.ok) {
+      const text = serializeBackup(makeEnvelope(r.value, '0.3.0', NOW));
+      expect(JSON.parse(text).data.leave.years).not.toHaveProperty('2024');
+      expect(JSON.parse(text).data.leave.years).not.toHaveProperty('2023');
+    }
+    const edge = patched((d) => {
+      d.leave.years['2026'] = { unpaidDays: 60, capDays: 0, midYear: 'none', compDays: 60 };
+    });
+    expect(errorsOf(validateUserData(edge, stored))).toBe('');
+  });
+
+  it('V9: 연가 정리 값의 형식 밖 값은 이유와 함께 거부한다', () => {
+    const cases: [string, (y: Record<string, any>) => void][] = [
+      ['61일', (y) => (y['2025'].unpaidDays = 61)],
+      ['음수', (y) => (y['2025'].capDays = -1)],
+      ['소수', (y) => (y['2025'].compDays = 1.5)],
+      ['글자', (y) => (y['2025'].compDays = '10')],
+      ['6월 값', (y) => (y['2025'].midYear = 'yes')],
+      ['해 키', (y) => (y.abcd = { compDays: 1 })],
+      ['해 키 범위', (y) => (y['1929'] = { compDays: 1 })],
+      ['해 키 범위', (y) => (y['2151'] = { compDays: 1 })],
+      ['값이 객체가 아님', (y) => (y['2026'] = 10)],
+      ['값이 null', (y) => (y['2026'] = null)],
+    ];
+    for (const [label, patch] of cases) {
+      const data = patched((d) => patch(d.leave.years));
+      rejectedWith(data, '연가 정리 값', label);
+    }
+    for (const value of [[], 'x', null]) {
+      const data = patched((d) => (d.leave.years = value));
+      rejectedWith(data, '연가 정리 값', JSON.stringify(value));
+    }
+    const tooMany = patched((d) => {
+      d.leave.years = Object.fromEntries(
+        Array.from({ length: LIMITS.maxLeaveYearPlans + 1 }, (_, i) => [
+          String(2000 + i),
+          { compDays: 1 },
+        ]),
+      );
+    });
+    rejectedWith(tooMany, '연가 정리 값', '61해');
+    // 네 칸이 모두 빈 해는 버리고 나서 센다: 빈 해 61개 + 값 있는 해 하나는 받아들이고 값 있는 해만 남긴다
+    const emptyMany = patched((d) => {
+      d.leave.years = Object.fromEntries([
+        ...Array.from({ length: LIMITS.maxLeaveYearPlans + 1 }, (_, i) => [String(1990 + i), {}]),
+        ['2060', { compDays: 2 }],
+      ]);
+    });
+    for (const r of both(emptyMany)) {
+      expect(r.ok, errorsOf(r)).toBe(true);
+      expect(r.ok && r.value.leave.years).toEqual({
+        '2060': { unpaidDays: null, capDays: null, midYear: null, compDays: 2 },
+      });
+    }
+  });
+
+  it('V10: 파일에는 파생 값이 없다 — v7 의 칸은 모두 입력값이다', () => {
+    const env = JSON.parse(fixture('backup-v7.json'));
+    expect(Object.keys(env.data.leave)).toEqual([
+      'records',
+      'grantOverrideHours',
+      'savings',
+      'years',
+    ]);
+    const text = JSON.stringify(env).replaceAll('"retireMonth"', '"(퇴직 예정 달)"');
+    for (const derived of [
+      'salary',
+      'retire',
+      'remaining',
+      'daysLeft',
+      'amount',
+      'balance',
+      'left',
+    ]) {
+      expect(text.toLowerCase()).not.toContain(`"${derived.toLowerCase()}`);
+    }
+  });
+
+  it('V11: 옛 사본 보호 — v7 저장본·파일은 v6 앱에게 "더 새 버전"이다(읽지도 옮기지도 않는다)', () => {
+    // v6 앱의 규칙(migrate.ts: 파일 버전 > 앱이 읽는 버전이면 newer)은 지금 코드와 같은 한 줄이다
+    const v7 = JSON.parse(fixture('backup-v7.json'));
+    expect(v7.schemaVersion).toBe(7);
+    expect(v7.schemaVersion > 6).toBe(true);
+    const newer = envelope(v7.data, SCHEMA_VERSION + 1);
+    expect(parseBackup(newer, ctx)).toMatchObject({ ok: false, code: 'newer' });
+    const store = memoryStore();
+    store.setItem(KEYS.data, newer);
+    expect(loadData(store, stored).status).toBe('newer');
+    expect(loadData(store, stored, { readOnly: true }).status).toBe('newer');
+    expect(isNewerData(store, stored)).toBe(true);
+    expect(store.getItem(KEYS.data)).toBe(newer);
+    expect(hasCorrupt(store)).toBe(false);
     expect(readCorrupt(store)).toEqual([]);
     expect(loadUndo(store, stored)).toBeNull();
   });

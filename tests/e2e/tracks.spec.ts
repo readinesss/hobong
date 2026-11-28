@@ -407,11 +407,10 @@ test.describe('직종 바꾸기·카드·불러오기·근거', () => {
     const general = page.getByRole('radio', { name: '일반직', exact: true });
     await general.focus();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByRole('radio', { name: '경찰', exact: true })).toBeFocused();
-    await expect(page.getByRole('radio', { name: '경찰', exact: true })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
+    // 일반직 바로 다음 칩은 지방 일반직(v7, #31)
+    const next = page.getByRole('radio', { name: /^지방 일반직/ });
+    await expect(next).toBeFocused();
+    await expect(next).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('ArrowLeft');
     await expect(general).toHaveAttribute('aria-checked', 'true');
     // 다음 Tab 은 같은 묶음의 다른 칩이 아니라 봉급표 묶음(고른 칩)으로 간다

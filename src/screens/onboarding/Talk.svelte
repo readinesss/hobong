@@ -21,7 +21,13 @@
   import type { ProfileDraft } from '../../lib/app/draft.svelte.ts';
   import { formatLongDate, josa } from '../../lib/app/format.ts';
   import { hapticsSupported, setHapticsEnabled } from '../../lib/app/haptics.ts';
-  import { GENERAL_PAY_TABLE_LABEL, trackChipLabel } from '../../lib/app/track.ts';
+  import {
+    GENERAL_PAY_TABLE_LABEL,
+    paydayChipLabel,
+    paydayChoiceText,
+    paydayHasShortOrgs,
+    trackChipLabel,
+  } from '../../lib/app/track.ts';
   import { formatKorean, type Ymd } from '../../lib/calc/date.ts';
   import { EGG_STAGE_MAX, eggStageFor } from '../../lib/character/egg.ts';
   import {
@@ -32,7 +38,7 @@
     type PropRule,
   } from '../../lib/character/look.ts';
   import { characterRules } from '../../lib/character/rules.ts';
-  import { propOwnerOf, themeOfSeries } from '../../lib/character/series.ts';
+  import { propOwnerOf, seriesLabel, themeOfSeries } from '../../lib/character/series.ts';
   import { env } from '../../lib/fx/core.ts';
   import { emitCue } from '../../lib/fx/cues.ts';
   import {
@@ -105,6 +111,10 @@
   let showAdvanced = $state(false);
   /** 지금 질문의 [자세히]를 펼쳤는지(질문이 바뀌면 접는다) */
   let moreOpen = $state(false);
+  /** 월급날이 기관에 따라 갈리는 직종인지(선택지에 짧은 기관 이름이 있다 — 지방 일반직의 교육청·학교) */
+  const byOrg = $derived(paydayHasShortOrgs(d.career.payday.defaultDay, d.paydayOptions));
+  /** 직렬 찾는 글자: 직렬 질문에서 [직종 고르기로 가기]로 다녀와도 남게 여기서 쥔다 */
+  let seriesQuery = $state('');
   const seed = newTalkSeed();
   let turn = 0;
   const say = (lines: readonly string[]) => pickLine(lines, seed + (turn += 1));
@@ -122,15 +132,16 @@
   const ACK_HOLD_MS = 380;
 
   // ── 질문 차례 ─────────────────────────────────────────────────────────
-  /** 지금 권할 소품: 특정직은 직종 소품, 일반직은 고른 직렬의 소품 */
+  /** 지금 권할 소품: 특정직은 직종 소품, 직렬을 고르는 직종(직종 데이터의 seriesScope)은 고른 직렬의 소품 */
   const suggested = $derived.by((): PropRule | null => {
-    if (d.track !== 'general') return trackPropOf(characterRules, d.track);
-    const theme = themeOfSeries(d.series);
+    if (!d.seriesScope) return trackPropOf(characterRules, d.track);
+    const theme = themeOfSeries(d.series, d.seriesScope);
     return theme ? (characterRules.custom.props.find((p) => p.id === theme) ?? null) : null;
   });
   const list = $derived(
     questionsFor({
-      track: d.track,
+      askPayTable: d.askPayTable,
+      askSeries: d.seriesScope !== null,
       askRank: d.askRank,
       series: d.series,
       hasProp: suggested !== null,
@@ -140,7 +151,7 @@
   const ready = $derived(progress.left === 0);
   const stage = $derived(Math.max(topStage, eggStageFor(progress.done, progress.total)));
 
-  const owner = $derived(propOwnerOf({ track: d.track, series: d.series }));
+  const owner = $derived(propOwnerOf({ track: d.track, series: d.series }, d.seriesScope));
   const formId = $derived(
     formIdFor(characterRules, {
       ladderId: d.career.ladderId,
@@ -478,19 +489,28 @@
     d.setTrack(next);
     resetProp();
   }
-  function setSeries(next: string | null) {
-    if (next === d.series) return;
-    d.series = next;
-    resetProp();
+  function setSeries(next: string | null, jikryu: string | null = null) {
+    if (next === d.series && jikryu === d.seriesJikryu) return;
+    // 직류만 바꾸면 소품(직렬 테마)은 그대로다
+    const sameSeries = next === d.series;
+    d.setSeries(next, jikryu);
+    if (!sameSeries) resetProp();
+  }
+  /** 직렬 고르기의 [직종 고르기로 가기]: 직종 질문으로 돌아간다(직종을 저절로 바꾸지 않는다) */
+  function goTrack() {
+    dropHold();
+    ack = '';
+    returning = false;
+    void go('track');
   }
   function takeProp() {
     if (!suggested || holding) return;
     look = { ...look, prop: suggested.id };
     accept('prop');
   }
-  /** 나중에: 특정직은 호봉 소품('auto'), 일반직은 직렬 소품을 들지 않는다('none' — 'auto' 는 직렬 소품을 든다) */
+  /** 나중에: 특정직은 호봉 소품('auto'), 직렬을 고르는 직종은 직렬 소품을 들지 않는다('none' — 'auto' 는 직렬 소품을 든다) */
   function declineProp() {
-    look = { ...look, prop: d.track === 'general' ? 'none' : 'auto' };
+    look = { ...look, prop: d.seriesScope ? 'none' : 'auto' };
   }
   const propPreview = $derived(
     suggested
@@ -524,7 +544,11 @@
       else if (id === 'track') value = trackChipLabel(d.trackRules);
       else if (id === 'payTable')
         value = GENERAL_PAY_TABLE_LABEL[d.payTable ?? 'table3'] ?? String(d.payTable);
-      else if (id === 'series') value = d.series ?? '고르지 않음';
+      else if (id === 'series')
+        value =
+          seriesLabel({ series: d.series, seriesJikryu: d.seriesJikryu }, d.seriesScope) ??
+          d.series ??
+          '고르지 않음';
       else if (id === 'prop')
         value =
           suggested && look.prop === suggested.id
@@ -853,9 +877,15 @@
           <SeriesPicker
             idPrefix="tk"
             value={d.series}
+            jikryu={d.seriesJikryu}
+            scope={d.seriesScope ?? 'national'}
+            rules={d.rules}
+            career={d.career}
             onchange={setSeries}
+            ongotrack={goTrack}
             describedby={described}
             brief={TALK.questions.series.hint}
+            bind:query={seriesQuery}
           />
         {:else if at === 'prop' && suggested && propPreview}
           <div class="prop">
@@ -1008,13 +1038,42 @@
             <ChipRadio
               labelledby="talk-q"
               describedby="{described} tk-hint"
-              options={d.rules.payday.options.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+              options={d.paydayOptions.map((o) => ({
+                value: o.day,
+                label: paydayChipLabel(o, d.career.payday.defaultDay),
+              }))}
               value={d.payday}
               onchange={(next) => d.setPayday(next)}
             />
-            <!-- 도움말은 한 줄. 날짜마다의 기관은 [자세히]에(기본값의 근거는 '한 번에 쓰기'와 설정에 있다) -->
-            <span class="hint cap" id="tk-hint">{TALK.questions.payday.hint}</span>
-            {#if d.paydayOrgs}
+            <!--
+              도움말은 한 줄. 날짜마다의 기관은 [자세히]에(기본값의 근거는 '한 번에 쓰기'와 설정에 있다).
+              기관에 따라 답이 갈리는 직종(지방 일반직: 20일 / 교육청·학교 17일)은 '그대로 두세요'라고 하지 않고 두 날을 같이 알린다
+            -->
+            <span class="hint cap" id="tk-hint">
+              {byOrg
+                ? fillLine(TALK.questions.payday.hintByOrg, {
+                    choice: paydayChoiceText(d.career.payday.defaultDay, d.paydayOptions),
+                  })
+                : TALK.questions.payday.hint}
+            </span>
+            {#if byOrg}
+              <button
+                type="button"
+                class="btn ghost small toggle"
+                aria-expanded={moreOpen}
+                aria-controls="tk-more"
+                onclick={() => (moreOpen = !moreOpen)}
+              >
+                <span aria-hidden="true">{moreOpen ? '▼' : '▶'}</span>
+                <span>{TALK.nav.more}</span>
+              </button>
+              {#if moreOpen}
+                <span class="hint cap stack" id="tk-more">
+                  {#each d.paydayOptions as o (o.day)}<span>{o.day}일: {o.orgs}</span>{/each}
+                  {#if d.career.payday.note}<span>{d.career.payday.note}</span>{/if}
+                </span>
+              {/if}
+            {:else if d.paydayOrgs}
               <button
                 type="button"
                 class="btn ghost small toggle"

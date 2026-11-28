@@ -38,7 +38,8 @@
     PLAN_SUBMIT,
     PLAN_RETIRED_LEFTOVER,
     PLAN_TAG,
-    PLAN_WHY_MONTH,
+    planWhyMonth,
+    payCalcCite,
     PLAN_WHY_SUMMARY,
     assumptions,
     beyondRankLimitNote,
@@ -64,6 +65,7 @@
     spanYearsMonths,
     spokenSummary,
     spokenSummaryMasked,
+    type LifetimeSources,
   } from '../../lib/app/lifetime-copy.ts';
   import { formatNumber } from '../../lib/app/format.ts';
   import { app } from '../../lib/app/state.svelte.ts';
@@ -100,6 +102,13 @@
     if (r) out.push({ label: '정년', off: r });
     if (p) out.push({ label: '봉급', off: p });
     return out;
+  });
+  /** 근거 글자의 재료: 직종 해석 결과의 근거(국가 공무원보수규정 / 지방공무원 보수규정) */
+  const lifeSources = $derived<LifetimeSources>({
+    laws: view.rules.laws,
+    stepRaise: isAvailable(view.careerRules.stepRaise) ? view.careerRules.stepRaise.source : null,
+    payday: view.careerRules.payday.source,
+    payCalc: view.careerRules.payCalc,
   });
   /** 끝나는 날의 근거 조문: 계급정년이 먼저 오면 계급정년 조항, 아니면 연령정년 조항 */
   const retireBasis = $derived.by(() => {
@@ -320,7 +329,7 @@
       <p class="cap muted" id="lifetime-plan-month-only">{PLAN_MONTH_ONLY}</p>
       <details class="cap fold" id="lifetime-plan-why">
         <summary>{PLAN_WHY_SUMMARY}</summary>
-        <p class="muted">{PLAN_WHY_MONTH}</p>
+        <p class="muted">{planWhyMonth(payCalcCite(lifeSources))}</p>
       </details>
       <p class="cap muted">{planScopeNote(hasRetirement)}</p>
       <p class="cap muted" id="lifetime-plan-storage">{PLAN_STORAGE_NOTE}</p>
@@ -432,9 +441,11 @@
       payday: view.data.settings.payday,
       diligence: diligence !== null && isAvailable(diligenceRule) ? diligenceRule : null,
       holidayBonus: isAvailable(view.careerRules.allowances.holidayBonus),
-      longServiceAddOn:
-        isAvailable(view.careerRules.pay) && view.careerRules.pay.longServiceAddOn !== null,
+      longServiceAddOn: isAvailable(view.careerRules.pay)
+        ? (view.careerRules.pay.longServiceAddOn?.source ?? null)
+        : null,
       retireBasis,
+      sources: lifeSources,
     })}
     <div class="stack wide">
       {#if life && percent}

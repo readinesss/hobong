@@ -185,7 +185,7 @@
         <YearPixelCalendar
           grid={view.yearGrid}
           {year}
-          hoursPerDay={view.rules.leave.units.hoursPerDay}
+          hoursPerDay={view.careerRules.leave.units.hoursPerDay}
           {holidaysKnown}
         />
         <p class="cap muted">

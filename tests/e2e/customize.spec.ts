@@ -211,10 +211,10 @@ test.describe('호봉이 꾸미기(#17·#16)', () => {
     const select = dialog.getByLabel('직렬', { exact: true });
     await expect(select).toHaveValue('');
     // 글자로 찾기: 간호·간호조무
-    await dialog.getByLabel('직렬 찾기').fill('간호');
+    await dialog.getByLabel('직렬·직류 찾기').fill('간호');
     await expect(dialog.locator('#pf-series-found')).toHaveText(/2개 찾았어요/);
     await expect(select.locator('option')).toHaveCount(3);
-    await dialog.getByLabel('직렬 찾기').fill('');
+    await dialog.getByLabel('직렬·직류 찾기').fill('');
     await expect(select.locator('optgroup')).toHaveCount(4);
     await select.selectOption('간호');
     await dialog.getByRole('button', { name: '저장' }).click();
@@ -378,7 +378,7 @@ test.describe('호봉이 꾸미기(#17·#16)', () => {
     ]);
     const text = readFileSync(await file.path(), 'utf8');
     const envelope = JSON.parse(text);
-    expect(envelope.schemaVersion).toBe(6);
+    expect(envelope.schemaVersion).toBe(7);
     expect(envelope.data.character.look).toEqual(look);
     expect(envelope.data.profile.series).toBe('전산');
 

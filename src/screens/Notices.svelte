@@ -102,8 +102,10 @@
   <div class="note banner stack" role="status" id="notice-track-change">
     {#if change.paydayDefault !== null}
       <p>
-        {change.trackLabel} 월급날 기본값은 {change.paydayDefault}일이에요. 지금은 {view.data
-          .settings.payday}일로 되어 있어요.
+        {change.paydayChoices
+          ? `${change.trackLabel} 월급날은 ${change.paydayChoiceText}이에요.`
+          : `${change.trackLabel} 월급날 기본값은 ${change.paydayDefault}일이에요.`} 지금은 {view
+          .data.settings.payday}일로 되어 있어요.
       </p>
       {#if change.paydayNote}<p class="cap muted">{change.paydayNote}</p>{/if}
     {/if}
@@ -115,7 +117,14 @@
       </p>
     {/if}
     <div class="btn-row">
-      {#if change.paydayDefault !== null}
+      {#if change.paydayDefault !== null && change.paydayChoices}
+        <!-- 직종의 선택지가 여럿이면(지방 일반직 20일·17일) 주 단추 없이 같은 무게로 -->
+        {#each change.paydayChoices as day (day)}
+          <button type="button" class="btn small" onclick={() => app.applyTrackPayday(day)}>
+            {day}일로 바꾸기
+          </button>
+        {/each}
+      {:else if change.paydayDefault !== null}
         <button
           type="button"
           class="btn small"

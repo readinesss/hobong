@@ -9,7 +9,7 @@
   import { nav, TABS, type TabId } from './lib/app/nav.svelte.ts';
   import { app } from './lib/app/state.svelte.ts';
   import { view } from './lib/app/view.svelte.ts';
-  import { trackNameOf } from './lib/app/track.ts';
+  import { footerTarget, trackNameOf } from './lib/app/track.ts';
   import { formatKorean } from './lib/calc/date.ts';
   import { formatDuration } from './lib/calc/today.ts';
   import { disposeFx } from './lib/fx/core.ts';
@@ -234,7 +234,7 @@
     }
     const status = view.status;
     // 하루를 통째로 연가로 쉬는 날에는 퇴근 시각을 세지 않는다
-    if (view.leave.todayHours >= view.rules.leave.units.hoursPerDay) {
+    if (view.leave.todayHours >= view.careerRules.leave.units.hoursPerDay) {
       document.title = '연가 중 · 호봉';
     } else if (status.workday && status.secondsToEnd !== null) {
       document.title = `퇴근까지 ${formatDuration(status.secondsToEnd).slice(0, -3)} · 호봉`;
@@ -309,10 +309,11 @@
       {/if}
       <footer class="foot cap muted">
         <p>
-          {view.rules.target.label}
-          {view.showIdentityHome ? trackNameOf(view.careerRules) : view.careerRules.track.label} 기준
-          · 규정 확인일 {formatKorean(view.rules.meta.verifiedAt, false)} · 공식 인사·급여 시스템의 기록이
-          기준이며 이 화면은 참고용이에요.
+          {footerTarget(
+            view.careerRules.track.target ?? view.rules.target.label,
+            view.showIdentityHome ? trackNameOf(view.careerRules) : view.careerRules.track.label,
+          )} 기준 · 규정 확인일 {formatKorean(view.rules.meta.verifiedAt, false)} · 공식 인사·급여 시스템의
+          기록이 기준이며 이 화면은 참고용이에요.
         </p>
       </footer>
     </main>

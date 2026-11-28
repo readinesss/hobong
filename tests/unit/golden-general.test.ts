@@ -49,8 +49,10 @@ const base = {
   nickname: '호봉이',
   track: 'general',
   series: null,
+  seriesJikryu: null,
   payTable: 'table3',
   overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+  priorService: null,
 } as const;
 
 /** 일반직 시드: 9급 신규, 7급 중간(승진 이력 있음/없음), 6급 근속승진 대상 밖, 5급 최고호봉 근처, 날짜 직접 입력,
@@ -107,6 +109,7 @@ const SEEDS: Record<string, Profile> = {
     nextStepDate: '2027-04-01',
     stepAsOf: '2026-11-26',
     overrides: { longServiceDate: '2030-01-01', seniorDate: '2026-12-01', rankLimitDate: null },
+    priorService: null,
   },
   'g8-overrides': {
     ...base,
@@ -118,6 +121,7 @@ const SEEDS: Record<string, Profile> = {
     nextStepDate: '2027-06-01',
     stepAsOf: '2026-11-26',
     overrides: { longServiceDate: '2026-12-10', seniorDate: null, rankLimitDate: null },
+    priorService: null,
   },
   'g5-near-max': {
     ...base,

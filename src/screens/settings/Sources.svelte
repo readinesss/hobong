@@ -2,7 +2,8 @@
   /**
    * 근거 법령. 이 사람의 직종에서 쓰는 근거(CareerRules.sources)를 항목별로 묶고, 계산하지 않는 항목은
    * '준비 중'·'해당 없음'·'다른 기준'과 사유를 그 자리에 적는다. 직종과 무관한 공통 규정(월급날·근무시간·
-   * 공휴일·연가 단위·정액급식비)은 아래에 따로 둔다.
+   * 공휴일·연가 단위·정액급식비·봉급 계산)은 아래에 따로 둔다. 직종이 공통 규정과 다른 근거를 두면(지방 일반직의 월급날·
+   * 근무시간·연가 단위·정액급식비·봉급 계산) 그 근거를 직종 칸에 보이고 공통 칸에서는 뺀다.
    */
   import { view } from '../../lib/app/view.svelte.ts';
   import {
@@ -84,6 +85,18 @@
       section: 'allowances',
       pick: (r) => r.allowances.meal.source,
     },
+    {
+      key: 'salary.prorate',
+      sub: '달 가운데 임용·승급(생애 봉급)',
+      section: 'salary',
+      pick: (r) => r.salary.calc.prorate,
+    },
+    {
+      key: 'salary.leaving',
+      sub: '퇴직하는 달(생애 봉급)',
+      section: 'salary',
+      pick: (r) => r.salary.calc.leaving,
+    },
   ];
 
   interface Row {
@@ -155,10 +168,46 @@
         for (const s of c.sources.filter((s) => s.feature === 'leaveScreen'))
           add('leaveScreen', '연가 화면(기록 시스템·저축)', yearOfSection(c, 'tracks'), s.source);
     }
+    // 기본 구역(공통 규정)과 다른 근거로 정한 월급날·연가 단위(지방 일반직: 지방공무원 보수규정 제19조, 복무규정)
+    for (const s of c.sources.filter((s) => s.feature === 'payday'))
+      add('own-payday', SECTION_LABELS.payday, yearOfSection(c, 'tracks'), s.source);
+    for (const s of c.sources.filter((s) => s.feature === 'leaveUnits'))
+      add('own-leave-units', '연가 · 반일·시간 환산', yearOfSection(c, 'tracks'), s.source);
+    for (const s of c.sources.filter((s) => s.feature === 'leaveFirstYear'))
+      add('own-leave-first-year', '연가 · 임용 연도 계산', yearOfSection(c, 'tracks'), s.source);
+    for (const s of c.sources.filter((s) => s.feature === 'workHours'))
+      add('own-work-hours', SECTION_LABELS.workHours, yearOfSection(c, 'tracks'), s.source);
+    for (const s of c.sources.filter((s) => s.feature === 'meal'))
+      add('own-meal', '수당 · 정액급식비', yearOfSection(c, 'tracks'), s.source);
+    c.sources
+      .filter((s) => s.feature === 'payCalc')
+      .forEach((s, i) =>
+        add(
+          `own-pay-calc-${i}`,
+          i === 0 ? '봉급표 · 달 가운데 임용·승급(생애 봉급)' : '봉급표 · 퇴직하는 달(생애 봉급)',
+          yearOfSection(c, 'tracks'),
+          s.source,
+        ),
+      );
     return out;
   });
+  /** 직종이 따로 근거를 둔 공통 규정(위 직종 칸에 보인다) */
+  const OWN_COMMON: Partial<
+    Record<string, 'payday' | 'leaveUnits' | 'leaveFirstYear' | 'workHours' | 'meal' | 'payCalc'>
+  > = {
+    payday: 'payday',
+    workHours: 'workHours',
+    'leave.units': 'leaveUnits',
+    'leave.firstYear': 'leaveFirstYear',
+    'allowances.meal': 'meal',
+    'salary.prorate': 'payCalc',
+    'salary.leaving': 'payCalc',
+  };
   const common = $derived(
-    COMMON.map((item) => ({
+    COMMON.filter((item) => {
+      const own = OWN_COMMON[item.key];
+      return !own || !view.careerRules.sources.some((s) => s.feature === own);
+    }).map((item) => ({
       key: item.key,
       label: item.sub
         ? `${SECTION_LABELS[item.section]} · ${item.sub}`

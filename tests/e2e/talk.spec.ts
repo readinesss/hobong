@@ -173,10 +173,10 @@ test.describe('말을 거는 첫 입력', () => {
 
     // 직렬(선택): 건너뛸 수 있다
     await expect(bubble(page)).toContainText('직렬도 골라 볼까요?');
-    await expect(page.getByRole('searchbox', { name: '직렬 찾기' })).toBeFocused();
-    await expect(page.getByRole('searchbox', { name: '직렬 찾기' })).toHaveAccessibleDescription(
-      /남은 칸 4개\./,
-    );
+    await expect(page.getByRole('searchbox', { name: '직렬·직류 찾기' })).toBeFocused();
+    await expect(
+      page.getByRole('searchbox', { name: '직렬·직류 찾기' }),
+    ).toHaveAccessibleDescription(/남은 칸 4개\./);
     // 도움말은 한 줄이고, 어디에 저장하고 어디에 보이는지는 [자세히]에 접혀 있다([다음]이 화면 밖으로 밀리지 않게)
     const seriesField = page.locator('#tk-series-field');
     await expect(seriesField.locator('#tk-series-hint')).toHaveText(

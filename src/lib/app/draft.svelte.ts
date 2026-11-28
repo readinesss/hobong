@@ -27,9 +27,15 @@ import {
   rulesFor,
   selectableRanks,
   type RankKey,
+  type SeriesScope,
   type TrackId,
 } from '../rules/index.ts';
-import { LIMITS, type GeneralPayTableId, type Profile } from '../store/schema.ts';
+import {
+  LIMITS,
+  type GeneralPayTableId,
+  type PriorService,
+  type Profile,
+} from '../store/schema.ts';
 import { checkProfile, toProfile, type ProfileErrors } from '../store/validate.ts';
 import { clock } from './clock.svelte.ts';
 import { josa, withRo } from './format.ts';
@@ -67,6 +73,13 @@ export class ProfileDraft {
   rank = $state<RankKey | ''>('9');
   /** 직종·봉급표를 바꿔 계급을 맞춘 사실(낭독 한 번) */
   rankNotice = $state('');
+  /**
+   * 봉급표를 고르는 직종(일반직)으로 돌아왔는데 전에 고른 봉급표를 모를 때(저장본이 다른 직종) 첫 표로 맞춘 사실.
+   * 같은 폼 안에서 다녀온 것이면 전에 고른 표를 되살리고 이 말은 하지 않는다
+   */
+  payTableNotice = $state('');
+  /** 이 폼에서 마지막으로 고른 일반직 봉급표(지방 일반직 등으로 갔다 돌아올 때 되살린다) */
+  #lastPayTable: GeneralPayTableId | null = null;
   promoted = $state(false);
   rankDate = $state<Ymd | ''>('');
   step = $state(1);
@@ -79,6 +92,13 @@ export class ProfileDraft {
    * 지울지는 사용자가 '직렬 지우기'로 정한다(말없이 지우지 않는다).
    */
   series = $state<string | null>(null);
+  /**
+   * 고른 직류(v7, 선택). 직렬 고르기(SeriesPicker)에서 직류로 찾아 고르면 직렬과 함께 들어오고, 직렬을 다시 고르면
+   * 지운다(setSeries). 직종을 바꿔도 지우지 않는다(직렬과 같은 규칙). 직렬과 짝이 맞는지는 화면이 jikryuOf 로 본다
+   */
+  seriesJikryu = $state<string | null>(null);
+  /** 임용 전 군 복무(v7, #34). 아직 받는 칸이 없어 저장돼 있던 값을 그대로 이어 준다 */
+  priorService = $state.raw<PriorService | null>(null);
   payday = $state(25);
   /** 월급날을 직접 골랐으면 직종을 바꿔도 그대로 둔다 */
   paydayTouched = $state(false);
@@ -112,6 +132,7 @@ export class ProfileDraft {
       this.hireDate = initial.hireDate;
       this.track = initial.track;
       this.payTable = initial.payTable;
+      this.#lastPayTable = initial.payTable;
       const choices = selectableRanks(rules, initial.track, initial.payTable);
       this.rank =
         initial.rank !== null && choices.some((c2) => c2.key === initial.rank) ? initial.rank : '';
@@ -123,6 +144,8 @@ export class ProfileDraft {
       this.seniorDate = initial.overrides.seniorDate ?? '';
       this.rankLimitDate = initial.overrides.rankLimitDate ?? '';
       this.series = initial.series ?? null;
+      this.seriesJikryu = initial.seriesJikryu ?? null;
+      this.priorService = initial.priorService ?? null;
     } else {
       this.start = null;
     }
@@ -133,6 +156,10 @@ export class ProfileDraft {
   readonly today = $derived(clock.today);
   readonly rules = $derived(rulesFor(yearOf(this.today)));
   readonly trackRules = $derived(this.rules.tracks.items[this.track]);
+  /** 고를 봉급표가 여럿인 직종인지(일반직) — 직종 id 가 아니라 직종 데이터의 payTables 로 정한다 */
+  readonly askPayTable = $derived(this.trackRules.payTables.length > 1);
+  /** 직렬을 고르는 직종이면 그 직렬 표(일반직 national, 지방 일반직 local). 아니면 null */
+  readonly seriesScope = $derived<SeriesScope | null>(this.trackRules.seriesScope ?? null);
   /** 이 직종·봉급표에서 고를 수 있는 계급(낮은 계급부터) */
   readonly ranks = $derived(selectableRanks(this.rules, this.track, this.payTable));
   /** 계급 이름을 묻지 않는 직종(교원은 계급이 하나뿐이고 이름을 쓰지 않는다) */
@@ -198,6 +225,7 @@ export class ProfileDraft {
     hireDate: this.hireDate,
     track: this.track,
     series: this.series,
+    seriesJikryu: this.seriesJikryu,
     payTable: this.payTable,
     rank: this.draftRank,
     rankDate: this.askRank && this.promoted ? this.rankDate : this.hireDate,
@@ -210,6 +238,7 @@ export class ProfileDraft {
       // 계급정년 날짜는 칸이 숨어도(계급정년이 없는 직종으로 잠깐 바꿔도) 지우지 않는다(설계 §6.3, 계산에 안 쓴다)
       rankLimitDate: (this.showRankLimit ? this.rankLimitDate : this.#keptRankLimit()) || null,
     },
+    priorService: this.priorService,
   });
   readonly errors = $derived<ProfileErrors>(
     checkProfile(this.draft, {
@@ -252,6 +281,8 @@ export class ProfileDraft {
       if (key === 'track') return [`직종: ${text}`];
       if (key === 'payTable') return [`봉급표: ${text}`];
       if (key === 'series') return [`직렬: ${text}`];
+      if (key === 'seriesJikryu') return [`직류: ${text}`];
+      if (key === 'priorService') return [`군 복무 경력: ${text}`];
       if (key === 'stepAsOf') return [`호봉 확인일: ${text}`];
       return [];
     }),
@@ -287,7 +318,7 @@ export class ProfileDraft {
       : '정년퇴직일 계산에 써요.';
   });
   readonly table4High = $derived(
-    this.track === 'general' &&
+    this.askPayTable &&
       this.payTable === 'table4' &&
       this.draftRank !== null &&
       Number(this.draftRank) <= 4,
@@ -302,9 +333,9 @@ export class ProfileDraft {
       ? '근속승진·대우공무원·계급정년 기간의 기준이에요.'
       : '근속승진·대우공무원 기간의 기준이에요.',
   );
-  readonly paydayOrgs = $derived(
-    this.rules.payday.options.find((o) => o.day === this.payday)?.orgs ?? '',
-  );
+  /** 월급날 선택지: 직종의 선택지(지방 일반직 20·17일)가 있으면 그것, 없으면 별표 30 의 네 날짜 */
+  readonly paydayOptions = $derived(this.career.payday.options);
+  readonly paydayOrgs = $derived(this.paydayOptions.find((o) => o.day === this.payday)?.orgs ?? '');
   /** 다음 승급일 칸의 이름(최고호봉이면 그 날을 묻는다) */
   readonly nextLabel = $derived(this.atMax ? '최고호봉이 된 날' : '다음 승급일');
   readonly nextHint = $derived(
@@ -344,13 +375,31 @@ export class ProfileDraft {
   setTrack(next: TrackId): void {
     if (next === this.track) return;
     this.track = next;
-    this.payTable = next === 'general' ? (this.payTable ?? 'table3') : null;
+    if (this.payTable !== null) this.#lastPayTable = this.payTable;
+    // 봉급표는 고를 표가 여럿인 직종(일반직)만 고른다. 그 밖은 직종이 정한다(null).
+    // 돌아오면 이 폼에서 전에 고른 표를 되살리고, 모르면 첫 표로 맞춘 뒤 (고치는 중이면) 확인해 달라고 한다
+    const tables = this.rules.tracks.items[next].payTables;
+    this.payTableNotice = '';
+    if (tables.length > 1) {
+      const kept = this.payTable ?? this.#lastPayTable;
+      const first = tables[0] as GeneralPayTableId;
+      this.payTable = kept !== null && tables.includes(kept) ? kept : first;
+      if (kept === null && this.initial)
+        this.payTableNotice = `봉급표를 ${withRo(first === 'table3' ? '별표 3' : (this.rules.payTables.items[first]?.annex ?? first))} 맞췄어요. 확인해 주세요.`;
+    } else this.payTable = null;
     this.adjustRank();
     if (!this.paydayTouched && !this.initial)
       this.payday = this.rules.tracks.items[next].payday.defaultDay;
   }
 
+  /** 직렬(과 직류)을 고른다. 직렬만 고르면(jikryu null) 직류는 지운다 */
+  setSeries(series: string | null, jikryu: string | null = null): void {
+    this.series = series;
+    this.seriesJikryu = series === null ? null : jikryu;
+  }
+
   setPayTable(next: GeneralPayTableId): void {
+    this.payTableNotice = '';
     if (next === this.payTable) return;
     this.payTable = next;
     this.adjustRank();

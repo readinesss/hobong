@@ -288,11 +288,14 @@ describe('저장본에 담기는 id·이름 형식(같은 v5 의 예전 사본�
     expect(LOOK_ID_RE.test('none')).toBe(true);
   });
 
-  it('직렬 이름·옛 이름은 SERIES_KEY_RE 를 지킨다(가운뎃점·띄어쓰기는 미리 받는다)', () => {
+  it('직렬 이름·옛 이름·직류 이름은 SERIES_KEY_RE 를 지킨다(가운뎃점·띄어쓰기는 미리 받는다)', () => {
+    // 모든 표(국가·지방)와 모든 직류(저장본 profile.seriesJikryu 도 같은 형식이다)
     const names = seriesData.groups.flatMap((g) =>
-      g.series.flatMap((s) => [s.name, ...(s.aliases ?? [])]),
+      g.series.flatMap((s) => [s.name, ...(s.aliases ?? []), ...s.jikryu]),
     );
-    expect(names.length).toBeGreaterThanOrEqual(52);
+    expect(names.length).toBeGreaterThanOrEqual(52 + 46 + 231);
+    // 목록 항목 값의 구분 글자('직렬|직류', SeriesPicker)는 저장 키 형식에 들 수 없다
+    expect(SERIES_KEY_RE.test('행정|교육행정')).toBe(false);
     for (const name of names) expect(SERIES_KEY_RE.test(name), name).toBe(true);
     for (const ok of ['검찰·마약', '출입국 관리', '행정', 'IT'])
       expect(SERIES_KEY_RE.test(ok), ok).toBe(true);

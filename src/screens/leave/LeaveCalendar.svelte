@@ -59,7 +59,7 @@
 
   const cells = $derived.by(() => {
     const { y, m } = parseYmd(month);
-    const perDay = view.rules.leave.units.hoursPerDay;
+    const perDay = view.careerRules.leave.units.hoursPerDay;
     const out: (Cell | null)[] = [];
     const lead = dayOfWeek(formatYmd({ y, m, d: 1 }));
     for (let i = 0; i < lead; i += 1) out.push(null);
@@ -192,8 +192,8 @@
               class:sat={cell.dow === 6}
               class:today={cell.today}
               class:selected={cell.selected}
-              class:full={cell.hours >= view.rules.leave.units.hoursPerDay}
-              class:part={cell.hours > 0 && cell.hours < view.rules.leave.units.hoursPerDay}
+              class:full={cell.hours >= view.careerRules.leave.units.hoursPerDay}
+              class:part={cell.hours > 0 && cell.hours < view.careerRules.leave.units.hoursPerDay}
               class:planned={cell.planned && cell.hours > 0}
               aria-label={cell.label}
               aria-selected={cell.selected}

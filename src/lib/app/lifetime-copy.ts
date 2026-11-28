@@ -16,6 +16,8 @@ import {
   type YearMonth,
 } from '../calc/lifetime.ts';
 import { LIMITS } from '../store/schema.ts';
+import type { PayCalcSources, SourceRef } from '../rules/types.ts';
+import { cite, citeList } from './cite.ts';
 import {
   formatLongDate,
   formatMonthDayMaybeYear,
@@ -67,9 +69,27 @@ export const PLAN_RANK_LIMIT_OFFER = '그날까지로 보고 싶으면 퇴직 �
 export const PLAN_MONTH_ONLY = '날짜가 아니라 달로 받아요.';
 /** 펼침의 이름 */
 export const PLAN_WHY_SUMMARY = '왜 달로 받나요';
-/** 날짜가 아니라 달을 받는 까닭(공무원보수규정 제22조·제24조: 달 가운데 그만둔 달의 봉급은 조건에 따라 갈린다) */
-export const PLAN_WHY_MONTH =
-  '달 가운데 그만두면 그 달 봉급이 조건에 따라 전액이거나 날짜만큼이라(공무원보수규정 제22조·제24조), 날짜로는 틀린 숫자가 나올 수 있어요. 그래서 날짜가 아니라 달로 받고, 그 달 말일까지 다니는 것으로 셈해요.';
+/**
+ * 날짜가 아니라 달을 받는 까닭(달 가운데 그만둔 달의 봉급은 조건에 따라 갈린다).
+ * basis 는 직종 해석 결과의 봉급 계산 근거(payCalc)로 만든 글자: '공무원보수규정 제22조·제24조' / '지방공무원 보수규정 제21조·제23조'
+ */
+export function planWhyMonth(basis: string): string {
+  return `달 가운데 그만두면 그 달 봉급이 조건에 따라 전액이거나 날짜만큼이라(${basis}), 날짜로는 틀린 숫자가 나올 수 있어요. 그래서 날짜가 아니라 달로 받고, 그 달 말일까지 다니는 것으로 셈해요.`;
+}
+
+/** 근거 글자를 만드는 데 쓰는 법령 이름과 직종 해석 결과의 근거(직종마다 법령이 다르다 — 손으로 쓰지 않는다) */
+export interface LifetimeSources {
+  laws: Readonly<Record<string, { name: string }>>;
+  /** 정기승급(꺼진 직종은 null) */
+  stepRaise: SourceRef | null;
+  payday: SourceRef;
+  payCalc: PayCalcSources;
+}
+
+/** '공무원보수규정 제22조·제24조' / '지방공무원 보수규정 제21조·제23조' */
+export function payCalcCite(s: Pick<LifetimeSources, 'laws' | 'payCalc'>): string {
+  return citeList(s.laws, [{ source: s.payCalc.prorate }, { source: s.payCalc.leaving }]);
+}
 /** 폼을 연 사람에게 기준이 되는 날을 사실로 알린다(빈 칸에 보기 값을 흐리게 넣지 않는다 — 친 값처럼 보인다) */
 export function planReference(date: Ymd, hasRankLimit: boolean): string {
   return `${hasRankLimit ? '연령정년 퇴직일' : '정년퇴직일'}은 ${formatLongDate(date)}이에요.`;
@@ -422,11 +442,14 @@ export interface AssumptionInput {
     payMonths: readonly number[];
     periodMonths: number;
     minMonthsToQualify: number;
+    source: SourceRef;
   } | null;
   /** 명절휴가비 규정이 켜져 있는지(세지 않은 까닭을 밝힌다) */
   holidayBonus: boolean;
-  /** 이 봉급표에 근속가봉 금액이 원문에 정해져 있는지(pay.longServiceAddOn !== null) */
-  longServiceAddOn: boolean;
+  /** 이 봉급표에 근속가봉 금액이 원문에 정해져 있으면 그 근거(pay.longServiceAddOn.source), 없으면 null */
+  longServiceAddOn: SourceRef | null;
+  /** 근거 글자의 재료 */
+  sources: LifetimeSources;
   /** 정년 근거('국가공무원법 제74조…'). 정년을 계산하지 않으면 '' */
   retireBasis: string;
 }
@@ -440,6 +463,7 @@ export interface Assumption {
 export function assumptions(a: AssumptionInput): Assumption[] {
   const out: Assumption[] = [];
   const l = a.lifetime;
+  const { laws, payCalc } = a.sources;
   if (l) {
     out.push({
       title: '봉급표',
@@ -469,7 +493,7 @@ export function assumptions(a: AssumptionInput): Assumption[] {
     });
     out.push({
       title: '달 가운데 임용·승급',
-      text: '그 달 날수로 나눠 셈했어요(공무원보수규정 제22조).',
+      text: `그 달 날수로 나눠 셈했어요(${cite(laws, payCalc.prorate)}).`,
     });
     out.push({
       title: '퇴직하는 달',
@@ -478,7 +502,7 @@ export function assumptions(a: AssumptionInput): Assumption[] {
           ? '그 달 말일까지 다니는 것으로 셈했어요.'
           : '정년퇴직일 당일까지 봉급을 셌어요.') +
         ' 달 가운데 그만두면 5년 이상 근속하고 그 달에 15일 이상 근무했는지에 따라 그 달 봉급이 전액이거나 날짜만큼이에요.' +
-        ' 파면·해임 등으로 그만두는 경우는 또 달라요(공무원보수규정 제22조·제24조).',
+        ` 파면·해임 등으로 그만두는 경우는 또 달라요(${payCalcCite(a.sources)}).`,
     });
   }
   out.push({
@@ -500,22 +524,23 @@ export function assumptions(a: AssumptionInput): Assumption[] {
     const d = a.diligence;
     out.push({
       title: '정근수당 횟수',
-      text: `${d.payMonths.map((m) => `${m}월 1일`).join('·')}에 재직 중이고 그 앞 ${d.periodMonths}개월 가운데 ${d.minMonthsToQualify}개월 이상 봉급을 받은 것만 셌어요(공무원수당 등에 관한 규정 제7조제1항). 징계·휴직으로 받지 못하는 경우는 넣지 않았어요.`,
+      text: `${d.payMonths.map((m) => `${m}월 1일`).join('·')}에 재직 중이고 그 앞 ${d.periodMonths}개월 가운데 ${d.minMonthsToQualify}개월 이상 봉급을 받은 것만 셌어요(${cite(laws, d.source, true)}). 징계·휴직으로 받지 못하는 경우는 넣지 않았어요.`,
     });
   }
   if (l && a.longServiceAddOn && l.stepAtEnd >= l.maxStep) {
     out.push({
       title: '근속가봉',
-      text: '최고호봉 뒤에 붙을 수 있는 근속가봉(공무원보수규정 제30조의2)은 넣지 않았어요.',
+      text: `최고호봉 뒤에 붙을 수 있는 근속가봉(${cite(laws, a.longServiceAddOn)})은 넣지 않았어요.`,
     });
   }
-  const basis = [
-    l
-      ? '공무원보수규정 제13조(정기승급)·제20조(보수 지급일)·제22조(보수 계산)·제24조'
-      : '공무원보수규정 제20조(보수 지급일)',
-    a.diligence ? '공무원수당 등에 관한 규정 제7조' : '',
-    a.retireBasis,
-  ].filter(Boolean);
+  const pay = citeList(laws, [
+    ...(l && a.sources.stepRaise ? [{ source: a.sources.stepRaise, label: '정기승급' }] : []),
+    { source: a.sources.payday, label: '보수 지급일' },
+    ...(l ? [{ source: payCalc.prorate, label: '보수 계산' }, { source: payCalc.leaving }] : []),
+  ]);
+  const basis = [pay, a.diligence ? cite(laws, a.diligence.source) : '', a.retireBasis].filter(
+    Boolean,
+  );
   out.push({ title: '근거', text: `${basis.join(', ')}.` });
   return out;
 }

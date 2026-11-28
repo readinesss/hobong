@@ -10,7 +10,8 @@ import {
   PLAN_RANK_LIMIT_OFFER,
   PLAN_STORAGE_NOTE,
   PLAN_MONTH_ONLY,
-  PLAN_WHY_MONTH,
+  planWhyMonth,
+  payCalcCite,
   LIFETIME_SPEAKER,
   maskedUnhideNote,
   planReference,
@@ -40,8 +41,31 @@ import {
   type RetirePlanCheck,
 } from '../../src/lib/app/lifetime-copy.ts';
 import { resolveLifetimeEnd } from '../../src/lib/calc/lifetime.ts';
+import { rulesFor } from '../../src/lib/rules/index.ts';
+import { resolveCareer, type CareerRules } from '../../src/lib/rules/career.ts';
+import { isAvailable } from '../../src/lib/rules/types.ts';
 import type { EffectiveRetirement } from '../../src/lib/calc/retirement.ts';
 
+const R = rulesFor(2026);
+/** 화면(LifetimeWindow)과 같이 직종 해석 결과에서 근거를 읽는다 */
+const sourcesOf = (c: CareerRules) => ({
+  laws: R.laws,
+  stepRaise: isAvailable(c.stepRaise) ? c.stepRaise.source : null,
+  payday: c.payday.source,
+  payCalc: c.payCalc,
+});
+const generalCareer = resolveCareer(R, { track: 'general', payTable: 'table3', rank: '9' });
+const localCareer = resolveCareer(R, { track: 'localGeneral', payTable: null, rank: '9' });
+const diligenceOf = (c: CareerRules) => {
+  const d = c.allowances.diligence;
+  if (!isAvailable(d)) throw new Error('정근수당이 꺼짐');
+  return d;
+};
+const addOnSource = (() => {
+  const addOn = R.payTables.items.table11?.longServiceAddOn;
+  if (!addOn) throw new Error('별표 11 근속가봉 없음');
+  return addOn.source;
+})();
 const baseHow: AssumptionInput = {
   lifetime: { tableYear: 2026, maxStep: 31, stepAtEnd: 31 },
   noun: '직급',
@@ -50,11 +74,13 @@ const baseHow: AssumptionInput = {
   retired: false,
   newYears: 22,
   payday: 25,
-  diligence: { payMonths: [1, 7], periodMonths: 6, minMonthsToQualify: 1 },
+  diligence: diligenceOf(generalCareer),
   holidayBonus: true,
-  longServiceAddOn: false,
+  longServiceAddOn: null,
   retireBasis: '국가공무원법 제74조제1항·제4항',
+  sources: sourcesOf(generalCareer),
 };
+const PLAN_WHY_MONTH = planWhyMonth(payCalcCite(baseHow.sources));
 const titles = (a: AssumptionInput) => assumptions(a).map((x) => x.title);
 const textOf = (a: AssumptionInput, title: string) =>
   assumptions(a).find((x) => x.title === title)?.text ?? '';
@@ -330,7 +356,7 @@ describe('자세한 가정', () => {
   });
   it('근속가봉은 금액이 원문에 있는 봉급표이고 퇴직 때 최고호봉일 때만 밝힌다', () => {
     expect(titles(baseHow)).not.toContain('근속가봉');
-    const table11 = { ...baseHow, noun: '', longServiceAddOn: true };
+    const table11 = { ...baseHow, noun: '', longServiceAddOn: addOnSource };
     expect(textOf(table11, '근속가봉')).toBe(
       '최고호봉 뒤에 붙을 수 있는 근속가봉(공무원보수규정 제30조의2)은 넣지 않았어요.',
     );
@@ -356,6 +382,33 @@ describe('자세한 가정', () => {
     expect(titles(off)).toEqual(['월급날 횟수', '근거']);
     expect(textOf(off, '월급날 횟수')).not.toMatch(/금액|명절휴가비/);
     expect(textOf(off, '근거')).toBe('공무원보수규정 제20조(보수 지급일).');
+  });
+  it('지방 일반직: 근거는 직종 해석 결과에서 — 지방 조문만, 국가 보수·수당 조문은 나오지 않는다', () => {
+    const local: AssumptionInput = {
+      ...baseHow,
+      diligence: diligenceOf(localCareer),
+      retireBasis: '지방공무원법 제66조제1항·제2항',
+      sources: sourcesOf(localCareer),
+    };
+    expect(textOf(local, '달 가운데 임용·승급')).toBe(
+      '그 달 날수로 나눠 셈했어요(지방공무원 보수규정 제21조).',
+    );
+    expect(textOf(local, '퇴직하는 달')).toContain('(지방공무원 보수규정 제21조·제23조).');
+    expect(textOf(local, '정근수당 횟수')).toContain('(지방공무원 수당 등에 관한 규정 제6조제1항)');
+    expect(textOf(local, '근거')).toBe(
+      '지방공무원 보수규정 제12조(정기승급)·제19조(보수 지급일)·제21조(보수 계산)·제23조, 지방공무원 수당 등에 관한 규정 제6조, 지방공무원법 제66조제1항·제2항.',
+    );
+    const all = [
+      ...assumptions(local).map((a) => a.text),
+      ...assumptions({ ...local, basis: 'plan', lifetime: null }).map((a) => a.text),
+      planWhyMonth(payCalcCite(local.sources)),
+    ].join('\n');
+    expect(all).not.toContain('공무원보수규정 제2');
+    expect(all).not.toContain('공무원보수규정 제1');
+    expect(all).not.toContain('공무원수당 등에 관한 규정 제7조');
+    expect(planWhyMonth(payCalcCite(local.sources))).toContain(
+      '(지방공무원 보수규정 제21조·제23조)',
+    );
   });
 });
 
@@ -597,7 +650,9 @@ describe('말투', () => {
       checkRetirePlan('2026-10', { ...issue, minMonth: '2026-11' }) ?? '',
       checkRetirePlan('2049-01', { ...issue, minMonth: '2026-11' }) ?? '',
       ...assumptions(baseHow).map((a) => a.text),
-      ...assumptions({ ...baseHow, basis: 'plan', longServiceAddOn: true }).map((a) => a.text),
+      ...assumptions({ ...baseHow, basis: 'plan', longServiceAddOn: addOnSource }).map(
+        (a) => a.text,
+      ),
       hobongLine({
         retired: false,
         basis: 'retirement',

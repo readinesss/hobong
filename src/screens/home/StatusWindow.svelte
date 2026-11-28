@@ -87,9 +87,9 @@
           <span class="tag blue">{look.form.name}</span>
           <span class="nick">{view.profile.nickname}</span>
         </p>
-        {#if view.showIdentityHome && view.seriesName}
+        {#if view.showIdentityHome && view.seriesHomeText}
           <!-- 직렬은 소속을 짐작하게 할 수 있다. 설정 '홈에 직렬·계급 이름 보이기'를 켰을 때만 -->
-          <p class="cap" id="status-series">{view.seriesName} 직렬</p>
+          <p class="cap" id="status-series">{view.seriesHomeText}</p>
         {/if}
         <p class="big level">
           {shownLabel}{#if !view.raisesAutomatically}<span class="cap muted"> (입력값) </span>{/if}

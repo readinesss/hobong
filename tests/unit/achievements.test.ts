@@ -37,6 +37,7 @@ function makeData(): UserData {
       hireDate: '2020-01-01',
       track: 'general',
       series: null,
+      seriesJikryu: null,
       payTable: 'table3',
       rank: '9',
       rankDate: '2020-01-01',
@@ -44,6 +45,7 @@ function makeData(): UserData {
       nextStepDate: '2027-01-01',
       stepAsOf: '2026-11-25',
       overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+      priorService: null,
     },
     { ...defaultSettings(R), payday: 25 },
     '2026-11-25T00:00:00.000Z',
@@ -69,6 +71,7 @@ const rec = (date: string, hours = 8, kind: LeaveRecord['kind'] = 'day'): LeaveR
   hours,
   kind,
   memo: '',
+  pool: 'annual',
 });
 
 describe('연속 휴식 계산', () => {

@@ -24,7 +24,8 @@ import { careerLookup, rulesFor } from '../../src/lib/rules/index.ts';
 import { checkProfile } from '../../src/lib/store/validate.ts';
 import { fillLine, nickStem, pickLine, TALK } from '../../src/lib/talk.ts';
 
-const general = { track: 'general', askRank: true, series: null, hasProp: false };
+const general = { askPayTable: true, askSeries: true, askRank: true, series: null, hasProp: false };
+const special = { askPayTable: false, askSeries: false };
 
 describe('질문 차례', () => {
   it('일반직: 닉네임 → 생년월일 → 임용일 → 직종 → 봉급표 → 직렬 → 계급 → 호봉 → 다음 승급일 → 월급날', () => {
@@ -48,7 +49,7 @@ describe('질문 차례', () => {
   });
 
   it('특정직: 봉급표·직렬은 묻지 않고, 직종 소품이 있으면 직종 뒤에 소품을 묻는다', () => {
-    const list = questionsFor({ track: 'police', askRank: true, series: null, hasProp: true });
+    const list = questionsFor({ ...special, askRank: true, series: null, hasProp: true });
     expect(list).not.toContain('payTable');
     expect(list).not.toContain('series');
     expect(list.indexOf('prop')).toBe(list.indexOf('track') + 1);
@@ -56,7 +57,7 @@ describe('질문 차례', () => {
   });
 
   it('교원처럼 계급을 고르지 않는 직종은 계급 질문을 건너뛴다', () => {
-    const list = questionsFor({ track: 'teacher', askRank: false, series: null, hasProp: true });
+    const list = questionsFor({ ...special, askRank: false, series: null, hasProp: true });
     expect(list).not.toContain('rank');
     expect(list).toContain('step');
   });
@@ -69,10 +70,10 @@ describe('질문 차례', () => {
   it('필수 칸 수: 일반직 9, 경찰 8, 교원 7', () => {
     expect(requiredOf(questionsFor(general))).toHaveLength(9);
     expect(
-      requiredOf(questionsFor({ track: 'police', askRank: true, series: null, hasProp: true })),
+      requiredOf(questionsFor({ ...special, askRank: true, series: null, hasProp: true })),
     ).toHaveLength(8);
     expect(
-      requiredOf(questionsFor({ track: 'teacher', askRank: false, series: null, hasProp: true })),
+      requiredOf(questionsFor({ ...special, askRank: false, series: null, hasProp: true })),
     ).toHaveLength(7);
   });
 });
@@ -83,7 +84,7 @@ describe('진행과 검사', () => {
     const answered = new Set<QuestionId>(['nickname', 'birthDate', 'series', 'prop']);
     expect(progressOf(list, answered)).toEqual({ total: 9, done: 2, left: 7 });
     // 직종을 경찰로 바꾸면 봉급표 답은 세지 않는다(분모도 바뀐다)
-    const police = questionsFor({ track: 'police', askRank: true, series: null, hasProp: false });
+    const police = questionsFor({ ...special, askRank: true, series: null, hasProp: false });
     answered.add('payTable');
     answered.add('track');
     expect(progressOf(police, answered)).toEqual({ total: 8, done: 3, left: 5 });

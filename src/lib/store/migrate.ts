@@ -15,6 +15,9 @@
  *       settings.card.showSeries), 호봉이 꾸미기(character.look), 진동·소리·포인터·반짝이 설정
  *       (settings.haptics·sound·pointer·sparkles). 모두 '지금과 같은 모습·동작'이 되는 기본값으로 채운다.
  * - v6: 생애 봉급(#30)의 퇴직 예정 달(plan.retireMonth, 기본 없음 = 정년까지). 이 칸 하나만 더했다.
+ * - v7: 세 기능(#31·#33·#34)의 칸을 한 번에. 직종 '지방 일반직'(profile.track 'localGeneral')과 직류
+ *       (profile.seriesJikryu), 임용 전 군 복무(profile.priorService), 연가 기록의 몫(leave.records[].pool),
+ *       저축연가 통장(leave.savings), 해마다의 연가 정리 값(leave.years). 모두 '지금과 같은 동작'의 기본값으로 채운다.
  *
  * 새 버전을 만들 때: schema.ts의 SCHEMA_VERSION을 올리고 MIGRATIONS에 (이전 버전) → (다음 버전)
  * 변환을 추가한다. 변환은 순서대로 이어서 적용된다.
@@ -210,6 +213,35 @@ function v5ToV6(data: Dict): Dict {
   return { ...data, plan: { retireMonth: null } };
 }
 
+/**
+ * v6 → v7: 새 칸을 '지금과 같은 동작'이 되는 기본값으로 채운다.
+ * - 직류는 고른 적이 없다(null), 군 복무는 넣은 적이 없다(null).
+ * - 연가 기록은 모두 그해 연가에서 쓴 것이다(pool 'annual'), 저축연가 통장은 비어 있고([]), 연가 정리 값도 없다({}).
+ * v6 저장본에 v7 이름의 키(seriesJikryu·priorService·savings·years·pool)가 섞여 있어도(손으로 고친 파일) 옮겨 담지 않고
+ * 기본값으로 덮는다 — v6 앱은 그 키를 읽지도 저장하지도 않았으므로 사용자가 정한 값이 아니다(v4→v5·v5→v6 과 같은 관례).
+ * 그 밖의 값은 건드리지 않는다(형식이 틀린 칸은 검증이 이유와 함께 거부한다). 직종 값은 그대로 둔다(v6 에는
+ * 'localGeneral' 이 없었으므로 그대로 옮기면 된다).
+ */
+function v6ToV7(data: Dict): Dict {
+  const out: Dict = { ...data };
+  if (isDict(data.profile)) {
+    out.profile = { ...data.profile, seriesJikryu: null, priorService: null };
+  }
+  if (isDict(data.leave)) {
+    const leave = data.leave;
+    out.leave = {
+      ...leave,
+      // 기록 칸이 틀린 형식이면 그대로 넘겨 검증이 거부하게 한다
+      records: Array.isArray(leave.records)
+        ? leave.records.map((r: unknown) => (isDict(r) ? { ...r, pool: 'annual' } : r))
+        : leave.records,
+      savings: [],
+      years: {},
+    };
+  }
+  return out;
+}
+
 /** 키 = 변환 전 버전 */
 const MIGRATIONS: Record<number, Migration> = {
   1: v1ToV2,
@@ -217,6 +249,7 @@ const MIGRATIONS: Record<number, Migration> = {
   3: v3ToV4,
   4: v4ToV5,
   5: v5ToV6,
+  6: v6ToV7,
 };
 
 export type MigrateResult =

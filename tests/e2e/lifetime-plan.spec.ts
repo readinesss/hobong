@@ -166,7 +166,7 @@ test.describe('퇴직 예정 달 정하기', () => {
     expect(await planOf(page)).toBe('2030-12');
     expect(
       await page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}')),
-    ).toMatchObject({ schemaVersion: 6 });
+    ).toMatchObject({ schemaVersion: 7 });
     // 이 창 밖은 그대로다: 정년 창(퇴직일·D-day·진행률), 탭 제목
     expect(await page.locator('#career').innerText()).toBe(careerBefore);
     expect(await page.title()).toBe(titleBefore);
@@ -879,19 +879,27 @@ test.describe('정한 달의 저장: 예전 저장본·다른 탭·임용정보 
     return path;
   }
 
-  test('v5 저장본(기존 사용자)은 v6 으로 올라오고 다른 화면은 그대로다', async ({ page }) => {
+  test('v5 저장본(기존 사용자)은 v6(지금은 v7)으로 올라오고 다른 화면은 그대로다', async ({
+    page,
+  }) => {
     const errors = collectErrors(page);
     await openApp(page, { seed: makeSeedV5() });
     await tick(page, 2500);
     await closeDialogs(page);
     const env = await page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}'));
-    expect(env.schemaVersion).toBe(6);
+    expect(env.schemaVersion).toBe(7);
     expect(env.data.plan).toEqual({ retireMonth: null });
-    // v5 의 값은 그대로(자동 기록되는 업적·본 모습·저장 시각 말고)
+    // v5 의 값은 그대로(자동 기록되는 업적·본 모습·저장 시각 말고). v7 은 직류·군 복무 없음,
+    // 그해 연가(기록의 몫), 빈 저축연가 통장·연가 정리 값만 더한다
     const v5 = JSON.parse(makeSeedV5()).data;
-    expect(env.data.profile).toEqual(v5.profile);
+    expect(env.data.profile).toEqual({ ...v5.profile, seriesJikryu: null, priorService: null });
     expect(env.data.settings).toEqual(v5.settings);
-    expect(env.data.leave).toEqual(v5.leave);
+    expect(env.data.leave).toEqual({
+      ...v5.leave,
+      records: v5.leave.records.map((r: object) => ({ ...r, pool: 'annual' })),
+      savings: [],
+      years: {},
+    });
     expect(env.data.character.look).toEqual(v5.character.look);
     await expect(page.locator('#status')).toContainText('9급 5호봉');
     await expect(page.locator('#career')).toContainText('2056');
@@ -940,7 +948,7 @@ test.describe('정한 달의 저장: 예전 저장본·다른 탭·임용정보 
     ]);
     const text = readFileSync(await file.path(), 'utf8');
     const envelope = JSON.parse(text);
-    expect(envelope.schemaVersion).toBe(6);
+    expect(envelope.schemaVersion).toBe(7);
     // 암호를 걸지 않은 패키지에는 정한 달이 읽히는 글자로 들어 있다(폼 아래 안내가 이것을 알린다)
     expect(envelope.data.plan).toEqual({ retireMonth: '2030-12' });
     expect(text).toContain('"retireMonth": "2030-12"');

@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { ProfileDraft } from '../lib/app/draft.svelte.ts';
   import { formatLongDate, josa } from '../lib/app/format.ts';
-  import { GENERAL_PAY_TABLE_LABEL, trackChipLabel } from '../lib/app/track.ts';
+  import { GENERAL_PAY_TABLE_LABEL, paydayChipLabel, trackChipLabel } from '../lib/app/track.ts';
   import { TRACK_IDS } from '../lib/rules/index.ts';
   import { GENERAL_PAY_TABLES, LIMITS, type Profile } from '../lib/store/schema.ts';
   import { TALK } from '../lib/talk.ts';
@@ -63,6 +63,16 @@
     label: GENERAL_PAY_TABLE_LABEL[id] ?? id,
   }));
   const shown = $derived<ProfileErrors>(tried ? d.visibleErrors : {});
+  /** 직렬을 고르는 직종의 이름('일반직·지방 일반직') — 직종 데이터의 seriesScope 로 고른다 */
+  const seriesTrackNames = $derived(
+    TRACK_IDS.filter((id) => d.rules.tracks.items[id].seriesScope)
+      .map((id) => d.rules.tracks.items[id].label)
+      .join('·'),
+  );
+  /** 직렬 고르기의 [직종 고르기로 가기]: 직종 칸의 고른 칩으로 옮긴다(직종은 사용자가 고른다) */
+  function focusTrack() {
+    formEl?.querySelector<HTMLElement>('#pf-track [role="radio"][tabindex="0"]')?.focus();
+  }
 
   /**
    * 고치는 중에 승진으로 볼 만한지: 같은 직종·봉급표(같은 사다리)에서 계급 순서가 오르고 승진일이 뒤로 바뀌었다.
@@ -168,7 +178,7 @@
     </span>
   </fieldset>
 
-  {#if d.track === 'general'}
+  {#if d.askPayTable}
     <fieldset class="field" id="pf-pay-table" aria-describedby="pf-pay-table-hint">
       <legend id="pf-pay-table-legend">봉급표</legend>
       <ChipRadio
@@ -177,6 +187,11 @@
         value={d.payTable ?? 'table3'}
         onchange={(next) => d.setPayTable(next)}
       />
+      <!-- 직종을 바꿔 돌아왔는데 전에 고른 봉급표를 모를 때 첫 표로 맞춘 사실(낭독 한 번, 보이는 글은 고를 때까지) -->
+      <p class="sr-only" role="status" aria-live="polite">{d.payTableNotice}</p>
+      {#if d.payTableNotice}
+        <span class="hint cap" id="pf-pay-table-notice" aria-hidden="true">{d.payTableNotice}</span>
+      {/if}
       <details class="cap" id="pf-pay-table-hint">
         <summary>별표 4는 누가 쓰나요?</summary>
         <div class="stack well">
@@ -202,15 +217,24 @@
     </fieldset>
   {/if}
 
-  {#if d.track === 'general'}
-    <SeriesPicker value={d.series} onchange={(next) => (d.series = next)} />
+  {#if d.seriesScope}
+    <SeriesPicker
+      value={d.series}
+      jikryu={d.seriesJikryu}
+      scope={d.seriesScope}
+      rules={d.rules}
+      career={d.career}
+      onchange={(series, jikryu) => d.setSeries(series, jikryu)}
+      ongotrack={focusTrack}
+    />
   {:else if d.series !== null}
     <div class="note stack" id="pf-series-kept">
       <p>
-        고른 직렬({d.series})은 일반직일 때만 써요. 남겨 두면 일반직으로 되돌아올 때 다시 써요.
+        고른 직렬({d.series})은 직렬을 고르는 직종({seriesTrackNames})일 때만 써요. 남겨 두면 그
+        직종으로 되돌아올 때 다시 써요.
       </p>
       <div class="btn-row">
-        <button type="button" class="btn small" onclick={() => (d.series = null)}>
+        <button type="button" class="btn small" onclick={() => d.setSeries(null)}>
           직렬 지우기
         </button>
       </div>
@@ -330,7 +354,10 @@
       <legend>월급날</legend>
       <ChipRadio
         label="월급날"
-        options={d.rules.payday.options.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+        options={d.paydayOptions.map((o) => ({
+          value: o.day,
+          label: paydayChipLabel(o, d.career.payday.defaultDay),
+        }))}
         value={d.payday}
         onchange={(day) => d.setPayday(day)}
       />

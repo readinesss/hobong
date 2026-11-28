@@ -32,15 +32,18 @@ import {
 } from '../../src/lib/character/regions.ts';
 import { characterRules as C } from '../../src/lib/character/rules.ts';
 import {
-  findSeries,
+  groupsOf,
   propOwnerOf,
+  seriesByKey,
   seriesData,
   seriesLabel,
+  seriesNameOf,
   themeOfSeries,
 } from '../../src/lib/character/series.ts';
 import { TRANSPARENT, type Sprite } from '../../src/lib/character/sprite-format.ts';
 import { getSprite } from '../../src/lib/character/sprites.ts';
-import { TRACK_IDS } from '../../src/lib/rules/types.ts';
+import { rulesFor } from '../../src/lib/rules/index.ts';
+import { TRACK_IDS, type TrackId } from '../../src/lib/rules/types.ts';
 import { DEFAULT_LOOK, defaultLook } from '../../src/lib/store/defaults.ts';
 import type { CharacterLook } from '../../src/lib/store/schema.ts';
 
@@ -58,6 +61,9 @@ const look = (over: LookOver = {}): CharacterLook => ({
   deco: { ...DEFAULT_LOOK.deco, ...over.deco },
 });
 const partNames = (l: ReturnType<typeof resolveLook>) => l.parts.map((p) => p.sprite);
+/** 직종 데이터의 직렬 표(seriesScope)로 만든 'auto' 소품 사용자 정보(화면과 같은 길) */
+const scopeOf = (track: TrackId) => rulesFor(2026).tracks.items[track].seriesScope ?? null;
+const ownerOf = (p: { track: TrackId; series: string | null }) => propOwnerOf(p, scopeOf(p.track));
 
 describe('영역 판정(새 몸통)', () => {
   it('형태별 영역 칸 수가 고정돼 있다(몸통을 다시 그리면 미리보기로 다시 확인할 것)', () => {
@@ -215,7 +221,7 @@ describe('기본 모습은 꾸미기를 들이기 전과 픽셀 단위로 같다
   it('어느 직종이든(직렬이 남아 있어도) 기본 꾸미기의 합성 결과는 일반직 기본 모습과 같다(v4 → v5 그대로)', () => {
     for (const track of TRACK_IDS) {
       for (const series of [null, '간호']) {
-        const owner = propOwnerOf({ track, series: track === 'general' ? null : series });
+        const owner = ownerOf({ track, series: scopeOf(track) ? null : series });
         for (const form of C.forms) {
           for (const step of [0, 3, 8, 9, 20, 32]) {
             for (const mood of MOODS) {
@@ -564,7 +570,7 @@ describe('슬롯 충돌 규칙', () => {
       20,
       'work',
       DEFAULT_LOOK,
-      propOwnerOf({
+      ownerOf({
         track: 'general',
         series: '간호',
       }),
@@ -585,19 +591,32 @@ describe("손 소품 'auto': 직렬(일반직)·호봉 소품", () => {
     );
 
   it('일반직은 고른 직렬의 테마 소품을 1호봉부터 든다. 고르지 않았거나 모르는 직렬이면 호봉 소품', () => {
-    expect(held(1, propOwnerOf({ track: 'general', series: '간호' }))).toEqual([
-      'series-stethoscope',
-    ]);
-    expect(held(1, propOwnerOf({ track: 'general', series: '세무' }))).toEqual([
-      'series-calculator',
-    ]);
+    expect(held(1, ownerOf({ track: 'general', series: '간호' }))).toEqual(['series-stethoscope']);
+    expect(held(1, ownerOf({ track: 'general', series: '세무' }))).toEqual(['series-calculator']);
     // 행정 테마는 기존 결재판이다(1호봉부터)
-    expect(held(1, propOwnerOf({ track: 'general', series: '행정' }))).toEqual(['item-folder']);
-    expect(held(1, propOwnerOf({ track: 'general', series: null }))).toEqual([]);
-    expect(held(9, propOwnerOf({ track: 'general', series: null }))).toEqual(['item-folder']);
-    expect(held(9, propOwnerOf({ track: 'general', series: '없어진직렬' }))).toEqual([
+    expect(held(1, ownerOf({ track: 'general', series: '행정' }))).toEqual(['item-folder']);
+    expect(held(1, ownerOf({ track: 'general', series: null }))).toEqual([]);
+    expect(held(9, ownerOf({ track: 'general', series: null }))).toEqual(['item-folder']);
+    expect(held(9, ownerOf({ track: 'general', series: '없어진직렬' }))).toEqual(['item-folder']);
+  });
+
+  it("지방 일반직도 'auto' 는 고른 직렬(지방 직렬표)의 테마 소품이다. 지방 표에 없는 직렬이면 호봉 소품", () => {
+    // 직종 데이터의 seriesScope('local')로 정한다 — 특정직처럼 호봉 소품으로 보지 않는다(#31 묶음 3)
+    expect(scopeOf('localGeneral')).toBe('local');
+    expect(held(1, ownerOf({ track: 'localGeneral', series: '교육행정' }))).toEqual([
       'item-folder',
     ]);
+    expect(held(1, ownerOf({ track: 'localGeneral', series: '보건진료' }))).toEqual([
+      'series-stethoscope',
+    ]);
+    expect(held(1, ownerOf({ track: 'localGeneral', series: '간호' }))).toEqual([
+      'series-stethoscope',
+    ]);
+    // 관세는 국가 직렬표에만 있다
+    expect(held(1, ownerOf({ track: 'localGeneral', series: '관세' }))).toEqual([]);
+    expect(held(9, ownerOf({ track: 'localGeneral', series: '관세' }))).toEqual(['item-folder']);
+    expect(ownerOf({ track: 'localGeneral', series: null }).bySeries).toBe(true);
+    expect(ownerOf({ track: 'police', series: null }).bySeries).toBe(false);
   });
 
   it("특정직의 'auto' 는 호봉 소품이다(직종 소품은 직접 고를 때만). 직렬이 남아 있어도 쓰지 않는다", () => {
@@ -611,8 +630,11 @@ describe("손 소품 'auto': 직렬(일반직)·호봉 소품", () => {
       militaryCivil: 'radio',
       otherSpecial: null,
     };
-    for (const track of TRACK_IDS.filter((t) => t !== 'general')) {
-      const owner = propOwnerOf({ track, series: '간호' });
+    // 특정직만 본다. 지방 일반직(v7)은 특정직이 아니다 — 직렬 표가 있는 직종의 'auto' 소품은 직종 데이터의
+    // seriesScope 로 정한다(#31 묶음 3). 목록 밖의 직종이 생기면 여기서 알게 한다
+    expect(TRACK_IDS.filter((t) => !(t in own))).toEqual(['general', 'localGeneral']);
+    for (const track of TRACK_IDS.filter((t) => t in own)) {
+      const owner = ownerOf({ track, series: '간호' });
       expect(owner.theme, track).toBeNull();
       expect(held(1, owner), track).toEqual([]);
       expect(held(9, owner), track).toEqual(['item-folder']);
@@ -624,7 +646,7 @@ describe("손 소품 'auto': 직렬(일반직)·호봉 소품", () => {
   });
 
   it('모르는 소품 id 는 호봉 소품으로 그린다(직렬 테마 소품으로 바꾸지 않는다)', () => {
-    const nurse = propOwnerOf({ track: 'general', series: '간호' });
+    const nurse = ownerOf({ track: 'general', series: '간호' });
     expect(prop(nurse, 'shovel')).toBe('step');
     expect(held(1, nurse, 'shovel')).toEqual([]);
     expect(held(9, nurse, 'shovel')).toEqual(['item-folder']);
@@ -635,7 +657,7 @@ describe("손 소품 'auto': 직렬(일반직)·호봉 소품", () => {
   });
 
   it("'none' 은 비우고, 고른 소품은 직종·직렬과 상관없이 그 소품을 든다", () => {
-    const police = propOwnerOf({ track: 'police', series: null });
+    const police = ownerOf({ track: 'police', series: null });
     expect(held(20, police, 'none')).toEqual([]);
     expect(held(20, police, 'umbrella')).toEqual(['series-umbrella']);
     expect(held(1, {}, 'globe')).toEqual(['track-globe']);
@@ -696,13 +718,34 @@ describe('손 소품 테두리 빛(propHalo): 날개·꼬리 위에서 묻히지
   });
 });
 
-describe('직렬 데이터(data/series.json, 공무원임용령 별표 1·2)', () => {
-  const all = seriesData.groups.flatMap((g) => g.series.map((s) => ({ ...s, group: g.name })));
+describe('직렬 데이터(data/series.json schema 2, 공무원임용령 별표 1·2 · 지방공무원 임용령 별표 1)', () => {
+  const flat = (scope: 'national' | 'local') =>
+    groupsOf(scope).flatMap((g) => g.series.map((s) => ({ ...s, group: g.name, src: g.source })));
+  const national = flat('national');
+  const local = flat('local');
+  const all = [...national, ...local];
 
-  it('별표 1·2 의 일반직 52개 직렬을 네 직군에 원문 순서로 담는다', () => {
-    expect(all).toHaveLength(52);
-    expect(new Set(all.map((s) => s.name)).size).toBe(52);
-    expect(seriesData.groups.map((g) => [g.name, g.series.length])).toEqual([
+  /** 이름이 발췌본에 있는 그대로인지(줄바꿈으로 나뉜 이름은 이어지는 두 줄에) */
+  const inSnapshot = (name: string, source: string) => {
+    const src = seriesData.sources[source];
+    expect(src, name).toBeDefined();
+    const text = readFileSync(join(process.cwd(), src?.snapshot ?? ''), 'utf8');
+    const lines = text.split('\n');
+    return (
+      text.includes(name) ||
+      [...name].some((_, k) => {
+        if (k === 0) return false;
+        const [a, b] = [name.slice(0, k), name.slice(k)];
+        return lines.some((line, i) => line.includes(a) && (lines[i + 1] ?? '').includes(b));
+      })
+    );
+  };
+
+  it('국가: 별표 1·2 의 일반직 52개 직렬을 네 직군에 원문 순서로 담는다(국가 그룹만 본다)', () => {
+    expect(seriesData.schema).toBe(2);
+    expect(national).toHaveLength(52);
+    expect(new Set(national.map((s) => s.name)).size).toBe(52);
+    expect(groupsOf('national').map((g) => [g.name, g.series.length])).toEqual([
       ['과학기술', 23],
       ['행정', 14],
       ['관리운영', 14],
@@ -710,22 +753,68 @@ describe('직렬 데이터(data/series.json, 공무원임용령 별표 1·2)', (
     ]);
   });
 
+  it('지방: 지방공무원 임용령 별표 1 의 46개 직렬을 세 직군에 원문 순서로 담는다', () => {
+    expect(local).toHaveLength(46);
+    expect(new Set(local.map((s) => s.name)).size).toBe(46);
+    expect(groupsOf('local').map((g) => [g.name, g.series.length])).toEqual([
+      ['행정', 8],
+      ['과학기술', 22],
+      ['관리운영', 16],
+    ]);
+    expect(groupsOf('local').every((g) => g.source === 'localTable1')).toBe(true);
+    // 교육행정은 지방 표에서는 행정 직군의 직렬이고, 국가 표에서는 행정 직렬의 직류다
+    expect(seriesByKey('교육행정', 'local')?.group.name).toBe('행정');
+    expect(seriesByKey('교육행정', 'national')).toBeNull();
+    expect(seriesByKey('행정', 'national')?.entry.jikryu).toContain('교육행정');
+  });
+
   it('직렬 이름은 원문 발췌본에 있는 그대로다(줄바꿈으로 나뉜 이름은 이어지는 두 줄에)', () => {
+    for (const s of all) expect(inSnapshot(s.name, s.src), s.name).toBe(true);
+  });
+
+  it('직류 이름도 원문 발췌본에 있다(공백을 지운 글자에서 찾는다. 칸 줄바꿈으로 끊긴 이름만 예외)', () => {
+    // 그림(130dpi)으로 대조한 이름: 표의 칸 안에서 줄이 바뀌어 발췌본 글자로는 이어지지 않는다(설계서 2.1)
+    const broken: Record<string, string[]> = {
+      table1: ['전자통신기술'],
+      localTable1: ['열관리운영', '회계처리운영'],
+    };
     for (const s of all) {
-      const group = seriesData.groups.find((g) => g.name === s.group);
-      const src = seriesData.sources[group?.source ?? ''];
-      expect(src, s.name).toBeDefined();
-      const text = readFileSync(join(process.cwd(), src?.snapshot ?? ''), 'utf8');
-      const lines = text.split('\n');
-      const found =
-        text.includes(s.name) ||
-        [...s.name].some((_, k) => {
-          if (k === 0) return false;
-          const [a, b] = [s.name.slice(0, k), s.name.slice(k)];
-          return lines.some((line, i) => line.includes(a) && (lines[i + 1] ?? '').includes(b));
-        });
-      expect(found, s.name).toBe(true);
+      const src = seriesData.sources[s.src];
+      const text = readFileSync(join(process.cwd(), src?.snapshot ?? ''), 'utf8').replace(
+        /\s+/g,
+        '',
+      );
+      expect(s.jikryu.length, s.name).toBeGreaterThan(0);
+      for (const j of s.jikryu) {
+        if ((broken[s.src] ?? []).includes(j)) continue;
+        expect(text.includes(j), `${s.name} · ${j}`).toBe(true);
+      }
     }
+    const count = (list: typeof all) => list.reduce((n, s) => n + s.jikryu.length, 0);
+    expect(count(national)).toBe(126);
+    expect(count(local)).toBe(105);
+  });
+
+  it('같은 이름의 직렬은 국가·지방 테마가 같고, 국가 저장값은 국가 표의 항목으로 풀린다(지방 항목으로 덮이지 않는다)', () => {
+    const shared = national.filter((n) => local.some((l) => l.name === n.name));
+    expect(shared).toHaveLength(38);
+    for (const n of shared) {
+      const l = seriesByKey(n.name, 'local');
+      expect(l?.entry.theme, n.name).toBe(n.theme);
+      const found = seriesByKey(n.name, 'national');
+      expect(found?.group.scope, n.name).toBe('national');
+      expect(found?.group.name, n.name).toBe(n.group);
+      expect(themeOfSeries(n.name, 'national'), n.name).toBe(n.theme);
+    }
+    // 전산: 국가는 과학기술, 지방은 행정 직군
+    expect(seriesByKey('전산', 'national')?.group.name).toBe('과학기술');
+    expect(seriesByKey('전산', 'local')?.group.name).toBe('행정');
+  });
+
+  it('직군 목록의 키(scope:이름)는 겹치지 않는다(같은 직군 이름이 두 표에 있다)', () => {
+    const keys = seriesData.groups.map((g) => `${g.scope}:${g.name}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(new Set(seriesData.groups.map((g) => g.name)).size).toBeLessThan(keys.length);
   });
 
   it('테마는 모두 직렬 소품(custom.props kind series)이고, 직렬 소품은 모두 어느 직렬이 쓴다', () => {
@@ -744,16 +833,29 @@ describe('직렬 데이터(data/series.json, 공무원임용령 별표 1·2)', (
   });
 
   it('직렬 찾기·이름 보이기', () => {
-    expect(findSeries('간호')?.group.name).toBe('과학기술');
-    expect(findSeries('사무운영')?.group.name).toBe('관리운영');
-    expect(findSeries('우정')?.group.name).toBe('우정');
-    expect(findSeries(null)).toBeNull();
-    expect(findSeries('없는직렬')).toBeNull();
-    expect(themeOfSeries('사서')).toBe('book');
-    expect(themeOfSeries(null)).toBeNull();
-    expect(seriesLabel({ track: 'general', series: '간호' })).toBe('간호');
-    expect(seriesLabel({ track: 'police', series: '간호' })).toBeNull();
-    expect(seriesLabel({ track: 'general', series: '없는직렬' })).toBeNull();
-    expect(seriesLabel({ track: 'general', series: null })).toBeNull();
+    expect(seriesByKey('간호', 'national')?.group.name).toBe('과학기술');
+    expect(seriesByKey('사무운영', 'national')?.group.name).toBe('관리운영');
+    expect(seriesByKey('우정', 'national')?.group.name).toBe('우정');
+    expect(seriesByKey('우정', 'local')).toBeNull();
+    expect(seriesByKey(null, 'national')).toBeNull();
+    expect(seriesByKey('간호', null)).toBeNull();
+    expect(seriesByKey('없는직렬', 'national')).toBeNull();
+    expect(themeOfSeries('사서', 'national')).toBe('book');
+    expect(themeOfSeries(null, 'national')).toBeNull();
+    const label = (series: string | null, jikryu: string | null, track: TrackId = 'general') =>
+      seriesLabel({ series, seriesJikryu: jikryu }, scopeOf(track));
+    expect(label('간호', null)).toBe('간호');
+    expect(label('간호', null, 'police')).toBeNull();
+    expect(label('없는직렬', null)).toBeNull();
+    expect(label(null, null)).toBeNull();
+    // 직류: 그 직렬의 직류만 보이고, 같은 이름의 단일 직류·짝이 안 맞는 직류·목록에 없는 직류는 직렬만
+    expect(label('행정', '교육행정')).toBe('행정 · 교육행정 직류');
+    expect(label('간호', '간호')).toBe('간호');
+    expect(label('세무', '교육행정')).toBe('세무');
+    expect(label('행정', '없는직류')).toBe('행정');
+    expect(label('교육행정', '교육행정', 'localGeneral')).toBe('교육행정');
+    expect(label('세무', '지방세', 'localGeneral')).toBe('세무 · 지방세 직류');
+    // 카드·소품에는 직류 없이 직렬 이름만
+    expect(seriesNameOf('행정', 'national')).toBe('행정');
   });
 });

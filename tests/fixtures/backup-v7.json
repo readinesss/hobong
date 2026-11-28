@@ -1,0 +1,166 @@
+{
+  "app": "hobong",
+  "schemaVersion": 7,
+  "appVersion": "0.3.0",
+  "exportedAt": "2026-11-27T09:00:00.000Z",
+  "data": {
+    "profile": {
+      "nickname": "행정실",
+      "birthDate": "1994-02-11",
+      "hireDate": "2021-03-10",
+      "track": "localGeneral",
+      "series": "행정",
+      "seriesJikryu": "감사",
+      "payTable": null,
+      "rank": "8",
+      "rankDate": "2024-09-01",
+      "step": 6,
+      "nextStepDate": "2027-03-01",
+      "stepAsOf": "2026-11-26",
+      "overrides": {
+        "longServiceDate": null,
+        "seniorDate": null,
+        "rankLimitDate": null
+      },
+      "priorService": {
+        "kind": "enlisted",
+        "months": 18,
+        "days": 0
+      }
+    },
+    "settings": {
+      "payday": 17,
+      "work": {
+        "start": "09:00",
+        "end": "18:00",
+        "lunchStart": "12:00",
+        "lunchEnd": "13:00"
+      },
+      "theme": "light",
+      "reduceMotion": true,
+      "hideAmounts": false,
+      "tabTitle": "default",
+      "card": {
+        "ratio": "square",
+        "showSalary": false,
+        "showRetirement": false,
+        "showTenure": true,
+        "showBadges": true,
+        "showRank": true,
+        "showSeries": false
+      },
+      "identity": {
+        "showSeriesHome": true
+      },
+      "haptics": true,
+      "sound": {
+        "sfx": false,
+        "bgm": false,
+        "master": 80,
+        "sfxVolume": 80,
+        "bgmVolume": 50,
+        "bgmTrack": "auto"
+      },
+      "pointer": "pixel",
+      "sparkles": true
+    },
+    "leave": {
+      "records": [
+        {
+          "id": "r1",
+          "date": "2026-03-04",
+          "hours": 8,
+          "kind": "day",
+          "memo": "",
+          "pool": "annual"
+        },
+        {
+          "id": "r2",
+          "date": "2026-07-13",
+          "hours": 8,
+          "kind": "day",
+          "memo": "여름",
+          "pool": "saved"
+        },
+        {
+          "id": "r3",
+          "date": "2026-08-10",
+          "hours": 3,
+          "kind": "hours",
+          "memo": "",
+          "pool": "annual"
+        }
+      ],
+      "grantOverrideHours": {},
+      "savings": [
+        {
+          "id": "s1",
+          "kind": "opening",
+          "year": 2024,
+          "month": null,
+          "hours": 32,
+          "memo": "2024년까지"
+        },
+        {
+          "id": "s2",
+          "kind": "carry",
+          "year": 2025,
+          "month": null,
+          "hours": 20,
+          "memo": ""
+        },
+        {
+          "id": "s3",
+          "kind": "overtime",
+          "year": 2026,
+          "month": "2026-05",
+          "hours": 6,
+          "memo": ""
+        }
+      ],
+      "years": {
+        "2025": {
+          "unpaidDays": 0,
+          "capDays": null,
+          "midYear": "paid",
+          "compDays": 10
+        }
+      }
+    },
+    "achievements": {
+      "hire": {
+        "at": "2021-03-10"
+      }
+    },
+    "character": {
+      "seenForms": ["egg", "chick"],
+      "lastRank": "8",
+      "lastStep": 6,
+      "lastForm": null,
+      "look": {
+        "body": "sunny",
+        "crest": "red",
+        "plume": "auto",
+        "deco": {
+          "pin": null,
+          "chest": null,
+          "cheek": false
+        },
+        "prop": "auto"
+      }
+    },
+    "visits": {
+      "days": ["2026-11-25", "2026-11-26"],
+      "lastVisit": "2026-11-25"
+    },
+    "meta": {
+      "createdAt": "2026-03-10T00:00:00.000Z",
+      "updatedAt": "2026-11-26T08:50:00.000Z",
+      "lastBackupAt": null,
+      "changesSinceBackup": 4
+    },
+    "plan": {
+      "retireMonth": null
+    }
+  }
+}

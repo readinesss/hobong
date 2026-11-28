@@ -10,7 +10,7 @@ import { decideGrowth } from '../character/growth.ts';
 import { formIdFor, formIndex } from '../character/look.ts';
 import { characterRules } from '../character/rules.ts';
 import { careerLookup, rankStepLabel, rulesFor } from '../rules/index.ts';
-import { defaultShowRank, trackNameOf } from './track.ts';
+import { defaultShowRank, paydayChoiceText, trackNameOf } from './track.ts';
 import type { RankKey } from '../rules/types.ts';
 import {
   makeEnvelope,
@@ -75,6 +75,13 @@ export interface TrackChange {
    * 경찰·소방·해양경찰의 25일은 '따로 적혀 있지 않아' 둔 값이라(T13) 권하지 않고 같은 무게로 묻는다.
    */
   paydayFirm: boolean;
+  /**
+   * 직종에 월급날 선택지가 따로 있으면(지방 일반직 20일·17일) 그 날짜들. 단추를 날짜마다 같은 무게로 보인다
+   * (17일이 맞는 교육청·학교 사용자를 20일로 이끌지 않게). 없으면 null(기본값 하나만 권한다)
+   */
+  paydayChoices: number[] | null;
+  /** 안내 글의 월급날 설명('기본 20일(교육청·학교는 17일)'). 선택지가 없으면 '' */
+  paydayChoiceText: string;
   /** 카드의 계급 이름 넣기를 이 값으로 다시 맞췄다(바꾸지 않았으면 null) */
   cardShowRank: boolean | null;
 }
@@ -645,17 +652,25 @@ class AppStore {
     );
     if (!kept) return false;
     const payday = mark.career.payday;
+    // 직종에 월급날 선택지가 따로 있으면(지방 일반직) 지금 값이 그 안에 있을 때 묻지 않는다(17일은 17일 그대로)
+    const ownChoices = mark.career.track.payday.options ?? null;
+    const now = this.data?.settings.payday ?? null;
     // 월급날은 직종을 바꿀 때만 묻는다. 카드 설정은 봉급표만 바꿔 사다리가 바뀌어도(별표 3 ↔ 8) 알린다.
     const paydayDiffers =
-      trackChanged && this.data !== null && this.data.settings.payday !== payday.defaultDay;
-    const generalDay = rulesFor(yearOf(today)).tracks.items.general.payday.defaultDay;
+      trackChanged &&
+      now !== null &&
+      (ownChoices ? !ownChoices.some((o) => o.day === now) : now !== payday.defaultDay);
+    // 별표 30 의 '그 밖의 기관' 날(기본 구역의 기본값)과 다른 기본값은 그 직종의 기관이 따로 적혀 있다(교원·군무원)
+    const baseDay = rulesFor(yearOf(today)).payday.defaultDay;
     this.trackChange =
       paydayDiffers || cardReset
         ? {
             trackLabel: trackNameOf(mark.career),
             paydayDefault: paydayDiffers ? payday.defaultDay : null,
             paydayNote: payday.note,
-            paydayFirm: payday.defaultDay !== generalDay,
+            paydayFirm: !ownChoices && payday.defaultDay !== baseDay,
+            paydayChoices: ownChoices ? ownChoices.map((o) => o.day) : null,
+            paydayChoiceText: ownChoices ? paydayChoiceText(payday.defaultDay, ownChoices) : '',
             cardShowRank: cardReset ? showRank : null,
           }
         : null;
@@ -695,11 +710,12 @@ class AppStore {
     };
   }
 
-  /** 직종을 바꾼 뒤 안내 띠의 '그 날로 바꾸기' */
-  applyTrackPayday(): void {
-    const day = this.trackChange?.paydayDefault ?? null;
+  /** 직종을 바꾼 뒤 안내 띠의 '그 날로 바꾸기'(선택지가 여럿인 직종은 고른 날, 아니면 기본값) */
+  applyTrackPayday(day?: number): void {
+    const change = this.trackChange;
+    const next = day ?? change?.paydayDefault ?? null;
     this.trackChange = null;
-    if (day !== null) this.updateSettings({ payday: day });
+    if (next !== null) this.updateSettings({ payday: next });
   }
 
   /**
@@ -788,6 +804,8 @@ class AppStore {
           hours: entry.hours,
           kind: entry.kind,
           memo: cleanText(entry.memo ?? '', LIMITS.memoMax),
+          // 저축연가에서 쓰는 기록(#33)은 아직 고를 수 없다 — 늘 그해 연가
+          pool: 'annual',
         };
         d.leave.records.push(record);
       }

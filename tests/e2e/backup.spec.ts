@@ -60,7 +60,7 @@ test.describe('데이터 내려받기·불러오기', () => {
     const file = await download(page);
     expect(file.name).toBe('hobong-package-20261125.json');
     const envelope = JSON.parse(file.text);
-    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 6, appVersion: '0.1.0' });
+    expect(envelope).toMatchObject({ app: 'hobong', schemaVersion: 7, appVersion: '0.1.0' });
     // 퇴직 예정 달을 정한 적이 없으면 파일에도 없음(null)으로 실린다
     expect(envelope.data.plan).toEqual({ retireMonth: null });
     expect(typeof envelope.exportedAt).toBe('string');
@@ -373,8 +373,8 @@ test.describe('데이터 내려받기·불러오기', () => {
     expect(fromV3?.settings.card.showRank).toBe(true);
     const version = () =>
       page.evaluate(() => JSON.parse(localStorage.getItem('hobong.data') ?? '{}').schemaVersion);
-    // 변환 사슬은 지금 형식(v6)까지 이어진다. v6 의 퇴직 예정 달은 없음(정년까지)
-    expect(await version()).toBe(6);
+    // 변환 사슬은 지금 형식(v7)까지 이어진다. v6 의 퇴직 예정 달은 없음(정년까지)
+    expect(await version()).toBe(7);
     expect(fromV3?.plan).toEqual({ retireMonth: null });
 
     await openApp(page, { seed: makeSeedV4({ ...v3, rank: '8', rankDate: '2024-07-01' }) });

@@ -93,6 +93,7 @@ function profile(over: Partial<Profile> = {}): Profile {
     hireDate: '2020-01-01',
     track: 'general',
     series: null,
+    seriesJikryu: null,
     payTable: 'table3',
     rank: '9',
     rankDate: '2020-01-01',
@@ -100,6 +101,7 @@ function profile(over: Partial<Profile> = {}): Profile {
     nextStepDate: '2027-01-01',
     stepAsOf: '2026-11-25',
     overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+    priorService: null,
     ...over,
   };
 }
@@ -415,6 +417,7 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     hours,
     kind,
     memo: '',
+    pool: 'annual',
   });
   it('장부 요약', () => {
     const leave: LeaveData = {
@@ -427,6 +430,8 @@ describe('연가 (복무규정 제15조~제17조)', () => {
         rec('2026-12-24', 8),
       ],
       grantOverrideHours: {},
+      savings: [],
+      years: {},
     };
     const s = summarizeLeave(L, '2018-08-01', leave, '2026-11-25');
     expect(s.year).toBe(2026);
@@ -450,14 +455,24 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     const s = summarizeLeave(
       L,
       '2022-09-01',
-      { records: [rec('2026-08-01', 8), rec('2026-12-01', 8)], grantOverrideHours: {} },
+      {
+        records: [rec('2026-08-01', 8), rec('2026-12-01', 8)],
+        grantOverrideHours: {},
+        savings: [],
+        years: {},
+      },
       '2026-11-25',
     );
     expect(s.lastUseDate).toBe('2026-08-01');
     expect(s.daysSinceLastUse).toBe(116);
   });
   it('직접 수정한 부여 시간이 우선한다', () => {
-    const leave: LeaveData = { records: [], grantOverrideHours: { '2026': 184 } };
+    const leave: LeaveData = {
+      records: [],
+      grantOverrideHours: { '2026': 184 },
+      savings: [],
+      years: {},
+    };
     const s = summarizeLeave(L, '2018-08-01', leave, '2026-11-25');
     expect(s.grantedHours).toBe(184);
     expect(s.overridden).toBe(true);
@@ -467,7 +482,7 @@ describe('연가 (복무규정 제15조~제17조)', () => {
     const s = summarizeLeave(
       L,
       '2025-12-01',
-      { records: [], grantOverrideHours: {} },
+      { records: [], grantOverrideHours: {}, savings: [], years: {} },
       '2026-11-25',
     );
     expect(s.grantedHours).toBe(11 * 8);
@@ -562,6 +577,7 @@ describe('승진 (임용령 제31조·제35조의4·제35조의5)', () => {
         rank: '9',
         rankDate: '2021-04-15',
         overrides: { longServiceDate: '2027-04-15', seniorDate: null, rankLimitDate: null },
+        priorService: null,
       }),
     );
     expect(info).toMatchObject({ autoDate: '2026-10-15', date: '2027-04-15', overridden: true });

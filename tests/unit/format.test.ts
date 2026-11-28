@@ -29,6 +29,12 @@ describe('화면 서식', () => {
     expect(josa('금빛 깃', '은', '는')).toBe('금빛 깃은');
     expect(withRo('20일')).toBe('20일로');
     expect(withRo('12일 4시간')).toBe('12일 4시간으로');
+    // 숫자는 읽는 소리로: 삼·육·영은 '으로', 일·칠·팔(ㄹ)과 받침 없는 소리는 '로'
+    expect(withRo('별표 3')).toBe('별표 3으로');
+    expect(withRo('별표 10')).toBe('별표 10으로');
+    expect(withRo('별표 4')).toBe('별표 4로');
+    expect(withRo('별표 8')).toBe('별표 8로');
+    expect(withRo('별표 11')).toBe('별표 11로');
   });
   it('올해가 아닌 날짜에는 연도를 붙인다', () => {
     expect(formatMonthDayMaybeYear('2026-12-01', '2026-11-26')).not.toContain('2026년');

@@ -50,20 +50,23 @@ export const QUESTION_KEYS: Readonly<Record<QuestionId, readonly (keyof ProfileE
 
 /** 질문 차례를 정하는 초안의 모습(ProfileDraft 가 이 모양이다) */
 export interface FlowInput {
-  track: string;
+  /** 고를 봉급표가 여럿인 직종인지(일반직 — 직종 데이터의 payTables) */
+  askPayTable: boolean;
+  /** 직렬을 고르는 직종인지(직종 데이터의 seriesScope — 일반직·지방 일반직) */
+  askSeries: boolean;
   /** 계급을 고르는 직종인지(교원·사다리 없는 직종은 false) */
   askRank: boolean;
-  /** 일반직이 고른 직렬(없으면 null) */
+  /** 고른 직렬(없으면 null) */
   series: string | null;
-  /** 지금 권할 소품이 있는지(특정직의 직종 소품, 일반직은 고른 직렬의 소품) */
+  /** 지금 권할 소품이 있는지(특정직의 직종 소품, 직렬을 고르는 직종은 고른 직렬의 소품) */
   hasProp: boolean;
 }
 
 /** 지금 초안에서 물을 질문들(차례대로) */
 export function questionsFor(input: FlowInput): QuestionId[] {
-  const general = input.track === 'general';
   return QUESTION_IDS.filter((id) => {
-    if (id === 'payTable' || id === 'series') return general;
+    if (id === 'payTable') return input.askPayTable;
+    if (id === 'series') return input.askSeries;
     if (id === 'prop') return input.hasProp;
     if (id === 'rank') return input.askRank;
     return true;

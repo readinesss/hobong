@@ -9,10 +9,15 @@ import { checkWorkHours } from '../calc/today.ts';
 import { TRACK_IDS, type PayTableId, type RankKey, type TrackId } from '../rules/types.ts';
 import {
   GENERAL_PAY_TABLES,
+  GENERAL_RANK_TRACKS,
   GENERAL_RANKS,
+  LEAVE_MID_YEAR_VALUES,
+  LEAVE_POOLS,
   LIMITS,
   LOOK_ID_RE,
+  PRIOR_SERVICE_KINDS,
   RANK_KEY_RE,
+  SAVINGS_KINDS,
   SERIES_KEY_RE,
   YEAR_MONTH_KEY_RE,
   type CardSettings,
@@ -20,9 +25,15 @@ import {
   type GeneralPayTableId,
   type Grade,
   type LeaveKind,
+  type LeavePool,
   type LeaveRecord,
+  type LeaveYearPlan,
   type PlanState,
+  type PriorService,
+  type PriorServiceKind,
   type Profile,
+  type SavingsEntry,
+  type SavingsKind,
   type Settings,
   type UserData,
 } from './schema.ts';
@@ -90,17 +101,39 @@ function payTableFits(track: TrackId, value: unknown): value is GeneralPayTableI
 /**
  * 저장본의 계급 검사(형식만). 키가 있어야 하고, 값은 계급 키 형식의 문자열 또는 null.
  * 직종과 짝짓지 않는다 — 직종에 사다리가 있는지는 규정 데이터가 정하므로, 데이터가 늘어도
- * 멀쩡한 저장본을 거부하지 않게. 하나만 예외: 일반직의 계급 키는 '1'~'9'(코드 상수)다.
+ * 멀쩡한 저장본을 거부하지 않게. 하나만 예외: 일반직(국가·지방)의 계급 키는 '1'~'9'(코드 상수)다.
  */
 function rankFits(track: TrackId | null, value: unknown): boolean {
   if (!isRankKeyOrNull(value)) return false;
-  if (track === 'general' && typeof value === 'string') return GENERAL_RANKS.includes(value);
+  if (track !== null && GENERAL_RANK_TRACKS.includes(track) && typeof value === 'string')
+    return GENERAL_RANKS.includes(value);
   return true;
 }
 
 /** 저장본의 직렬 키 형식 또는 null(고르지 않음) */
 export function isSeriesKeyOrNull(value: unknown): value is string | null {
   return value === null || (typeof value === 'string' && SERIES_KEY_RE.test(value));
+}
+
+/**
+ * 저장본의 임용 전 군 복무(v7): null 이거나 { 형태(닫힌 목록), 개월 0~480, 일 0~29, 합 > 0 }. 형식만 본다
+ * (임용일·생년월일·오늘과 견주지 않는다). 맞으면 새 객체(알 수 없는 키는 버린다), 틀리면 undefined
+ */
+export function checkPriorService(value: unknown): PriorService | null | undefined {
+  if (value === null) return null;
+  if (!isDict(value)) return undefined;
+  const { kind, months, days } = value;
+  const int = (v: unknown, max: number): v is number =>
+    typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= max;
+  if (
+    !PRIOR_SERVICE_KINDS.includes(kind as PriorServiceKind) ||
+    !int(months, LIMITS.maxPriorServiceMonths) ||
+    !int(days, LIMITS.maxPriorServiceDays) ||
+    months + days <= 0
+  ) {
+    return undefined;
+  }
+  return { kind: kind as PriorServiceKind, months, days };
 }
 
 /** 꾸미기·소리 목록의 id 형식(모르는 id 도 받는다) */
@@ -187,6 +220,7 @@ export type ProfileField =
   | 'hireDate'
   | 'track'
   | 'series'
+  | 'seriesJikryu'
   | 'payTable'
   | 'rank'
   | 'rankDate'
@@ -195,7 +229,8 @@ export type ProfileField =
   | 'stepAsOf'
   | 'longServiceDate'
   | 'seniorDate'
-  | 'rankLimitDate';
+  | 'rankLimitDate'
+  | 'priorService';
 
 export type ProfileErrors = Partial<Record<ProfileField, string>>;
 
@@ -232,6 +267,12 @@ export function checkProfile(raw: unknown, ctx: ProfileContext): ProfileErrors {
   // (일반직이 아니면 쓰지 않을 뿐 지우지 않는다). 키가 없으면 거부한다(v5 저장본에는 늘 있다).
   if (!('series' in raw) || !isSeriesKeyOrNull(raw.series))
     errors.series = '직렬을 다시 골라 주세요.';
+  // 직류(v7): 칸이 없으면 null 로 읽는다. 형식만 본다(목록에 없거나 그 직렬의 직류가 아니어도 지우지 않는다)
+  if (raw.seriesJikryu !== undefined && !isSeriesKeyOrNull(raw.seriesJikryu))
+    errors.seriesJikryu = '직류를 다시 골라 주세요.';
+  // 임용 전 군 복무(v7): 칸이 없으면 null(넣지 않음)로 읽는다. 형식만 본다
+  if (raw.priorService !== undefined && checkPriorService(raw.priorService) === undefined)
+    errors.priorService = '임용 전 군 복무 기간을 다시 넣어 주세요.';
 
   const payTable = raw.payTable;
   const payTableOk = track !== null && payTableFits(track, payTable);
@@ -329,6 +370,11 @@ export function toProfile(raw: Dict): Profile {
     hireDate: raw.hireDate as Ymd,
     track: raw.track as TrackId,
     series: raw.series as string | null,
+    // 직렬이 없는데 직류만 있으면(손으로 고친 파일) 거부하지 않고 null 로 읽는다
+    seriesJikryu:
+      raw.series === null || raw.seriesJikryu === undefined
+        ? null
+        : (raw.seriesJikryu as string | null),
     payTable: raw.payTable as GeneralPayTableId | null,
     rank: raw.rank as RankKey | null,
     rankDate: raw.rankDate as Ymd,
@@ -345,6 +391,7 @@ export function toProfile(raw: Dict): Profile {
       seniorDate: pick(overrides.seniorDate),
       rankLimitDate: pick(overrides.rankLimitDate),
     },
+    priorService: checkPriorService(raw.priorService ?? null) ?? null,
   };
 }
 
@@ -496,6 +543,8 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
   const ids = new Set<string>();
   let bad = 0;
   raw.records.forEach((item: unknown, index: number) => {
+    // 몫(v7): 칸이 없으면 그해 연가로 읽는다. 있는데 두 값 밖이면 그 기록이 틀렸다
+    const pool = isDict(item) && item.pool !== undefined ? item.pool : 'annual';
     if (
       !isDict(item) ||
       typeof item.id !== 'string' ||
@@ -506,7 +555,8 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
       typeof item.hours !== 'number' ||
       !Number.isInteger(item.hours) ||
       !LEAVE_KINDS.includes(item.kind as LeaveKind) ||
-      !leaveHoursFit(item.kind as LeaveKind, item.hours)
+      !leaveHoursFit(item.kind as LeaveKind, item.hours) ||
+      !LEAVE_POOLS.includes(pool as LeavePool)
     ) {
       bad += 1;
       if (bad <= 3) errors.push(`연가 기록 ${index + 1}번째 항목의 형식이 틀렸어요.`);
@@ -519,6 +569,7 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
       hours: item.hours,
       kind: item.kind as LeaveKind,
       memo: cleanText(item.memo, LIMITS.memoMax),
+      pool: pool as LeavePool,
     });
   });
   if (bad > 3) errors.push(`그 밖에 연가 기록 ${bad - 3}건의 형식이 틀렸어요.`);
@@ -538,9 +589,129 @@ function checkLeave(raw: unknown, errors: string[]): UserData['leave'] | null {
     }
     grantOverrideHours[year] = hours;
   }
-  if (bad > 0) return null;
+  const savings = checkSavings(raw.savings, errors);
+  const years = checkLeaveYears(raw.years, errors);
+  if (bad > 0 || !savings || !years) return null;
   records.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
-  return { records, grantOverrideHours };
+  return { records, grantOverrideHours, savings, years };
+}
+
+/** 정수이고 min~max 안인지 */
+function intIn(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+}
+
+/**
+ * 저축연가 통장(v7, #33) 검사. 칸이 없으면 []. 형식 밖의 칸이 하나라도 있으면 통장 전체를 거부한다
+ * (연가 기록과 같은 규칙 — 앞의 세 칸까지 알린다). 저축이 모자라거나 같은 해 칸이 여럿이어도 거부하지 않는다.
+ */
+function checkSavings(raw: unknown, errors: string[]): SavingsEntry[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    errors.push('저축연가 통장의 형식이 틀렸어요.');
+    return null;
+  }
+  if (raw.length > LIMITS.maxSavings) {
+    errors.push(`저축연가 통장의 칸이 너무 많아요(${raw.length}칸).`);
+    return null;
+  }
+  const out: SavingsEntry[] = [];
+  const ids = new Set<string>();
+  let bad = 0;
+  raw.forEach((item: unknown, index: number) => {
+    const entry = isDict(item) ? savingsEntryOf(item) : null;
+    if (!entry || ids.has(entry.id)) {
+      bad += 1;
+      if (bad <= 3) errors.push(`저축연가 통장 ${index + 1}번째 칸의 형식이 틀렸어요.`);
+      return;
+    }
+    ids.add(entry.id);
+    out.push(entry);
+  });
+  if (bad > 3) errors.push(`그 밖에 저축연가 통장 ${bad - 3}칸의 형식이 틀렸어요.`);
+  return bad > 0 ? null : out;
+}
+
+function savingsEntryOf(item: Dict): SavingsEntry | null {
+  const { id, kind, year, hours } = item;
+  const month = item.month === undefined ? null : item.month;
+  if (typeof id !== 'string' || !ID_RE.test(id)) return null;
+  if (!SAVINGS_KINDS.includes(kind as SavingsKind)) return null;
+  if (!intIn(year, LIMITS.minLeaveYear, LIMITS.maxLeaveYear)) return null;
+  const overtime = kind === 'overtime';
+  if (overtime) {
+    if (typeof month !== 'string' || !YEAR_MONTH_KEY_RE.test(month)) return null;
+    if (Number(month.slice(0, 4)) !== year) return null;
+  } else if (month !== null) return null;
+  const maxHours = overtime ? LIMITS.maxOvertimeSavingHours : LIMITS.maxSavingHours;
+  if (!intIn(hours, 1, maxHours)) return null;
+  return {
+    id,
+    kind: kind as SavingsKind,
+    year,
+    month: month as string | null,
+    hours,
+    memo: cleanText(item.memo, LIMITS.memoMax),
+  };
+}
+
+/**
+ * 해마다의 연가 정리 값(v7, #33) 검사. 칸이 없으면 {}. 해마다 네 칸은 없으면 null 로 읽고,
+ * 네 칸이 모두 null 인 해는 버린다(거부하지 않는다 — 다시 저장하면 사라진다). 보상 일수가 한도보다 커도 거부하지 않는다.
+ */
+function checkLeaveYears(raw: unknown, errors: string[]): Record<string, LeaveYearPlan> | null {
+  if (raw === undefined) return {};
+  if (!isDict(raw)) {
+    errors.push('연가 정리 값의 형식이 틀렸어요.');
+    return null;
+  }
+  // 개수(60개 이하)는 네 칸이 모두 비어 버리는 해를 뺀 뒤 센다(버릴 값 때문에 묶음 전체를 거부하지 않는다).
+  // 키는 범위 안의 네 자리 연도만 받으므로 돌아보는 항목 수도 그 범위를 넘지 않는다(처음 틀린 키에서 멈춘다)
+  const entries = Object.entries(raw);
+  const out: Record<string, LeaveYearPlan> = {};
+  const days = (v: unknown): number | null | undefined =>
+    v === undefined || v === null ? null : intIn(v, 0, LIMITS.maxLeaveYearDays) ? v : undefined;
+  for (const [year, value] of entries) {
+    const y = Number(year);
+    const plan: Partial<Record<keyof LeaveYearPlan, unknown>> | null =
+      /^\d{4}$/.test(year) && y >= LIMITS.minLeaveYear && y <= LIMITS.maxLeaveYear && isDict(value)
+        ? {
+            unpaidDays: days(value.unpaidDays),
+            capDays: days(value.capDays),
+            compDays: days(value.compDays),
+            midYear: value.midYear === undefined ? null : value.midYear,
+          }
+        : null;
+    if (
+      !plan ||
+      plan.unpaidDays === undefined ||
+      plan.capDays === undefined ||
+      plan.compDays === undefined ||
+      !LEAVE_MID_YEAR_VALUES.includes(plan.midYear as LeaveYearPlan['midYear'])
+    ) {
+      errors.push(`연가 정리 값(${year.slice(0, 10)})이 틀렸어요.`);
+      return null;
+    }
+    const kept = plan as LeaveYearPlan;
+    if (
+      kept.unpaidDays === null &&
+      kept.capDays === null &&
+      kept.compDays === null &&
+      kept.midYear === null
+    )
+      continue;
+    out[year] = {
+      unpaidDays: kept.unpaidDays,
+      capDays: kept.capDays,
+      midYear: kept.midYear,
+      compDays: kept.compDays,
+    };
+  }
+  if (Object.keys(out).length > LIMITS.maxLeaveYearPlans) {
+    errors.push('연가 정리 값이 너무 많아요.');
+    return null;
+  }
+  return out;
 }
 
 /** 저장본의 퇴직 예정 달: null 이거나 'YYYY-MM'(연도는 날짜 계산이 다루는 범위) */

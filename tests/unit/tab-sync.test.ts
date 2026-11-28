@@ -28,6 +28,7 @@ function profileOf(nickname: string, over: Partial<Profile> = {}): Profile {
     hireDate: '2020-03-02',
     track: 'general',
     series: null,
+    seriesJikryu: null,
     payTable: 'table3',
     rank: '8',
     rankDate: '2023-03-01',
@@ -35,6 +36,7 @@ function profileOf(nickname: string, over: Partial<Profile> = {}): Profile {
     nextStepDate: '2027-03-01',
     stepAsOf: TODAY,
     overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+    priorService: null,
     ...over,
   };
 }
@@ -399,7 +401,7 @@ describe('다른 탭이 지웠을 때·읽지 못할 값으로 바꿨을 때', (
   it('더 새 버전의 저장본이면 건드리지 않는다', () => {
     const storage = seeded();
     const { tab } = openTab(storage);
-    const newer = storage.map.get(KEYS.data)?.replace('"schemaVersion": 6', '"schemaVersion": 99');
+    const newer = storage.map.get(KEYS.data)?.replace('"schemaVersion": 7', '"schemaVersion": 99');
     if (!newer?.includes('"schemaVersion": 99')) throw new Error('버전을 바꾸지 못했다');
     storage.map.set(KEYS.data, newer);
     tab.markFormSeen('form-z');
@@ -422,7 +424,7 @@ describe('거짓 경보 없음: 이 탭 혼자 쓰면 저장이 막히지 않는
     expect(toastTexts(tab)).toBe('');
   });
 
-  it.each(['backup-v1.json', 'backup-v3.json', 'backup-v5.json'])(
+  it.each(['backup-v1.json', 'backup-v3.json', 'backup-v5.json', 'backup-v6.json'])(
     '예전 형식(%s)을 바꿔 열며 다시 저장한 직후',
     (name) => {
       const storage = fakeStorage();
@@ -430,7 +432,7 @@ describe('거짓 경보 없음: 이 탭 혼자 쓰면 저장이 막히지 않는
       const { tab } = openTab(storage);
       expect(tab.data).not.toBeNull();
       const env = JSON.parse(storage.map.get(KEYS.data) ?? '{}') as { schemaVersion: number };
-      expect(env.schemaVersion).toBe(6);
+      expect(env.schemaVersion).toBe(7);
       expect(tab.updateSettings({ payday: 11 })).toBe(true);
       tab.recordVisit('2026-11-26');
       expect(stored(storage)?.settings.payday).toBe(11);

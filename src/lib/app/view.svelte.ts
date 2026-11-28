@@ -86,7 +86,7 @@ import {
   resolveLook,
   type MoodId,
 } from '../character/look.ts';
-import { propOwnerOf, seriesLabel } from '../character/series.ts';
+import { jikryuOf, propOwnerOf, seriesLabel, seriesNameOf } from '../character/series.ts';
 import { characterRules } from '../character/rules.ts';
 import { lineFor } from '../lines.ts';
 import {
@@ -218,11 +218,22 @@ class View {
   step = $derived(careerStepOn(this.careerRules, this.profile, this.serviceDay));
   /** '7급 12호봉' / '경위 12호봉' / '12호봉'(교원·사다리 없는 직종) */
   rankStepLabel = $derived(rankStepLabel(this.careerRules, this.step));
+  /** 직렬을 고르는 직종이면 그 직렬 표(직종 데이터의 seriesScope — 일반직 national, 지방 일반직 local). 아니면 null */
+  seriesScope = $derived(this.careerRules.track.seriesScope ?? null);
   /**
-   * 일반직이 고른 직렬 이름(data/series.json). 고르지 않았거나 목록에 없거나 일반직이 아니면 null.
-   * 소속을 짐작하게 할 수 있어 화면마다 사용자 설정(identity.showSeriesHome·card.showSeries)을 보고 보인다.
+   * 고른 직렬 이름(data/series.json, 직류 없이). 고르지 않았거나 지금 직종의 표에 없거나 직렬을 고르지 않는 직종이면 null.
+   * 카드에 쓰는 이름이다(직류는 카드·공유에 넣지 않는다). 소속을 짐작하게 할 수 있어 화면마다 사용자 설정
+   * (identity.showSeriesHome·card.showSeries)을 보고 보인다.
    */
-  seriesName = $derived(seriesLabel(this.profile));
+  seriesName = $derived(seriesNameOf(this.profile.series, this.seriesScope));
+  /** 이 브라우저 안의 화면(홈·설정)에 보일 직렬 이름: '행정 · 교육행정 직류'(직류를 골랐을 때) / '행정' */
+  seriesFullName = $derived(seriesLabel(this.profile, this.seriesScope));
+  /** 홈 상태창의 직렬 줄: '행정 직렬 · 교육행정 직류' / '간호 직렬'. 공개 설정(showSeriesHome)은 화면이 본다 */
+  seriesHomeText = $derived.by(() => {
+    if (this.seriesName === null) return null;
+    const jikryu = jikryuOf(this.profile.series, this.profile.seriesJikryu, this.seriesScope);
+    return `${this.seriesName} 직렬${jikryu ? ` · ${jikryu} 직류` : ''}`;
+  });
   /** 홈에 직렬·계급 이름을 보일지(settings.identity.showSeriesHome, 기본 켬) */
   showIdentityHome = $derived(this.data.settings.identity.showSeriesHome);
   /**
@@ -484,7 +495,7 @@ class View {
     advanceLimitDays(this.careerRules.leave, this.profile.hireDate, this.today),
   );
   fullDayLeave = $derived(
-    fullDayLeaveDates(this.data.leave.records, this.rules.leave.units.hoursPerDay),
+    fullDayLeaveDates(this.data.leave.records, this.careerRules.leave.units.hoursPerDay),
   );
   bridges = $derived(findBridges(calendar, this.today, this.fullDayLeave));
   /** 장기재직휴가 규정이 꺼진 직종이면 그 상태(소방: 조례, 준비 중 등) */
@@ -529,7 +540,7 @@ class View {
     periodMonths: raisePeriodOf(this.careerRules),
     cal: calendar,
     records: this.data.leave.records,
-    hoursPerDay: this.rules.leave.units.hoursPerDay,
+    hoursPerDay: this.careerRules.leave.units.hoursPerDay,
     visits: this.data.visits.days,
   });
   recap = $derived(yearRecap({ ...this.recapInput, rules: rulesFor, badges: this.badges }));
@@ -566,20 +577,27 @@ class View {
   );
 
   // ── 오늘의 연가(반차 구분) ───────────────────────────────────────────
+  todayLeaveRecords = $derived(this.data.leave.records.filter((r) => r.date === this.today));
+  /**
+   * 오늘 반일 연가의 시간. 직종의 반일 단위가 있으면 그것(국가 4시간). 반일 단위를 확인하지 못한 직종(지방 일반직)은
+   * 직종을 바꾸기 전에 적은 반일 기록의 저장 시간을 쓰고, 반일 기록이 없으면 하루 시간(반차로 보지 않는다)
+   */
+  halfDayHoursToday = $derived(
+    this.careerRules.leave.units.halfDayHours ??
+      this.todayLeaveRecords.find((r) => r.kind === 'am' || r.kind === 'pm')?.hours ??
+      this.careerRules.leave.units.hoursPerDay,
+  );
   /**
    * 오늘 연가 종류: 'full'(하루 이상), 'am'·'pm'(반일 기록 하나), 'hours'(시간 연가), 없으면 null
    */
   leaveToday = $derived<DayLeave>(
-    dayLeaveKind(
-      this.data.leave.records.filter((r) => r.date === this.today),
-      this.rules.leave.units.hoursPerDay,
-    ),
+    dayLeaveKind(this.todayLeaveRecords, this.careerRules.leave.units.hoursPerDay),
   );
   /**
    * 반차의 경계(자정부터의 분): 퇴근 시각에서 반일 시간을 뺀 때(9~18시면 14시).
    * 오전 반차는 이때까지, 오후 반차는 이때부터 쉰다.
    */
-  halfDaySplit = $derived(this.schedule.end - this.rules.leave.units.halfDayHours * 60);
+  halfDaySplit = $derived(this.schedule.end - this.halfDayHoursToday * 60);
   /** 지금 시각이 연가 구간인지(분 단위로 바뀐다) */
   onLeaveNow = $derived.by<boolean>(() => {
     void clock.minute;
@@ -599,7 +617,7 @@ class View {
       celebrating: this.raisedToday || this.anniversaryYears !== null,
       leaveHoursToday: this.leave.todayHours,
       onLeaveNow: this.onLeaveNow,
-      halfDayHours: this.rules.leave.units.halfDayHours,
+      halfDayHours: this.halfDayHoursToday,
       isPayday: this.isPayday,
       hour: now.getHours(),
       phase: status.phase,
@@ -618,7 +636,7 @@ class View {
   );
   /** 꾸미기와 'auto' 소품을 고를 사용자 정보(직렬은 테마 id 로만 넘긴다). 모든 그림이 같은 값을 쓴다 */
   characterLook = $derived(this.data.character.look);
-  propOwner = $derived(propOwnerOf(this.profile));
+  propOwner = $derived(propOwnerOf(this.profile, this.seriesScope));
   /** 손 소품을 들고 있어 왼손 호봉 소품(결재판)이 나오지 않는지. 다음 소품 약속·'새로 생김'에서 뺀다 */
   handHeld = $derived(holdsOwnProp(characterRules, this.characterLook, this.propOwner));
   nextUnlock = $derived(nextUnlock(characterRules, this.step, this.handHeld));

@@ -69,7 +69,7 @@ export function newUserData(
   return {
     profile,
     settings,
-    leave: { records: [], grantOverrideHours: {} },
+    leave: { records: [], grantOverrideHours: {}, savings: [], years: {} },
     achievements: {},
     // lastForm 은 형태 변화 감지(교원 등)가 들어올 때 첫 저장의 현재 형태로 채운다. 그 전에는 비워 둔다
     character: {

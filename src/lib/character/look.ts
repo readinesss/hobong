@@ -191,7 +191,12 @@ export interface ResolvedCustom {
 /** 'auto' 소품을 고를 때 쓰는 사용자 정보. 직렬 이름이 아니라 그 테마 id 만 받는다(series.ts propOwnerOf) */
 export interface PropOwner {
   track?: TrackId | null;
-  /** 일반직이 고른 직렬의 소품 테마(custom.props 의 id). 고르지 않았으면 null */
+  /**
+   * 직종이 직렬을 고르는지(직종 데이터의 seriesScope 가 있는지 — 일반직·지방 일반직). false 면 'auto' 는 호봉 소품이다.
+   * 주지 않으면 직렬을 고르는 직종으로 본다(테마가 없으면 어차피 호봉 소품)
+   */
+  bySeries?: boolean;
+  /** 직렬을 고르는 직종이 고른 직렬의 소품 테마(custom.props 의 id). 고르지 않았으면 null */
   theme?: string | null;
 }
 
@@ -336,7 +341,7 @@ function numericRemap(remap: Record<string, number> | undefined): Record<number,
  * 손에 들 소품. 'step' = 호봉 소품 규칙 그대로(9호봉부터 결재판), null = 들지 않음.
  * - 'none': 들지 않는다
  * - 목록의 id: 그 소품
- * - 'auto': 일반직이 직렬을 골랐으면 그 테마 소품, 그 밖(직렬을 고르지 않음·특정직)은 호봉 소품.
+ * - 'auto': 직렬을 고르는 직종(일반직·지방 일반직)이 직렬을 골랐으면 그 테마 소품, 그 밖(직렬을 고르지 않음·특정직)은 호봉 소품.
  *   특정직의 직종 소품(손전등 등)은 사용자가 직접 고를 때만 든다 — 직종은 계산에 꼭 고르는 값이라
  *   기본 모습이 직종을 드러내지 않게 하고(카드 '계급 이름 넣기'가 기본으로 꺼진 것과 같은 까닭),
  *   v4 저장본을 옮겨도 모습이 그대로이게 한다(부록 F).
@@ -351,7 +356,7 @@ export function resolveProp(
   const { props } = rules.custom;
   if (prop === 'none') return null;
   if (prop !== 'auto') return byId(props, prop) ?? 'step';
-  if ((owner.track ?? 'general') !== 'general') return 'step';
+  if (owner.bySeries === false) return 'step';
   return (owner.theme ? byId(props, owner.theme) : undefined) ?? 'step';
 }
 
@@ -360,7 +365,8 @@ export function trackPropOf(
   rules: CharacterRules,
   track: TrackId | null | undefined,
 ): PropRule | null {
-  if (!track || track === 'general') return null;
+  // 직렬을 고르는 직종(일반직·지방 일반직)에는 직종 소품이 없다(character.json 의 tracks 에 없다 — 테스트가 본다)
+  if (!track) return null;
   return (
     rules.custom.props.find((p) => p.kind === 'track' && (p.tracks ?? []).includes(track)) ?? null
   );

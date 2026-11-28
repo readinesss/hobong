@@ -52,6 +52,7 @@ function sampleData(): UserData {
       hireDate: '2020-01-01',
       track: 'general',
       series: null,
+      seriesJikryu: null,
       payTable: 'table3',
       rank: '8',
       rankDate: '2024-07-01',
@@ -59,14 +60,19 @@ function sampleData(): UserData {
       nextStepDate: '2027-01-01',
       stepAsOf: TODAY,
       overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+      priorService: null,
     },
     defaultSettings(R),
     NOW,
     TODAY,
   );
   data.leave = {
-    records: [{ id: 'a1', date: '2026-03-03', hours: 8, kind: 'day', memo: '가족 여행' }],
+    records: [
+      { id: 'a1', date: '2026-03-03', hours: 8, kind: 'day', memo: '가족 여행', pool: 'annual' },
+    ],
     grantOverrideHours: {},
+    savings: [],
+    years: {},
   };
   return data;
 }
@@ -181,8 +187,17 @@ describe('암호 걸기 → 풀기', () => {
     if (!opened.ok) return;
     const parsed = parseBackup(opened.plain, ctx);
     expect(parsed.ok && parsed.fromVersion).toBe(5);
+    const before = JSON.parse(v5).data;
+    // v6 의 퇴직 예정 달(없음)과 v7 의 기본값(직류·군 복무 없음, 그해 연가, 빈 통장·정리 값)만 더해진다
     expect(parsed.ok && parsed.data).toEqual({
-      ...JSON.parse(v5).data,
+      ...before,
+      profile: { ...before.profile, seriesJikryu: null, priorService: null },
+      leave: {
+        ...before.leave,
+        records: before.leave.records.map((r: object) => ({ ...r, pool: 'annual' })),
+        savings: [],
+        years: {},
+      },
       plan: { retireMonth: null },
     });
   });
@@ -198,9 +213,38 @@ describe('암호 걸기 → 풀기', () => {
     expect(opened).toEqual({ ok: true, plain: v6 });
     if (!opened.ok) return;
     const parsed = parseBackup(opened.plain, ctx);
-    expect(parsed.ok && parsed.migrated).toBe(false);
-    expect(parsed.ok && parsed.data).toEqual(JSON.parse(v6).data);
+    // v7 앱은 v6 패키지를 바꿔 연다(v7 의 기본값만 더한다)
+    expect(parsed.ok && parsed.migrated).toBe(true);
+    expect(parsed.ok && parsed.fromVersion).toBe(6);
+    const before = JSON.parse(v6).data;
+    expect(parsed.ok && parsed.data).toEqual({
+      ...before,
+      profile: { ...before.profile, seriesJikryu: null, priorService: null },
+      leave: {
+        ...before.leave,
+        records: before.leave.records.map((r: object) => ({ ...r, pool: 'annual' })),
+        savings: [],
+        years: {},
+      },
+    });
     expect(parsed.ok && parsed.data.plan.retireMonth).toBe('2030-03');
+  });
+
+  it('v7 패키지: 직류·군 복무·저축연가·연가 정리 값은 암호를 걸면 파일에 보이지 않고, 풀면 그대로 열린다', async () => {
+    const v7 = readFileSync(join(process.cwd(), 'tests/fixtures/backup-v7.json'), 'utf8');
+    // 평문 패키지에는 그대로 실린다(패키지 = 저장본)
+    for (const plain of ['"seriesJikryu": "감사"', '"priorService"', '"savings"', '2024년까지'])
+      expect(v7).toContain(plain);
+    const file = await locked(PASSWORD, v7);
+    for (const hidden of ['감사', 'priorService', 'enlisted', 'savings', 'years', '2024년까지'])
+      expect(file, hidden).not.toContain(hidden);
+    const opened = await decryptBackup(file, PASSWORD);
+    expect(opened).toEqual({ ok: true, plain: v7 });
+    if (!opened.ok) return;
+    const parsed = parseBackup(opened.plain, ctx);
+    expect(parsed.ok && parsed.migrated).toBe(false);
+    expect(parsed.ok && parsed.fromVersion).toBe(7);
+    expect(parsed.ok && parsed.data).toEqual(JSON.parse(v7).data);
   });
 
   it('같은 평문·암호라도 파일마다 salt·IV·암호문이 모두 다르다(salt 16바이트, IV 12바이트)', async () => {

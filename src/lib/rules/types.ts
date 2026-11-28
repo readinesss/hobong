@@ -8,6 +8,7 @@ export type GradeKey = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
 /** 직종(닫힌 목록). 저장 형식 검증이 규정 데이터에 기대지 않도록 코드에 둔다 */
 export type TrackId =
   | 'general'
+  | 'localGeneral'
   | 'police'
   | 'coastGuard'
   | 'fire'
@@ -17,6 +18,7 @@ export type TrackId =
   | 'otherSpecial';
 export const TRACK_IDS: readonly TrackId[] = [
   'general',
+  'localGeneral',
   'police',
   'coastGuard',
   'fire',
@@ -102,6 +104,16 @@ export interface SalaryRules {
   /** 직급 → 호봉(1부터)별 월 봉급 */
   table: Record<GradeKey, number[]>;
   source: SourceRef;
+  /**
+   * 봉급 계산의 근거 조문(생애 봉급의 '어떻게 셈했나요'): 달 가운데 임용·승급한 달의 일할계산(prorate),
+   * 5년 이상 근속한 공무원이 달 가운데 면직한 달의 봉급(leaving). 숫자는 없고 문구의 근거만 둔다
+   */
+  calc: PayCalcSources;
+}
+
+export interface PayCalcSources {
+  prorate: SourceRef;
+  leaving: SourceRef;
 }
 
 export interface StepRaiseRules {
@@ -159,12 +171,40 @@ export interface LongLeaveTier extends YearTier {
   grace?: { fromYears: number; until: string };
 }
 
+/**
+ * 연가 일수를 셀 재직기간의 기준일.
+ * - 'day-before-use': 연가 사용 직전일(국가 복무 예규). 연도 중 구간이 바뀌면 그날부터 늘어난 일수를 쓴다.
+ * - 'year-start': 그해 처음 연가가 생기는 날(보통 1월 1일, 임용한 해는 재직 1개월이 되는 날)의 재직기간으로 센 일수만
+ *   쓴다. 기준일을 원문으로 확인하지 못한 직종(지방 일반직)에서, 그 뒤 구간이 바뀌는 날은 숫자 없이 '준비 중'으로 알린다.
+ */
+export type TenureBasis = 'day-before-use' | 'year-start';
+
+/**
+ * 연가 단위. halfDayHours 가 null 이면 반일 연가 단위를 원문으로 확인하지 못했다(새 반일 기록을 받지 않는다).
+ * 기본 구역(국가)은 늘 숫자다(LeaveRules['units']). null 은 직종의 덮어쓰기(TrackRules.leaveUnits)에만 쓴다.
+ */
+export interface LeaveUnitsRules {
+  hoursPerDay: number;
+  halfDayHours: number | null;
+  source: SourceRef;
+}
+
 export interface LeaveRules {
-  annual: { tiers: MonthTier[]; tenureBasis: 'day-before-use'; source: SourceRef };
-  units: { hoursPerDay: number; halfDayHours: number; source: SourceRef };
+  annual: { tiers: MonthTier[]; tenureBasis: TenureBasis; source: SourceRef };
+  units: LeaveUnitsRules & { halfDayHours: number };
   firstYear: { minDaysForMonth: number; rounding: 'half-up'; source: SourceRef };
   advance: { tiers: MonthTier[]; source: SourceRef };
-  compensation: { rate: number; divisor: number; maxDays: number; source: SourceRef };
+  compensation: {
+    rate: number;
+    divisor: number;
+    maxDays: number;
+    /**
+     * 보상 일수와 지급 여부가 무엇에 따라 달라지는지(연가 화면 문장 '…는 ○○에 따라 달라요'의 ○○).
+     * 국가 '권장연가 등 기관 방침'(복무규정 제16조의2), 지방 '소속 지방자치단체의 조례와 예산'(수당규정 제18조의5제1항)
+     */
+    payCondition: string;
+    source: SourceRef;
+  };
   longService: { tiers: LongLeaveTier[]; source: SourceRef };
 }
 
@@ -183,6 +223,8 @@ export interface PromotionRules {
      * (경찰공무원법 제16조제1항, 소방공무원법 제15조제1항). 없으면 덧붙이지 않는다
      */
     discretionNote?: string;
+    /** 일정 문구의 명부 이름(원문 글자 그대로: 국가 '승진후보자명부', 지방 '승진후보자 명부'). 없으면 '명부' */
+    rosterName?: string;
     source: SourceRef;
   };
   seniorTreatment: {
@@ -356,15 +398,37 @@ export interface LeaveScreenRules {
   source: SourceRef;
 }
 
+/** 직렬 표: 국가(공무원임용령 별표 1·2) · 지방(지방공무원 임용령 별표 1) */
+export type SeriesScope = 'national' | 'local';
+
 export interface TrackRules extends CareerOverrides {
   label: string;
+  /**
+   * 이 직종이 연도 파일의 적용 대상(target, '국가공무원')과 다른 공무원이면 그 이름('지방공무원').
+   * 꼬리말·설정의 '적용 대상'에 쓴다. 없으면 연도 파일의 target
+   */
+  target?: string;
   /** 직종 고르기 옆 표시에만 쓴다. 계산은 항목별 해석 결과만 본다 */
   status: 'ready' | 'partial' | 'pending';
   scope: string;
   /** 고를 수 있는 봉급표(일반직만 여럿). 첫째가 기본 */
   payTables: PayTableId[];
   source?: SourceRef;
-  payday: { defaultDay: number; note: string };
+  /**
+   * 직렬 고르기를 보일지와 어느 직렬 표인지. 없으면 직렬을 묻지 않는다.
+   * 화면은 직종 id 가 아니라 이 값을 본다(일반직 national, 지방 일반직 local)
+   */
+  seriesScope?: SeriesScope;
+  /**
+   * 월급날. options 가 있으면 이 직종의 선택지(지방 일반직 20일·17일)이고, 없으면 기본 구역(별표 30)의 선택지를 쓴다.
+   * source 는 기본 구역과 다른 근거(지방공무원 보수규정 제19조)일 때만 둔다
+   */
+  payday: {
+    defaultDay: number;
+    note: string;
+    options?: PaydayRules['options'];
+    source?: SourceRef;
+  };
   /** 덮어쓰지 않고 기본 구역(일반직 값)을 그대로 쓰는 근거 */
   applies?: Partial<Record<FeatureKey, SourceRef>>;
   byPayTable?: Partial<Record<PayTableId, CareerOverrides>>;
@@ -373,6 +437,21 @@ export interface TrackRules extends CareerOverrides {
   workHoursNote?: string;
   leaveNote?: string;
   leaveScreen?: LeaveScreenRules;
+  /** 연가 단위를 기본 구역과 다른 근거로 정할 때(지방: 하루 8시간은 원문, 반일은 준비 중 → halfDayHours null) */
+  leaveUnits?: LeaveUnitsRules;
+  /**
+   * 연도 중 임용·퇴직한 해의 연가 계산(개월 환산·반올림)을 기본 구역(국가 복무규정 제17조제2항)과 다른 근거로 정할 때.
+   * 지방: 지방공무원 복무규정 제7조의2제2항·제3항제2호(같은 셈법, 근거가 지방 원문)
+   */
+  leaveFirstYear?: LeaveRules['firstYear'];
+  /** 봉급 계산의 근거 조문을 기본 구역(공무원보수규정 제22조·제24조)과 다른 근거로 둘 때(지방: 지방공무원 보수규정 제21조·제23조) */
+  payCalc?: PayCalcSources;
+  /**
+   * 값은 기본 구역(근무시간 9~18시, 정액급식비 월 16만원)을 그대로 쓰되 근거 조문이 다른 직종(지방: 지방공무원 복무규정 제2조,
+   * 지방공무원 수당 등에 관한 규정 제18조). 근거 법령 화면이 '모든 직종에 같은 규정' 대신 직종 칸에 보인다
+   */
+  workHoursSource?: SourceRef;
+  mealSource?: SourceRef;
   notes?: string[];
 }
 

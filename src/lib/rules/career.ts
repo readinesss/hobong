@@ -22,7 +22,9 @@ import {
   type LadderId,
   type LadderRank,
   type LeaveRules,
+  type LeaveUnitsRules,
   type LongServiceAddOn,
+  type PayCalcSources,
   type PayTableId,
   type PaydayRules,
   type PositionAllowanceRules,
@@ -65,7 +67,19 @@ export interface PayInfo {
   source: SourceRef;
 }
 
-export type CareerSourceKey = FeatureKey | 'pay' | 'ladder' | 'track' | 'rankLimit' | 'leaveScreen';
+export type CareerSourceKey =
+  | FeatureKey
+  | 'pay'
+  | 'ladder'
+  | 'track'
+  | 'rankLimit'
+  | 'leaveScreen'
+  | 'payday'
+  | 'leaveUnits'
+  | 'leaveFirstYear'
+  | 'payCalc'
+  | 'workHours'
+  | 'meal';
 
 export interface CareerRules {
   sel: CareerSel;
@@ -96,9 +110,15 @@ export interface CareerRules {
     advance: Avail<LeaveRules['advance']>;
     compensation: Avail<LeaveRules['compensation']>;
     longService: Avail<LeaveRules['longService']>;
-    /** 늘 기본값(8시간·4시간) */
-    units: LeaveRules['units'];
-    /** 임용 연도 계산. annual 을 따라간다(annual 이 꺼지면 함께 꺼진 것으로 본다) */
+    /**
+     * 직종의 덮어쓰기(track.leaveUnits)가 있으면 그것, 없으면 기본 구역(8시간·4시간).
+     * halfDayHours 가 null 이면 반일 연가 단위를 확인하지 못한 직종이다(지방 일반직)
+     */
+    units: LeaveUnitsRules;
+    /**
+     * 임용 연도 계산. annual 을 따라간다(annual 이 꺼지면 함께 꺼진 것으로 본다).
+     * 직종의 덮어쓰기(track.leaveFirstYear — 지방 일반직)가 있으면 그것, 없으면 기본 구역
+     */
     firstYear: LeaveRules['firstYear'];
   };
   allowances: {
@@ -109,7 +129,18 @@ export interface CareerRules {
     position: Avail<PositionAllowanceRules>;
     meal: AllowanceRules['meal'];
   };
-  payday: { defaultDay: number; note: string; options: PaydayRules['options'] };
+  /**
+   * options: 직종의 선택지(track.payday.options)가 있으면 그것, 없으면 기본 구역(별표 30)의 네 행.
+   * source: 직종의 근거(지방공무원 보수규정 제19조)가 있으면 그것, 없으면 기본 구역(공무원보수규정 제20조)
+   */
+  payday: {
+    defaultDay: number;
+    note: string;
+    options: PaydayRules['options'];
+    source: SourceRef;
+  };
+  /** 봉급 계산의 근거 조문: 직종의 덮어쓰기(track.payCalc — 지방 일반직)가 있으면 그것, 없으면 기본 구역(salary.calc) */
+  payCalc: PayCalcSources;
   /**
    * 이 직종에서 쓰는 근거(근거 법령 화면용): 봉급표·사다리·덮어쓰기·적용 근거.
    * 일반직 값을 그대로 쓰는 항목(applies)은 적용 조항 다음에 그 값이 나온 기본 구역의 근거를
@@ -215,8 +246,13 @@ function overridesOf(track: TrackRules, payTableId: PayTableId | null): CareerOv
   return { ...(o as CareerOverrides), ...byTable };
 }
 
+/** 고를 봉급표가 여럿인 직종인지(일반직 별표 3·4·8). 직종 id 가 아니라 직종 데이터로 정한다 */
+function choosesPayTable(track: TrackRules | undefined): boolean {
+  return (track?.payTables.length ?? 0) > 1;
+}
+
 function payTableOf(sel: CareerSel, track: TrackRules): PayTableId | null {
-  if (sel.track === 'general') {
+  if (choosesPayTable(track)) {
     const id = sel.payTable ?? track.payTables[0] ?? null;
     return id !== null && track.payTables.includes(id) ? id : null;
   }
@@ -253,7 +289,7 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
 
   // 1. 봉급표
   const payTableId = payTableOf(sel, track);
-  const payTableAllowed = !(sel.track === 'general' && payTableId === null);
+  const payTableAllowed = !(choosesPayTable(track) && payTableId === null);
 
   // 2. 덮어쓰기
   const o = overridesOf(track, payTableId);
@@ -314,6 +350,16 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
   const seniorAllowance = feature<AllowanceRules['seniorTreatment']>('seniorAllowance');
   const position = feature<PositionAllowanceRules>('positionAllowance');
   if (track.leaveScreen) sources.push({ feature: 'leaveScreen', source: track.leaveScreen.source });
+  if (track.leaveUnits) sources.push({ feature: 'leaveUnits', source: track.leaveUnits.source });
+  if (track.leaveFirstYear)
+    sources.push({ feature: 'leaveFirstYear', source: track.leaveFirstYear.source });
+  if (track.payday.source) sources.push({ feature: 'payday', source: track.payday.source });
+  if (track.workHoursSource) sources.push({ feature: 'workHours', source: track.workHoursSource });
+  if (track.mealSource) sources.push({ feature: 'meal', source: track.mealSource });
+  if (track.payCalc) {
+    sources.push({ feature: 'payCalc', source: track.payCalc.prorate });
+    sources.push({ feature: 'payCalc', source: track.payCalc.leaving });
+  }
 
   // 5. 봉급
   let pay: Avail<PayInfo>;
@@ -370,8 +416,8 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
       advance,
       compensation,
       longService: leaveLong,
-      units: rules.leave.units,
-      firstYear: rules.leave.firstYear,
+      units: track.leaveUnits ?? rules.leave.units,
+      firstYear: track.leaveFirstYear ?? rules.leave.firstYear,
     },
     allowances: {
       diligence: diligenceOff ?? (diligence as DiligenceRules).diligence,
@@ -384,8 +430,10 @@ function build(rules: Rules, sel: CareerSel): CareerRules {
     payday: {
       defaultDay: track.payday.defaultDay,
       note: track.payday.note,
-      options: rules.payday.options,
+      options: track.payday.options ?? rules.payday.options,
+      source: track.payday.source ?? rules.payday.source,
     },
+    payCalc: track.payCalc ?? rules.salary.calc,
     sources,
   };
 }
@@ -428,7 +476,7 @@ export function selectableRanks(
 /** 직종을 처음 고를 때의 기본 선택: 일반직 table3·'9', 경찰 '순경', 교원 '교원', 준비 중 직종 null */
 export function defaultSel(rules: Rules, track: TrackId): CareerSel {
   const t = rules.tracks.items[track];
-  const payTable = track === 'general' ? (t?.payTables[0] ?? 'table3') : null;
+  const payTable = choosesPayTable(t) ? (t?.payTables[0] ?? null) : null;
   const first = selectableRanks(rules, track, payTable)[0];
   return { track, payTable, rank: first ? first.key : null };
 }

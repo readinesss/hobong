@@ -1,19 +1,20 @@
 <script lang="ts">
   import { emitCue } from '../lib/fx/cues.ts';
   import { prefs } from '../lib/app/prefs.svelte.ts';
+  import { cite } from '../lib/app/cite.ts';
   import { TALK } from '../lib/talk.ts';
   import { tick, untrack } from 'svelte';
   import { anim } from '../lib/app/anim.svelte.ts';
   import { copyText, detectCapabilities, downloadText } from '../lib/app/files.ts';
   import { hapticsSupported } from '../lib/app/haptics.ts';
   import { formatInstant } from '../lib/app/format.ts';
-  import { PAY_TABLE_SHORT, trackStatusText } from '../lib/app/track.ts';
+  import { PAY_TABLE_SHORT, paydayChipLabel, trackStatusText } from '../lib/app/track.ts';
   import { nav } from '../lib/app/nav.svelte.ts';
   import { session } from '../lib/app/session.svelte.ts';
   import { APP_VERSION, app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
-  import { isAvailable } from '../lib/rules/index.ts';
+  import { isAvailable, TRACK_IDS } from '../lib/rules/index.ts';
   import { checkWorkHours } from '../lib/calc/today.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { REPO_URL, SITE_URL } from '../lib/config.ts';
@@ -111,7 +112,17 @@
       work: { start: w.start, end: w.end, lunchStart: w.lunchStart, lunchEnd: w.lunchEnd },
     });
   }
-  const paydayOptions = $derived(view.rules.payday.options);
+  /** 적용 대상: 연도 파일의 대상(국가공무원)과 직종마다 다른 대상(지방공무원)을 겹치지 않게 */
+  const targetLabels = $derived(
+    [
+      ...new Set([
+        view.rules.target.label,
+        ...TRACK_IDS.flatMap((id) => view.rules.tracks.items[id].target ?? []),
+      ]),
+    ].join(' · '),
+  );
+  /** 직종의 월급날 선택지(지방 일반직 20·17일). 직종에 따로 없으면 별표 30 의 네 날짜 */
+  const paydayOptions = $derived(view.careerRules.payday.options);
   const customPayday = $derived(!paydayOptions.some((o) => o.day === settings.payday));
   /** 월급날을 바꾼다. 이 탭에 남았으면 true, 맞지 않는 값이거나 다른 탭 때문에 버렸으면 false */
   function setPayday(day: number): boolean {
@@ -331,7 +342,7 @@
               </span>{/if}
           </dd>
         </div>
-        {#if PAY_TABLE_SHORT[view.careerRules.payTableId ?? 'table3'] && profile.track === 'general'}
+        {#if PAY_TABLE_SHORT[view.careerRules.payTableId ?? 'table3'] && view.careerRules.track.payTables.length > 1}
           <div class="kv">
             <dt>봉급표</dt>
             <dd>{PAY_TABLE_SHORT[view.careerRules.payTableId ?? 'table3']}</dd>
@@ -341,11 +352,11 @@
           <dt>{view.rankLabel ? `${noun}·호봉` : '호봉'}</dt>
           <dd>{view.rankStepLabel}{view.raisesAutomatically ? '' : ' (입력값)'}</dd>
         </div>
-        {#if profile.track === 'general'}
+        {#if view.seriesScope}
           <div class="kv" id="set-series">
             <dt>직렬</dt>
             <dd>
-              {view.seriesName ??
+              {view.seriesFullName ??
                 (profile.series !== null ? `${profile.series} (목록에 없음)` : '고르지 않음')}
             </dd>
           </div>
@@ -562,13 +573,16 @@
             <legend>월급날</legend>
             <ChipRadio
               label="월급날"
-              options={paydayOptions.map((o) => ({ value: o.day, label: `${o.day}일` }))}
+              options={paydayOptions.map((o) => ({
+                value: o.day,
+                label: paydayChipLabel(o, view.careerRules.payday.defaultDay),
+              }))}
               value={settings.payday}
               onchange={setPayday}
             />
             <p class="cap muted">
               {paydayOptions.find((o) => o.day === settings.payday)?.orgs ?? '직접 정한 날'} · 토요일이나
-              공휴일이면 그 전날 받아요(보수규정 제20조).
+              공휴일이면 그 전날 받아요({cite(view.rules.laws, view.careerRules.payday.source)}).
             </p>
             {#if view.careerRules.payday.note}
               <p class="cap muted">{view.careerRules.payday.note}</p>
@@ -771,7 +785,7 @@
             </div>
             <div class="kv">
               <dt>적용 대상</dt>
-              <dd>{view.rules.target.label}</dd>
+              <dd>{targetLabels}</dd>
             </div>
             <div class="kv">
               <dt>주소</dt>

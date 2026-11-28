@@ -557,7 +557,12 @@ describe('§5.4 승급을 계산하지 않는 직종(그 밖의 특정직·군�
 });
 
 describe('§5.5 연가·수당', () => {
-  const leaveData = { records: [], grantOverrideHours: {} as Record<string, number> };
+  const leaveData = {
+    records: [],
+    grantOverrideHours: {} as Record<string, number>,
+    savings: [],
+    years: {},
+  };
   it('교원: 연가 일수는 계산, 연가보상비는 없음(null), 미리 쓰기는 교원휴가 예규 표', () => {
     const c = career('teacher', '교원');
     expect(annualLeaveDays(c.leave, '2015-03-01', TODAY)).toBe(
@@ -577,7 +582,7 @@ describe('§5.5 연가·수당', () => {
     const own = summarizeLeave(
       c.leave,
       '2015-03-01',
-      { records: [], grantOverrideHours: { '2026': 168 } },
+      { records: [], grantOverrideHours: { '2026': 168 }, savings: [], years: {} },
       TODAY,
     );
     expect(own).toMatchObject({ grantedHours: 168, needsManualGrant: false, overridden: true });
@@ -707,6 +712,6 @@ describe('모든 직종·봉급표·계급 조합에서 계산 함수가 예외 
     },
   );
   function leaveData() {
-    return { records: [], grantOverrideHours: {} };
+    return { records: [], grantOverrideHours: {}, savings: [], years: {} };
   }
 });

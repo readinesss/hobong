@@ -221,6 +221,12 @@ describe('규정 파일 형식', () => {
             'fireService',
             'educationAct',
             'teacherLeave',
+            'localAct',
+            'localAppointment',
+            'localPay',
+            'localService',
+            'localAllowance',
+            'localHoliday',
           ].sort(),
         );
       }
@@ -448,6 +454,37 @@ describe('값의 일관성', () => {
   });
 });
 
+/** "[제○조 표] … / 1년 이상 3년 미만 15 / …" 줄을 (시작 개월, 끝 개월, 일수)로 읽는다 */
+function parseTierLine(
+  text: string,
+  marker: string,
+): { from: number; to: number | null; days: number }[] {
+  const line = text.split('\n').find((l) => l.startsWith(marker));
+  if (!line) throw new Error(`발췌본에 '${marker}' 줄이 없습니다`);
+  const months = (label: string) => {
+    const m = /(\d+)(년|개월)/.exec(label);
+    if (!m) throw new Error(`기간을 읽지 못함: ${label}`);
+    return Number(m[1]) * (m[2] === '년' ? 12 : 1);
+  };
+  return line
+    .split(' / ')
+    .slice(1)
+    .map((cell) => {
+      const both = /^(.+?) 이상 (.+?) 미만 (\d+)$/.exec(cell);
+      if (both)
+        return {
+          from: months(both[1] as string),
+          to: months(both[2] as string),
+          days: Number(both[3]),
+        };
+      const under = /^(.+?) 미만 (\d+)$/.exec(cell);
+      if (under) return { from: 0, to: months(under[1] as string), days: Number(under[2]) };
+      const over = /^(.+?) 이상 (\d+)$/.exec(cell);
+      if (over) return { from: months(over[1] as string), to: null, days: Number(over[2]) };
+      throw new Error(`표 칸을 읽지 못함: ${cell}`);
+    });
+}
+
 describe('법령 원문 발췌본과 대조', () => {
   /** pdftotext -layout 으로 뽑은 별표 3에서 봉급표를 다시 읽는다(열 위치 기준) */
   function parseSalarySnapshot(text: string): Record<string, number[]> {
@@ -652,37 +689,6 @@ describe('법령 원문 발췌본과 대조', () => {
   const won = (n: number) => n.toLocaleString('en-US');
   const squash = (text: string) => text.replace(/\s+/g, '');
 
-  /** "[제○조 표] … / 1년 이상 3년 미만 15 / …" 줄을 (시작 개월, 끝 개월, 일수)로 읽는다 */
-  function parseTierLine(
-    text: string,
-    marker: string,
-  ): { from: number; to: number | null; days: number }[] {
-    const line = text.split('\n').find((l) => l.startsWith(marker));
-    if (!line) throw new Error(`발췌본에 '${marker}' 줄이 없습니다`);
-    const months = (label: string) => {
-      const m = /(\d+)(년|개월)/.exec(label);
-      if (!m) throw new Error(`기간을 읽지 못함: ${label}`);
-      return Number(m[1]) * (m[2] === '년' ? 12 : 1);
-    };
-    return line
-      .split(' / ')
-      .slice(1)
-      .map((cell) => {
-        const both = /^(.+?) 이상 (.+?) 미만 (\d+)$/.exec(cell);
-        if (both)
-          return {
-            from: months(both[1] as string),
-            to: months(both[2] as string),
-            days: Number(both[3]),
-          };
-        const under = /^(.+?) 미만 (\d+)$/.exec(cell);
-        if (under) return { from: 0, to: months(under[1] as string), days: Number(under[2]) };
-        const over = /^(.+?) 이상 (\d+)$/.exec(cell);
-        if (over) return { from: months(over[1] as string), to: null, days: Number(over[2]) };
-        throw new Error(`표 칸을 읽지 못함: ${cell}`);
-      });
-  }
-
   it('연가 일수·미리 쓰기 표의 구간과 일수가 발췌본과 같다', () => {
     const t = snap('service-reg-leave.txt');
     expect(
@@ -695,6 +701,7 @@ describe('법령 원문 발췌본과 대조', () => {
     expect(t).toContain(
       '권장 연가 일수 중 미사용 연가 일수에 대해서는 제16조제5항에 따른 연가보상비를 지급하지 않을 수 있다',
     );
+    expect(r2026.leave.compensation.payCondition).toBe('권장연가 등 기관 방침');
   });
 
   it('장기재직휴가: 구간·일수·시행일·부칙 특례가 발췌본과 같다', () => {
@@ -1110,7 +1117,10 @@ describe('직종 확대 데이터(#20): 발췌본과 대조', () => {
       }
       if (track.payTables.length === 0) expect(track.ladder ?? null).toBeNull();
       expect(track.payday.defaultDay).toBeGreaterThanOrEqual(1);
-      expect(r2026.payday.options.map((o) => o.day)).toContain(track.payday.defaultDay);
+      // 직종의 선택지(지방 일반직 20·17일)가 있으면 그 안에, 없으면 별표 30 의 네 행 안에 있다
+      expect((track.payday.options ?? r2026.payday.options).map((o) => o.day)).toContain(
+        track.payday.defaultDay,
+      );
     }
     expect(items.general.payTables[0]).toBe('table3');
   });
@@ -1159,7 +1169,14 @@ describe('직종 확대 데이터(#20): 발췌본과 대조', () => {
     for (const [id, t] of Object.entries(items)) {
       if (t.retirement && isAvailable(t.retirement)) all.push([id, t.retirement]);
     }
-    expect(all.map(([id]) => id)).toEqual(['기본', 'police', 'coastGuard', 'fire', 'teacher']);
+    expect(all.map(([id]) => id)).toEqual([
+      '기본',
+      'localGeneral',
+      'police',
+      'coastGuard',
+      'fire',
+      'teacher',
+    ]);
     for (const [id, r] of all) {
       const months: number[] = [];
       for (const p of r.periods) for (let m = p.fromMonth; m <= p.toMonth; m += 1) months.push(m);
@@ -1604,5 +1621,418 @@ describe('생애 봉급(#30): 발췌본과 대조(U20)', () => {
         expect(p.retireDay === 'last' || p.retireDay === last, JSON.stringify(p)).toBe(true);
       }
     }
+  });
+});
+
+// ───────────────────────── 지방 일반직(#31): 지방공무원 규정 발췌본과 대조 ─────────────────────────
+describe('지방 일반직(#31): 지방 발췌본과 대조', () => {
+  const snap = (name: string) => readFileSync(join(ROOT, 'docs/sources/2026', name), 'utf8');
+  /** 머리말(# 줄)을 뺀 원문 본문 — 머리말의 비고(예: "반일"을 찾지 못했다)가 본문 검사에 걸리지 않게 */
+  const body = (name: string) =>
+    snap(name)
+      .split('\n')
+      .filter((l) => !l.startsWith('#'))
+      .join('\n');
+  const squash = (text: string) => text.replace(/\s+/g, '');
+  const won = (n: number) => n.toLocaleString('en-US');
+  const lg = r2026.tracks.items.localGeneral;
+  function avail<T extends object>(v: Avail<T> | undefined): T {
+    if (!v || !isAvailable(v)) throw new Error('꺼진 항목');
+    return v;
+  }
+  const FILES = [
+    'local-officials-act.txt',
+    'local-appointment-decree.txt',
+    'local-appointment-decree-table1-grades.txt',
+    'local-pay-reg-articles.txt',
+    'local-pay-reg-table9-promotion-step.txt',
+    'local-service-reg-leave.txt',
+    'local-allowance-reg-articles.txt',
+    'local-allowance-reg-table2-diligence.txt',
+    'local-allowance-reg-table14-position.txt',
+    'local-holiday-regulation.txt',
+  ];
+
+  it('발췌본 10개는 머리말 4줄(제목·출처·조회·비고) 형식이다', () => {
+    for (const name of FILES) {
+      const head = snap(name).split('\n').slice(0, 4);
+      expect(head[0], name).toMatch(/^# \S/);
+      expect(head[1], name).toMatch(/^# 출처: /);
+      expect(head[2], name).toMatch(/^# 조회: 2026-11-27, 국가법령정보센터/);
+      expect(head[3], name).toMatch(/^# 비고: /);
+    }
+  });
+
+  it('봉급: 제4조제3항이 공무원보수규정 별표 3 을 준용한다 → 별표 3 하나, 일반직 사다리', () => {
+    expect(body('local-pay-reg-articles.txt')).toContain(
+      '일반직공무원과 일반직공무원의 계급에 준하여 임용하는 별정직공무원의 봉급월액은 「공무원보수규정」 [별표 3]을 준용한다',
+    );
+    expect(lg.payTables).toEqual(['table3']);
+    expect(lg.ladder).toBe('general');
+    expect(lg.source?.article).toBe('제4조제3항');
+  });
+
+  it('정기승급(제12조)과 승진 시 호봉(별표 9 가목 32쌍·비고 1)', () => {
+    const t = body('local-pay-reg-articles.txt');
+    expect(t).toContain('승급기간”이라 한다)은 1년으로 한다');
+    expect(t).toContain('공무원의 호봉은 매달 1일자로 승급한다');
+    expect(avail(lg.stepRaise)).toMatchObject({ periodMonths: 12, dayOfMonth: 1 });
+    const t9 = snap('local-pay-reg-table9-promotion-step.txt');
+    const section = t9.slice(
+      t9.indexOf('가. 일반직 및 별정직공무원'),
+      t9.indexOf('나. 지방전문경력관'),
+    );
+    const pairs: [number, number][] = [];
+    for (const line of section.split('\n')) {
+      if (!/^\s+\d/.test(line)) continue;
+      const nums = line.trim().split(/\s+/).map(Number);
+      for (let i = 0; i + 1 < nums.length; i += 2)
+        pairs.push([nums[i] as number, nums[i + 1] as number]);
+    }
+    expect(pairs).toHaveLength(32);
+    const rule = avail(lg.promotionStep);
+    for (const [before, after] of pairs)
+      expect(promotedStep(rule, before), `승진 전 ${before}호봉`).toBe(after);
+    expect(t9).toContain('1. 승진 후 해당 호봉이 없는 경우에는 승진 후 계급의 최고호봉으로 한다.');
+    expect(rule.capAtMaxStep).toBe(true);
+    expect(t9).toContain('[별표 9] <개정 2020. 3. 10.>');
+    expect(rule.source.revised).toBe('2020-03-10');
+  });
+
+  it('보수 지급일(제19조): 매월 20일, 교육감 임용권은 별표 30 교육부 지급일, 토요일·공휴일이면 전날', () => {
+    const t = body('local-pay-reg-articles.txt');
+    expect(t).toContain('보수의 지급일은 매월 20일로 하며');
+    expect(t).toContain(
+      '교육감이 임용권을 가지는 공무원의 보수지급일은 「공무원보수규정」 별표 30에서 정한 교육부 및 그 소속기관의 보수지급일로 한다',
+    );
+    expect(t).toContain('보수지급일이 토요일 또는 공휴일인 때에는 그 전일에 지급한다');
+    expect(lg.payday.defaultDay).toBe(20);
+    const options = lg.payday.options ?? [];
+    expect(options.map((o) => o.day)).toEqual([20, 17]);
+    // 17 은 손으로 적은 값이 아니라 국가 별표 30 의 교육부 행과 같아야 한다
+    const edu = r2026.payday.options.find((o) =>
+      squash(o.orgs).startsWith(squash('교육부 및 그 소속 기관')),
+    );
+    expect(options[1]?.day).toBe(edu?.day);
+    expect(r2026.payday.shift).toBe('previous-day-if-saturday-or-holiday');
+    expect(lg.payday.source?.law).toBe('localPay');
+  });
+
+  it('봉급 계산의 근거(제21조①·제23조①1호), 근무시간(복무규정 제2조)·정액급식비(수당규정 제18조)의 지방 근거', () => {
+    const t = body('local-pay-reg-articles.txt');
+    expect(t).toContain('발령일을 기준으로 그 월액을 일할계산하여 지급한다');
+    expect(t).toContain(
+      '1. 5년 이상 근속한 공무원이 월 중에 15일 이상을 근무한 후 면직되는 경우. 다만, 금고 이상의 형을 받거나 파면 또는 해임에 의하여 면직되는 경우는 제외한다.',
+    );
+    expect(lg.payCalc?.prorate).toMatchObject({ law: 'localPay', article: '제21조제1항' });
+    expect(lg.payCalc?.leaving).toMatchObject({ law: 'localPay', article: '제23조제1항제1호' });
+    // 국가 기본 구역: 공무원보수규정 제22조①·제24조①1호
+    expect(r2026.salary.calc.prorate).toMatchObject({ law: 'pay', article: '제22조제1항' });
+    expect(r2026.salary.calc.leaving).toMatchObject({ law: 'pay', article: '제24조제1항제1호' });
+    expect(snap('pay-reg-articles-separation.txt')).toContain(
+      '1. 5년 이상 근속한 공무원이 월 중에 15일 이상을 근무한 후 면직되는 경우.',
+    );
+    const sv = body('local-service-reg-leave.txt');
+    expect(sv).toContain('공무원의 1주간 근무시간은 점심시간을 제외하고 40시간으로 하며');
+    expect(sv).toContain(
+      '공무원의 1일 근무시간은 9시부터 18시까지로 하며, 점심시간은 12시부터 13시까지로 한다',
+    );
+    expect(lg.workHoursSource).toMatchObject({ law: 'localService', article: '제2조제1항·제2항' });
+    expect(body('local-allowance-reg-articles.txt')).toContain('월 16만원의 정액급식비');
+    expect(lg.mealSource).toMatchObject({ law: 'localAllowance', article: '제18조' });
+  });
+
+  it('정년(지방공무원법 제66조)·시보(제28조)', () => {
+    const t = body('local-officials-act.txt');
+    expect(t).toContain(
+      '공무원의 정년은 다른 법률에 특별한 규정이 있는 경우를 제외하고는 60세로 한다',
+    );
+    expect(t).toContain(
+      '그 정년에 이른 날이 1월에서 6월 사이에 있으면 6월 30일에, 7월에서 12월 사이에 있으면 12월 31일에 각각 당연히 퇴직한다',
+    );
+    const ret = avail(lg.retirement);
+    expect(ret.age).toBe(60);
+    expect(ret.periods).toEqual([
+      { fromMonth: 1, toMonth: 6, retireMonth: 6, retireDay: 30 },
+      { fromMonth: 7, toMonth: 12, retireMonth: 12, retireDay: 31 },
+    ]);
+    expect(ret.rankLimit).toBeUndefined();
+    expect(t).toContain('5급 공무원');
+    expect(t).toContain('신규임용하는 경우에는 1년, 6급 이하 공무원');
+    expect(t).toContain('신규임용하는 경우에는 6개월간 시보로 임용하고');
+    expect(avail(lg.probation).monthsByGrade).toEqual({ '5': 12, '6': 6, '7': 6, '8': 6, '9': 6 });
+  });
+
+  it('승진소요 최저연수(제33조①)·근속승진(제33조의2: 기간·직렬별 50%·심사 시작일 없음)·대우공무원(장관이 정함)', () => {
+    const t = body('local-appointment-decree.txt');
+    // "4. 7급, 8급 및 9급: 1년 이상" 같은 줄을 급 → 개월로 읽는다(3급 이상은 데이터에 칸이 없다 — 국가와 같다)
+    const minService: Record<string, number> = {};
+    const art33 = t.slice(t.indexOf('제33조(승진소요 최저연수)'), t.indexOf('제33조의2'));
+    for (const m of art33.matchAll(/^\d\. ([\d급, 및]+): (\d+)년 이상$/gm)) {
+      for (const g of (m[1] as string).match(/\d/g) ?? []) minService[g] = Number(m[2]) * 12;
+    }
+    const ms = avail(lg.minService).monthsByGrade;
+    for (const [g, months] of Object.entries(ms)) expect(months, `${g}급`).toBe(minService[g]);
+    expect(Object.keys(ms).sort()).toEqual(['4', '5', '6', '7', '8', '9']);
+    const longOf: Record<string, number> = {};
+    for (const m of t
+      .slice(t.indexOf('제33조의2'))
+      .matchAll(/^\d\. (\d)급: (\d+)년(?: (\d+)개월)? 이상$/gm))
+      longOf[m[1] as string] = Number(m[2]) * 12 + Number(m[3] ?? 0);
+    expect(longOf).toEqual({ '7': 132, '8': 84, '9': 66 });
+    const long = avail(lg.longService);
+    expect(long.monthsByGrade).toEqual(longOf);
+    expect(long.monthsByGrade['9']).toBe(66); // 5년 6개월
+    expect(t).toContain('6급 공무원으로의 근속승진 임용을 위한 심의를 할 때에는');
+    expect(t).toContain('직렬별 인원의 100분의 50에 해당하는 인원 수');
+    expect(long.quotaTo).toBe('6');
+    expect(long.quotaNote).toContain('직렬별 인원의 50%');
+    // 상한의 단서(제6항 단서): 제4항제3호(재난 및 안전관리)·제4호(민원) 후보자는 넘어 임용할 수 있다
+    expect(t).toContain(
+      '다만, 제4항제3호 또는 제4호에 해당하는 근속승진 후보자의 경우에는 이를 초과하여 근속승진 임용을 할 수 있다',
+    );
+    expect(t).toContain('3. 제32조제2항제5호에 따른 재난 및 안전관리 업무');
+    expect(t).toContain('4. 제32조제2항제5호의2에 따른 민원 업무');
+    expect(long.quotaNote).toContain('(재난·민원 경력자 제외)');
+    expect(t).toContain('승진후보자 명부에 올라 있어야 하며');
+    expect(long.rosterName).toBe('승진후보자 명부');
+    // 국가 공무원임용령 제35조의5⑦('도달하기 5일 전부터')에 해당하는 조항이 없다 → 심사 시작일을 보이지 않는다
+    expect(t).not.toContain('도달하기');
+    expect(long.reviewLeadDays).toBeNull();
+    expect(t).toContain(
+      '대우공무원과 제2항에 따른 필수실무요원을 선발ㆍ지정하는 데 필요한 사항은 교육부장관 또는 행정안전부장관이 정한다',
+    );
+    expect(lg.seniorTreatment).toMatchObject({ status: 'pending' });
+  });
+
+  it('연가 일수·미리 쓰기 표(대체 텍스트)와 연도 중 임용 계산식(제7조의2②)', () => {
+    const t = body('local-service-reg-leave.txt');
+    const annual = avail(lg.leaveAnnual);
+    expect(annual.tiers.map((x) => ({ from: x.fromMonths, to: x.toMonths, days: x.days }))).toEqual(
+      parseTierLine(t, '[제7조제1항 표]'),
+    );
+    const line = t.split('\n').find((l) => l.startsWith('[제7조제1항 표]')) ?? '';
+    for (const tier of annual.tiers) expect(line).toContain(`${tier.label} ${tier.days}`);
+    expect(
+      avail(lg.leaveAdvance).tiers.map((x) => ({
+        from: x.fromMonths,
+        to: x.toMonths,
+        days: x.days,
+      })),
+    ).toEqual(parseTierLine(t, '[제7조의3 표]'));
+    expect(t).toContain('15일 이상은 1개월로 계산하고, 15일 미만은 산입하지 않으며');
+    expect(t).toContain('소수점 이하의 일수는 반올림한다');
+    // 연도 중 신규임용·퇴직(제7조의2제3항제2호)도 이 계산식을 쓴다. 지방 근거로 따로 적고 숫자는 국가와 같다(아래 '같은 값 감시')
+    expect(t).toContain('연도 중 신규임용되거나 퇴직하는 경우');
+    expect(lg.leaveFirstYear).toMatchObject({ minDaysForMonth: 15, rounding: 'half-up' });
+    expect(lg.leaveFirstYear?.source).toMatchObject({
+      law: 'localService',
+      snapshot: 'local-service-reg-leave.txt',
+    });
+    expect(lg.leaveFirstYear?.source.article).toContain('제7조의2제2항');
+  });
+
+  it('연가 재직기간의 기준일은 원문에 없다 → 연초 재직기간으로 센다(year-start)', () => {
+    const t = body('local-service-reg-leave.txt');
+    expect(t).toContain(
+      '제1항에서 “재직기간”이란 「공무원연금법」 제25조제1항부터 제3항까지의 규정에 따르되',
+    );
+    // 국가는 예규의 "연가사용 직전일" 기준. 지방 규정에는 그 기준이 없다 — 원문이 바뀌면 이 테스트가 다시 보게 한다
+    expect(t).not.toMatch(/직전일|사용하기 전날/);
+    expect(avail(lg.leaveAnnual).tenureBasis).toBe('year-start');
+    expect(r2026.leave.annual.tenureBasis).toBe('day-before-use');
+  });
+
+  it('연가 단위: 누계 8시간 = 연가 1일은 원문, 반일 연가 조문은 없다 → 반일 단위는 비워 둔다', () => {
+    const t = body('local-service-reg-leave.txt');
+    expect(t).toContain(
+      '질병이나 부상 외의 사유로 인한 지각ㆍ조퇴 및 외출은 누계 8시간을 연가 1일로 계산한다',
+    );
+    expect(t).toContain('8시간 미만의 연가 잔여분');
+    // 원문에 반일 연가 조문이 생기면 이 테스트가 실패해 다시 확인하게 한다
+    expect(t).not.toContain('반일');
+    expect(t).not.toContain('4시간');
+    expect(lg.leaveUnits).toMatchObject({ hoursPerDay: 8, halfDayHours: null });
+    expect(lg.leaveUnits?.hoursPerDay).toBe(r2026.leave.units.hoursPerDay);
+  });
+
+  it('연가보상비(수당규정 제18조의5·복무규정 제7조④), 연가 저축(제7조의10), 장기재직휴가(조문 없음 → 조례)', () => {
+    const a = body('local-allowance-reg-articles.txt');
+    expect(a).toContain('월봉급액의 86퍼센트 × 1/30 × 연가보상일수');
+    expect(a).toContain(
+      '소속 지방자치단체의 조례가 정하는 바에 의하여 예산의 범위안에서 연가보상비를 지급한다',
+    );
+    const sv = body('local-service-reg-leave.txt');
+    expect(sv).toContain('연가보상비를 지급할 수 있는 연가대상일수는 20일을 초과할 수 없으며');
+    expect(avail(lg.leaveCompensation)).toMatchObject({ rate: 0.86, divisor: 30, maxDays: 20 });
+    // 화면 문장('보상 일수와 지급 여부는 ○○에 따라 달라요')의 지급 조건: 지방은 조례·예산(국가의 '권장연가'가 아니다)
+    expect(avail(lg.leaveCompensation).payCondition).toContain('조례와 예산');
+    expect(avail(lg.leaveCompensation).payCondition).not.toContain('권장');
+    expect(sv).toContain('그 해의 마지막 날을 기준으로 이월ㆍ저축하여 사용할 수 있다');
+    expect(lg.leaveScreen?.savingCarryOver).toBe(true);
+    expect(sv).not.toContain('장기재직');
+    expect(sv).toContain(
+      '이 영에서 정하지 아니하는 사항은 지방자치단체의 조례로 정하는 바에 따른다',
+    );
+    expect(lg.leaveLongService).toMatchObject({ status: 'external' });
+  });
+
+  it('수당: 정근수당 지급률·지급 달·가산금(별표 2), 명절휴가비, 대우공무원수당, 정액급식비', () => {
+    const t2 = snap('local-allowance-reg-table2-diligence.txt');
+    const dil = avail(lg.diligence);
+    for (const tier of dil.diligence.tiers) {
+      const label = tier.underYears === null ? '10년 이상' : `${tier.underYears}년 미만`;
+      expect(t2, label).toMatch(
+        new RegExp(`${label} 월봉급액의 ${Math.round(tier.rate * 100)}% 해당 금액`),
+      );
+    }
+    expect(dil.diligence.tiers).toHaveLength(8);
+    const extra = dil.extra.tiers;
+    extra.forEach((tier, i) => {
+      const prev = extra[i - 1]?.underYears ?? null;
+      const amount = `${won(tier.amount)}원`;
+      const patterns: RegExp[] = [];
+      if (tier.underYears !== null)
+        patterns.push(new RegExp(`${tier.underYears}년 미만\\s+${amount}`));
+      if (prev !== null) patterns.push(new RegExp(`${prev}년 이상\\s+${amount}`));
+      expect(
+        patterns.some((re) => re.test(t2)),
+        `${tier.underYears ?? '그 이상'}년 구간 ${amount}`,
+      ).toBe(true);
+    });
+    expect(t2).toContain(`월 ${won(dil.extra.additional[0]?.amount ?? 0)}원을, 25년 이상인`);
+    expect(t2).toContain(`${won(dil.extra.additional[1]?.amount ?? 0)}원을 가산하여 지급한다`);
+    expect(t2).toContain('<개정 2025. 1. 3.>');
+    const a = body('local-allowance-reg-articles.txt');
+    expect(a).toContain('매년 1월과 7월의 보수지급일에');
+    expect(a).toContain('1월 이상 봉급이 지급된 공무원');
+    expect(a).toContain('15일 이상은 1월로 계산하고 15일 미만은 계산하지 아니한다');
+    expect(dil.diligence).toMatchObject({
+      payMonths: [1, 7],
+      periodMonths: 6,
+      minMonthsToQualify: 1,
+      minDaysForMonth: 15,
+    });
+    expect(a).toContain('지급기준일 현재 월봉급액의 60퍼센트');
+    expect(avail(lg.holidayBonus).rate).toBe(0.6);
+    expect(a).toContain('당해 공무원 월봉급액의 4.1퍼센트를 대우공무원수당으로');
+    expect(avail(lg.seniorAllowance).rate).toBe(0.041);
+    // 정액급식비는 직종 항목이 아니다(기본 구역 값을 쓴다) — 지방도 월 16만원
+    expect(a).toContain('월 16만원의 정액급식비');
+    expect(r2026.allowances.meal.amount).toBe(160_000);
+  });
+
+  it('직급보조비 1~9급이 별표 14 와 같다(4급 부단체장 행은 넣지 않는다)', () => {
+    const t = snap('local-allowance-reg-table14-position.txt').split('\n비고')[0] ?? '';
+    const lines = t.split('\n');
+    /**
+     * 그 구분 칸이 시작하는 줄과 바로 앞 줄(병합 칸의 금액은 앞 줄에 나온다)에서 금액을 찾는다.
+     * 1~3급 칸은 "부단체장이 N급(상당)인 시ㆍ군ㆍ구의 단체장, N급(상당), …"으로 두 줄에 걸쳐 있다
+     */
+    const amountOf = (label: string): number | null => {
+      const i = lines.findIndex((l) => l.trimStart().startsWith(label));
+      if (i < 0) return null;
+      for (const line of [lines[i] ?? '', lines[i - 1] ?? '']) {
+        const m = /([\d,]{7,})원\s*$/.exec(line);
+        if (m) return Number((m[1] as string).replace(/,/g, ''));
+      }
+      return null;
+    };
+    const labels: Record<string, string> = {
+      '1': '장, 1급(상당)',
+      '2': '장, 2급(상당)',
+      '3': '장, 3급(상당)',
+      '4': '4급(부단체장 제외, 상당)',
+      '5': '5급(상당)',
+      '6': '6급(상당)',
+      '7': '7급(상당)',
+      '8': '8ㆍ9급(상당)',
+      '9': '8ㆍ9급(상당)',
+    };
+    const pos = avail(lg.positionAllowance);
+    for (const [grade, label] of Object.entries(labels))
+      expect(pos.amountByGrade[grade], `${grade}급`).toBe(amountOf(label));
+    expect(amountOf('4급 부단체장')).toBe(450_000);
+    expect(Object.values(pos.amountByGrade)).not.toContain(450_000);
+    expect(snap('local-allowance-reg-table14-position.txt')).toContain(
+      '[별표 14] <개정 2026. 6. 23.>',
+    );
+  });
+
+  it('초임호봉은 지방 보수규정 자체 별표 1 로 정한다(별표 본문은 대조하지 않았다 — #34 의 항목은 지방에서 준비 중)', () => {
+    const t = body('local-pay-reg-articles.txt');
+    expect(t).toContain('공무원의 초임호봉은 별표 1에 따라 획정한다');
+    expect(t).toContain('[별표 1] 공무원의 초임호봉표(제8조와 관련)');
+    expect(t).toContain('[별표 2] 일반직공무원 등의 경력환산율표(별표 1 관련)');
+  });
+
+  it('근무시간(복무규정 제2조)은 기본 구역과 같고, 지방공휴일은 조례로 지정한다(넣지 않는다)', () => {
+    const t = body('local-service-reg-leave.txt');
+    expect(t).toContain(
+      '공무원의 1일 근무시간은 9시부터 18시까지로 하며, 점심시간은 12시부터 13시까지로 한다',
+    );
+    expect(r2026.workHours).toMatchObject({
+      start: '09:00',
+      end: '18:00',
+      lunchStart: '12:00',
+      lunchEnd: '13:00',
+    });
+    expect(lg.workHoursNote).toContain('점심시간은 기관에서 1시간 범위로');
+    const h = body('local-holiday-regulation.txt');
+    expect(h).toContain('조례로 다음 각 호의 요건을 모두 갖춘 날을 지방공휴일로 지정할 수 있다');
+    expect(lg.payday.note).toContain('지방공휴일은 월급날 당김에 넣지 않았어요');
+  });
+});
+
+// 지방 덮어쓰기 중 국가 기본 구역과 같은 값으로 적은 항목은, 해가 바뀌어 국가 값만 고치고 지방을 잊으면 어긋난다.
+// 모든 연도 파일에서 같은지 보고, 다르면 지방 원문을 다시 확인하게 한다(같아야 하는 까닭: 지방 원문이 같은 숫자다).
+describe('지방 일반직(#31): 같은 값 감시', () => {
+  const MESSAGE = '국가 값이 바뀌었어요. 지방 원문을 다시 확인해 주세요';
+  const strip = <T extends object>(v: Avail<T> | undefined | object): Record<string, unknown> => {
+    if (!v || !isAvailable(v as Avail<T>)) throw new Error('꺼진 항목');
+    const { source: _s, note: _n, ...rest } = v as Record<string, unknown>;
+    return rest;
+  };
+  it.each(files.map((f) => f.year))('%i년', (year) => {
+    const r = resolveRules(registry, year);
+    const lg = r.tracks.items.localGeneral;
+    const same = (label: string, local: unknown, base: unknown) =>
+      expect(local, `${year}년 ${label}: ${MESSAGE}`).toEqual(base);
+    same('정기승급', strip(lg.stepRaise), strip(r.stepRaise));
+    same('승진 시 호봉', strip(lg.promotionStep), strip(r.promotionStep));
+    const { rankLimit: _rl, ...retBase } = strip(r.retirement);
+    same('정년', strip(lg.retirement), retBase);
+    same('시보', strip(lg.probation), strip(r.probation));
+    same('승진소요 최저연수', strip(lg.minService), strip(r.promotion.minService));
+    const long = strip(lg.longService);
+    const longBase = strip(r.promotion.longService);
+    same('근속승진기간', long.monthsByGrade, longBase.monthsByGrade);
+    same('근속승진 상한 직급', long.quotaTo, longBase.quotaTo);
+    same('연가 일수 표', strip(lg.leaveAnnual).tiers, r.leave.annual.tiers);
+    same('연가 미리 쓰기 표', strip(lg.leaveAdvance), strip(r.leave.advance));
+    // 지급 조건 글자(payCondition)는 원문이 달라 일부러 다르다(국가 권장연가, 지방 조례)
+    const { payCondition: _lc, ...lgComp } = strip(lg.leaveCompensation);
+    const { payCondition: _bc, ...baseComp } = strip(r.leave.compensation);
+    same('연가보상비', lgComp, baseComp);
+    const dil = lg.diligence;
+    if (!dil || !isAvailable(dil)) throw new Error('꺼진 항목');
+    same('정근수당', strip(dil.diligence), strip(r.allowances.diligence));
+    same('정근수당 가산금', strip(dil.extra), strip(r.allowances.diligenceExtra));
+    same('명절휴가비', strip(lg.holidayBonus), strip(r.allowances.holidayBonus));
+    same('대우공무원수당', strip(lg.seniorAllowance), strip(r.allowances.seniorTreatment));
+    same('직급보조비', strip(lg.positionAllowance), strip(r.allowances.position));
+    same('하루 연가 시간', lg.leaveUnits?.hoursPerDay, r.leave.units.hoursPerDay);
+    same('연도 중 임용 계산', strip(lg.leaveFirstYear), strip(r.leave.firstYear));
+    // 지방이 따로 적지 않고 기본 구역을 그대로 쓰는 값(지방 원문과 같아야 한다)
+    same('정액급식비', r.allowances.meal.amount, 160_000);
+    same(
+      '근무시간',
+      [r.workHours.start, r.workHours.end, r.workHours.lunchStart, r.workHours.lunchEnd],
+      ['09:00', '18:00', '12:00', '13:00'],
+    );
+    // 일부러 다른 값(원문이 다르다)
+    expect(lg.payday.defaultDay).not.toBe(r.payday.defaultDay);
+    expect(long.reviewLeadDays).toBeNull();
+    expect(lg.leaveUnits?.halfDayHours).toBeNull();
   });
 });

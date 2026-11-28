@@ -33,6 +33,7 @@ const profile: Profile = {
   hireDate: '2022-09-01',
   track: 'general',
   series: null,
+  seriesJikryu: null,
   payTable: 'table3',
   rank: '9',
   rankDate: '2022-09-01',
@@ -40,6 +41,7 @@ const profile: Profile = {
   nextStepDate: '2027-01-01',
   stepAsOf: '2026-11-25',
   overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+  priorService: null,
 };
 
 describe('표기 통일', () => {

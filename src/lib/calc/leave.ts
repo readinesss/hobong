@@ -14,7 +14,13 @@ import {
 } from './date.ts';
 import type { Calendar } from './calendar.ts';
 import { floorRate } from './money.ts';
-import { isAvailable, type Avail, type LeaveRules, type MonthTier } from '../rules/types.ts';
+import {
+  isAvailable,
+  type Avail,
+  type LeaveRules,
+  type LeaveUnitsRules,
+  type MonthTier,
+} from '../rules/types.ts';
 import type { LeaveData, LeaveKind, LeaveRecord } from '../store/schema.ts';
 
 /**
@@ -24,7 +30,8 @@ import type { LeaveData, LeaveKind, LeaveRecord } from '../store/schema.ts';
  */
 export interface LeaveRulesLike {
   annual: Avail<LeaveRules['annual']>;
-  units: LeaveRules['units'];
+  /** halfDayHours 가 null 이면 반일 연가 단위를 확인하지 못한 직종이다(새 반일 기록을 받지 않는다) */
+  units: LeaveUnitsRules;
   firstYear: LeaveRules['firstYear'];
   advance: Avail<LeaveRules['advance']>;
   compensation: Avail<LeaveRules['compensation']>;
@@ -72,21 +79,17 @@ export function firstYearMonths(hireDate: Ymd, minDaysForMonth: number): number 
 }
 
 /**
- * on 날짜에 쓸 수 있는, 그 해의 연가 일수(자동 계산).
- * - 재직기간은 사용 직전일 기준이라 on 당일에 구간이 바뀌면 바뀐 일수를 쓴다.
- * - 임용한 해와 정년퇴직하는 해에는 근무 개월 수만큼만(반올림) 부여된다.
- * - 가산(유사경력 3일, 성실근무 1~2일)·저축연가·공제는 반영하지 않는다.
+ * 사용 직전일 기준(국가 복무 예규)으로 센, on 날짜의 그 해 연가 일수.
+ * 재직기간 구간이 on 당일에 바뀌면 바뀐 일수를 쓰고, 임용한 해와 정년퇴직하는 해에는 근무 개월 수만큼만(반올림).
  */
-export function annualLeaveDays(
+function dayBeforeUseDays(
   rules: LeaveRulesLike,
+  tiers: readonly MonthTier[],
   hireDate: Ymd,
   on: Ymd,
   retireDate?: Ymd,
 ): number {
-  if (!isAvailable(rules.annual)) return 0;
-  if (on < hireDate) return 0;
-  if (retireDate !== undefined && on > retireDate) return 0;
-  const base = tierDays(rules.annual.tiers, completedMonths(hireDate, on));
+  const base = tierDays(tiers, completedMonths(hireDate, on));
   if (base === 0) return 0;
   const worked = serviceMonthsInYear(
     hireDate,
@@ -105,7 +108,64 @@ export interface GrantStep {
   days: number;
 }
 
-/** 한 해 동안 연가 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만). 연가 일수가 꺼져 있으면 [] */
+/**
+ * 한 해 동안 사용 직전일 기준의 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만).
+ * tenureBasis 와 무관한 원래의 단계다 — 'year-start' 는 이것의 처음 0 이 아닌 단계만 쓰고 그 뒤는 '준비 중'으로 알린다.
+ */
+function dayBeforeUseTimeline(
+  rules: LeaveRulesLike,
+  tiers: readonly MonthTier[],
+  hireDate: Ymd,
+  year: number,
+  retireDate?: Ymd,
+): GrantStep[] {
+  const jan1 = formatYmd({ y: year, m: 1, d: 1 });
+  const dec31 = formatYmd({ y: year, m: 12, d: 31 });
+  const candidates = new Set<Ymd>([jan1]);
+  for (const tier of tiers) {
+    const date = periodCompleteDate(hireDate, tier.fromMonths);
+    if (date >= jan1 && date <= dec31) candidates.add(date);
+  }
+  const steps: GrantStep[] = [];
+  for (const date of [...candidates].sort()) {
+    const outside = date < hireDate || (retireDate !== undefined && date > retireDate);
+    const days = outside ? 0 : dayBeforeUseDays(rules, tiers, hireDate, date, retireDate);
+    const last = steps[steps.length - 1];
+    if (!last || last.days !== days) steps.push({ from: date, days });
+  }
+  return steps;
+}
+
+/**
+ * on 날짜에 쓸 수 있는, 그 해의 연가 일수(자동 계산).
+ * - 'day-before-use'(국가): 재직기간은 사용 직전일 기준이라 on 당일에 구간이 바뀌면 바뀐 일수를 쓴다.
+ * - 'year-start'(지방 일반직 — 기준일을 원문으로 확인하지 못했다): 그해 처음 연가가 생기는 날(보통 1월 1일, 임용한
+ *   해는 재직 1개월이 되는 날)의 일수를 그해 내내 쓴다. 그 뒤 구간이 바뀌는 날은 숫자 없이 pendingGrantChange 로만 알린다.
+ * - 임용한 해와 정년퇴직하는 해에는 근무 개월 수만큼만(반올림) 부여된다.
+ * - 가산(유사경력 3일, 성실근무 1~2일)·저축연가·공제는 반영하지 않는다.
+ */
+export function annualLeaveDays(
+  rules: LeaveRulesLike,
+  hireDate: Ymd,
+  on: Ymd,
+  retireDate?: Ymd,
+): number {
+  if (!isAvailable(rules.annual)) return 0;
+  if (on < hireDate) return 0;
+  if (retireDate !== undefined && on > retireDate) return 0;
+  const { tiers } = rules.annual;
+  if (rules.annual.tenureBasis === 'year-start') {
+    const steps = dayBeforeUseTimeline(rules, tiers, hireDate, yearOf(on), retireDate);
+    const first = steps.find((s) => s.days > 0);
+    return first && on >= first.from ? first.days : 0;
+  }
+  return dayBeforeUseDays(rules, tiers, hireDate, on, retireDate);
+}
+
+/**
+ * 한 해 동안 연가 일수가 바뀌는 시점들(1월 1일 값 포함, 변화가 있을 때만). 연가 일수가 꺼져 있으면 [].
+ * 'year-start' 는 처음 0 이 아닌 단계까지만 돌려준다(그 뒤의 변화는 숫자를 모른다 — pendingGrantChange).
+ */
 export function grantTimeline(
   rules: LeaveRulesLike,
   hireDate: Ymd,
@@ -113,20 +173,28 @@ export function grantTimeline(
   retireDate?: Ymd,
 ): GrantStep[] {
   if (!isAvailable(rules.annual)) return [];
-  const jan1 = formatYmd({ y: year, m: 1, d: 1 });
-  const dec31 = formatYmd({ y: year, m: 12, d: 31 });
-  const candidates = new Set<Ymd>([jan1]);
-  for (const tier of rules.annual.tiers) {
-    const date = periodCompleteDate(hireDate, tier.fromMonths);
-    if (date >= jan1 && date <= dec31) candidates.add(date);
-  }
-  const steps: GrantStep[] = [];
-  for (const date of [...candidates].sort()) {
-    const days = annualLeaveDays(rules, hireDate, date, retireDate);
-    const last = steps[steps.length - 1];
-    if (!last || last.days !== days) steps.push({ from: date, days });
-  }
-  return steps;
+  const steps = dayBeforeUseTimeline(rules, rules.annual.tiers, hireDate, year, retireDate);
+  if (rules.annual.tenureBasis !== 'year-start') return steps;
+  const first = steps.findIndex((s) => s.days > 0);
+  return first < 0 ? steps : steps.slice(0, first + 1);
+}
+
+/**
+ * 'year-start' 직종에서, 그해 처음 일수가 생긴 뒤 재직기간 구간이 바뀌는 날(사용 직전일 기준이라면 일수가 달라졌을 날).
+ * 그날부터 일수가 늘어나는지는 원문으로 확인하지 못해 날짜만 돌려준다(숫자 없음).
+ * 'day-before-use' 이거나, 연가 일수가 꺼져 있거나, 바뀌는 날이 없으면 null
+ */
+export function pendingGrantChange(
+  rules: LeaveRulesLike,
+  hireDate: Ymd,
+  year: number,
+  retireDate?: Ymd,
+): Ymd | null {
+  if (!isAvailable(rules.annual) || rules.annual.tenureBasis !== 'year-start') return null;
+  const steps = dayBeforeUseTimeline(rules, rules.annual.tiers, hireDate, year, retireDate);
+  const first = steps.findIndex((s) => s.days > 0);
+  if (first < 0) return null;
+  return steps.slice(first + 1).find((s) => s.days > 0)?.from ?? null;
 }
 
 export interface LeaveSummary {
@@ -141,6 +209,11 @@ export interface LeaveSummary {
   needsManualGrant: boolean;
   /** 올해 안에 부여 일수가 늘어나는 다음 시점(자동 계산일 때만) */
   nextChange: { date: Ymd; hours: number } | null;
+  /**
+   * 'year-start' 직종(지방 일반직)에서 올해 재직기간 구간이 바뀌는 날. 그날부터 일수가 늘어나는지는 원문으로 확인하지
+   * 못해 숫자 없이 날짜만 둔다(자동 계산일 때만. 지난 날이어도 올해 안이면 둔다 — 올해 일수에 걸린 일이다)
+   */
+  pendingChange: { date: Ymd } | null;
   /** 올해 기록 전체(예정 포함) */
   usedHours: number;
   /** 그중 오늘 이후 날짜(예정) */
@@ -178,7 +251,10 @@ export function summarizeLeave(
   const grantedHours = overridden ? override : autoHours;
 
   let nextChange: LeaveSummary['nextChange'] = null;
+  let pendingChange: LeaveSummary['pendingChange'] = null;
   if (!overridden) {
+    const pending = pendingGrantChange(rules, hireDate, year, retireDate);
+    if (pending) pendingChange = { date: pending };
     const upcoming = grantTimeline(rules, hireDate, year, retireDate).find((s) => s.from > today);
     if (upcoming && upcoming.days * hoursPerDay !== autoHours) {
       nextChange = { date: upcoming.from, hours: upcoming.days * hoursPerDay };
@@ -212,6 +288,7 @@ export function summarizeLeave(
     overridden,
     needsManualGrant: !overridden && !isAvailable(rules.annual),
     nextChange,
+    pendingChange,
     usedHours,
     plannedHours,
     remainingHours: grantedHours - usedHours,
@@ -273,9 +350,13 @@ export function hoursOfKind(
   hours: number,
 ): number {
   if (kind === 'day') return rules.units.hoursPerDay;
-  if (kind === 'am' || kind === 'pm') return rules.units.halfDayHours;
+  // 반일 단위를 확인하지 못한 직종(halfDayHours null)은 새 반일 기록을 만들지 않는다(0 → checkNewLeave 가 막는다)
+  if (kind === 'am' || kind === 'pm') return rules.units.halfDayHours ?? 0;
   return hours;
 }
+
+/** 반일 연가 단위를 확인하지 못한 직종에서 반일을 넣으려 할 때 */
+export const HALF_DAY_PENDING_MESSAGE = '반일 연가는 준비 중이에요. 시간 연가로 적어 주세요.';
 
 export interface NewLeave {
   date: Ymd;
@@ -293,6 +374,8 @@ export function checkNewLeave(
   entry: NewLeave,
 ): string | null {
   const perDay = rules.units.hoursPerDay;
+  if ((entry.kind === 'am' || entry.kind === 'pm') && rules.units.halfDayHours === null)
+    return HALF_DAY_PENDING_MESSAGE;
   const hours = hoursOfKind(rules, entry.kind, entry.hours);
   if (!Number.isInteger(hours) || hours < 1 || hours > perDay) {
     return `시간 연가는 1시간부터 ${perDay}시간까지 넣을 수 있어요.`;

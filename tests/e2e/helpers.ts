@@ -363,3 +363,31 @@ export async function fillMonth(page: Page, label: string, year: string, month: 
   await page.getByLabel(`${label} 연도`).fill(year);
   await page.getByLabel(`${label} 월`).fill(month);
 }
+
+export interface SeedV7 extends SeedV6 {
+  /** 고른 직류(v7). 없으면 null */
+  seriesJikryu?: string | null;
+  /** 임용 전 군 복무(v7, #34). 없으면 null */
+  priorService?: { kind: string; months: number; days: number } | null;
+}
+
+/**
+ * 지금 형식(v7)의 저장본. makeSeedV6 에 v7 칸(직류·군 복무·연가 기록의 몫·저축연가 통장·연가 정리 값)을 기본값으로 더한다.
+ * 지방 일반직은 profile 에 `{ track: 'localGeneral', payTable: null }` 을 넘긴다.
+ */
+export function makeSeedV7(profile: SeedProfileV4 = {}, v7: SeedV7 = {}): string {
+  const env = JSON.parse(makeSeedV6(profile, v7)) as {
+    schemaVersion: number;
+    data: {
+      profile: Record<string, unknown>;
+      leave: { records: Record<string, unknown>[]; savings?: unknown[]; years?: object };
+    };
+  };
+  env.schemaVersion = 7;
+  env.data.profile.seriesJikryu = v7.seriesJikryu ?? null;
+  env.data.profile.priorService = v7.priorService ?? null;
+  env.data.leave.records = env.data.leave.records.map((r) => ({ ...r, pool: 'annual' }));
+  env.data.leave.savings = [];
+  env.data.leave.years = {};
+  return JSON.stringify(env);
+}

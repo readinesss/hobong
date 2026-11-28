@@ -144,5 +144,7 @@ export function withRo(word: string): string {
     const final = (code - 0xac00) % 28;
     return `${word}${final === 0 || final === 8 ? '로' : '으로'}`;
   }
+  // 숫자는 읽는 소리로 본다: 영·삼·육은 ㄹ 이 아닌 받침('별표 3으로'), 일·칠·팔은 ㄹ 받침, 나머지는 받침 없음
+  if (/[036]/.test(last)) return `${word}으로`;
   return `${word}로`;
 }

@@ -131,6 +131,42 @@
       "effective": "2026-01-01",
       "promulgation": "2026년 달력자료, 자료생성 2024. 7. 25.",
       "url": "https://astro.kasi.re.kr/life/post/calendarData?year=2026"
+    },
+    "localAct": {
+      "name": "지방공무원법",
+      "effective": "2026-10-22",
+      "promulgation": "법률 제21560호, 2026. 4. 21., 일부개정",
+      "url": "https://www.law.go.kr/법령/지방공무원법"
+    },
+    "localAppointment": {
+      "name": "지방공무원 임용령",
+      "effective": "2026-06-30",
+      "promulgation": "대통령령 제36487호, 2026. 6. 30., 일부개정",
+      "url": "https://www.law.go.kr/법령/지방공무원임용령"
+    },
+    "localPay": {
+      "name": "지방공무원 보수규정",
+      "effective": "2026-08-01",
+      "promulgation": "대통령령 제36548호, 2026. 7. 30., 일부개정",
+      "url": "https://www.law.go.kr/법령/지방공무원보수규정"
+    },
+    "localService": {
+      "name": "지방공무원 복무규정",
+      "effective": "2026-10-02",
+      "promulgation": "대통령령 제36728호, 2026. 9. 29., 타법개정",
+      "url": "https://www.law.go.kr/법령/지방공무원복무규정"
+    },
+    "localAllowance": {
+      "name": "지방공무원 수당 등에 관한 규정",
+      "effective": "2026-10-01",
+      "promulgation": "대통령령 제36701호, 2026. 9. 22., 일부개정",
+      "url": "https://www.law.go.kr/법령/지방공무원수당등에관한규정"
+    },
+    "localHoliday": {
+      "name": "지방공휴일에 관한 규정",
+      "effective": "2018-07-10",
+      "promulgation": "대통령령 제29036호, 2018. 7. 10., 제정",
+      "url": "https://www.law.go.kr/법령/지방공휴일에관한규정"
     }
   },
   "retirement": {
@@ -175,6 +211,20 @@
       "revised": "2026-01-02",
       "snapshot": "pay-reg-table3-salary.txt",
       "note": "일반직공무원과 일반직에 준하는 특정직 및 별정직 공무원 등의 봉급표. 월지급액(원)."
+    },
+    "calc": {
+      "prorate": {
+        "law": "pay",
+        "article": "제22조제1항",
+        "snapshot": "pay-reg-articles.txt",
+        "note": "달 가운데 임용·승급하면 발령일을 기준으로 그 달 봉급을 일할계산해요(생애 봉급의 셈)."
+      },
+      "leaving": {
+        "law": "pay",
+        "article": "제24조제1항제1호",
+        "snapshot": "pay-reg-articles-separation.txt",
+        "note": "5년 이상 근속하고 그 달에 15일 이상 근무한 뒤 면직되면 그 달 봉급 전액(금고 이상의 형·탄핵·파면·해임 등 제외). 그 밖에는 일할계산이에요(생애 봉급의 셈)."
+      }
     }
   },
   "stepRaise": {
@@ -288,6 +338,7 @@
       "rate": 0.86,
       "divisor": 30,
       "maxDays": 20,
+      "payCondition": "권장연가 등 기관 방침",
       "source": {
         "law": "allowance",
         "article": "제18조의5제3항",
@@ -326,6 +377,7 @@
       "reviewLeadDays": 5,
       "quotaTo": "6",
       "quotaNote": "6급으로의 근속승진은 해마다 근속승진 후보자의 50% 범위에서만 임용한다(재난·민원 경력자 제외).",
+      "rosterName": "승진후보자명부",
       "source": {
         "law": "appointment",
         "article": "제35조의5제1항·제5항·제7항",
@@ -675,6 +727,7 @@
         "label": "일반직",
         "status": "ready",
         "scope": "국가직 일반직공무원. 공안업무 등(별표 4)·우정직군(별표 8)은 봉급표를 골라 주세요.",
+        "seriesScope": "national",
         "payTables": ["table3", "table4", "table8"],
         "ladder": "general",
         "source": {"law": "pay", "article": "별표 1", "snapshot": "pay-reg-table1-classification.txt"},
@@ -731,6 +784,303 @@
             }
           }
         }
+      },
+      "localGeneral": {
+        "label": "지방 일반직",
+        "target": "지방공무원",
+        "status": "partial",
+        "scope": "시·도, 시·군·구, 시·도 교육청과 학교에서 일하는 지방공무원 일반직(1~9급)이에요. 봉급표는 국가 일반직과 같은 공무원보수규정 별표 3이에요(지방공무원 보수규정 제4조제3항). 지방 연구직·지도직은 아직 준비 중이에요.",
+        "seriesScope": "local",
+        "payTables": ["table3"],
+        "ladder": "general",
+        "source": {
+          "law": "localPay",
+          "article": "제4조제3항",
+          "snapshot": "local-pay-reg-articles.txt",
+          "note": "일반직공무원의 봉급월액은 공무원보수규정 별표 3을 준용해요."
+        },
+        "payday": {
+          "defaultDay": 20,
+          "options": [
+            {"day": 20, "orgs": "지방자치단체와 지방의회(기본)"},
+            {"day": 17, "orgs": "교육감이 임용권을 가지는 공무원(교육청·학교)"}
+          ],
+          "note": "지방공무원 보수규정 제19조: 매월 20일, 교육감이 임용권을 가지는 공무원은 교육부의 지급일이에요. 기관에서 달리 정할 수 있어요. 지역 지방공휴일은 월급날 당김에 넣지 않았어요.",
+          "source": {
+            "law": "localPay",
+            "article": "제19조제1항·제2항",
+            "snapshot": "local-pay-reg-articles.txt",
+            "also": [
+              {"law": "pay", "article": "별표 30", "snapshot": "pay-reg-table30-payday.txt"},
+              {"law": "localHoliday", "article": "제2조·제3조", "snapshot": "local-holiday-regulation.txt"}
+            ],
+            "note": "매월 20일, 교육감이 임용권을 가지는 공무원은 공무원보수규정 별표 30의 교육부 지급일(17일). 토요일·공휴일이면 그 전날 지급해요(제2항). 지방자치단체의 장과 지방의회의 의장이 달리 정할 수 있어요(제1항 단서). 지방공휴일(조례로 지정)은 지역마다 달라 넣지 않았어요."
+          }
+        },
+        "stepRaise": {
+          "periodMonths": 12,
+          "dayOfMonth": 1,
+          "source": {
+            "law": "localPay",
+            "article": "제12조제1항·제3항",
+            "snapshot": "local-pay-reg-articles.txt",
+            "note": "승급기간 1년, 매달 1일자 승급. 승급제한(제13조)은 반영하지 않아요."
+          }
+        },
+        "promotionStep": {
+          "subtract": 1,
+          "minStep": 1,
+          "capAtMaxStep": true,
+          "source": {
+            "law": "localPay",
+            "article": "제10조제2항, 별표 9 가목·비고 1",
+            "revised": "2020-03-10",
+            "snapshot": "local-pay-reg-table9-promotion-step.txt",
+            "note": "승진 전 1호봉은 1호봉, 2호봉 이상은 1호봉을 뺀 호봉. 승진 후 계급에 그 호봉이 없으면 그 계급의 최고호봉(비고 1)."
+          }
+        },
+        "retirement": {
+          "age": 60,
+          "periods": [
+            {"fromMonth": 1, "toMonth": 6, "retireMonth": 6, "retireDay": 30},
+            {"fromMonth": 7, "toMonth": 12, "retireMonth": 12, "retireDay": 31}
+          ],
+          "source": {
+            "law": "localAct",
+            "article": "제66조제1항·제2항",
+            "snapshot": "local-officials-act.txt",
+            "note": "'정년에 이른 날'은 정년 나이가 되는 출생일로 계산해요(같은 문언에 대한 법제처 법령해석 12-0189, 대법원 2008두21300)."
+          }
+        },
+        "probation": {
+          "monthsByGrade": {"5": 12, "6": 6, "7": 6, "8": 6, "9": 6},
+          "source": {
+            "law": "localAct",
+            "article": "제28조제1항",
+            "snapshot": "local-officials-act.txt",
+            "note": "휴직·직위해제·정직·감봉 기간은 시보 기간에 넣지 않아요(제2항). 면제·단축 사유는 반영하지 않아요."
+          }
+        },
+        "minService": {
+          "monthsByGrade": {"9": 12, "8": 12, "7": 12, "6": 24, "5": 36, "4": 36},
+          "source": {
+            "law": "localAppointment",
+            "article": "제33조제1항",
+            "revised": "2024-06-27",
+            "snapshot": "local-appointment-decree.txt",
+            "note": "승진소요 최저연수. 휴직·직위해제·징계처분 기간 등은 원칙적으로 넣지 않아요(제2항)."
+          }
+        },
+        "longService": {
+          "monthsByGrade": {"9": 66, "8": 84, "7": 132},
+          "reviewLeadDays": null,
+          "quotaTo": "6",
+          "quotaNote": "6급으로의 근속승진은 해마다 근속승진 후보자 직렬별 인원의 50% 범위에서만 임용해요(재난·민원 경력자 제외).",
+          "rosterName": "승진후보자 명부",
+          "source": {
+            "law": "localAppointment",
+            "article": "제33조의2제2항·제4항·제6항",
+            "snapshot": "local-appointment-decree.txt",
+            "note": "근속승진기간: 7급 11년, 8급 7년, 9급 5년 6개월. 승진후보자 명부 등재가 필요하며 기간 단축 사유는 반영하지 않아요."
+          }
+        },
+        "seniorTreatment": {
+          "status": "pending",
+          "reason": "대우공무원 선발에 필요한 근무기간은 교육부장관·행정안전부장관이 정해요(지방공무원 임용령 제31조제3항). 그 기준을 원문으로 확인한 뒤 넣을게요."
+        },
+        "leaveAnnual": {
+          "tiers": [
+            {"fromMonths": 1, "toMonths": 12, "days": 11, "label": "1개월 이상 1년 미만"},
+            {"fromMonths": 12, "toMonths": 36, "days": 15, "label": "1년 이상 3년 미만"},
+            {"fromMonths": 36, "toMonths": 48, "days": 16, "label": "3년 이상 4년 미만"},
+            {"fromMonths": 48, "toMonths": 60, "days": 17, "label": "4년 이상 5년 미만"},
+            {"fromMonths": 60, "toMonths": 72, "days": 20, "label": "5년 이상 6년 미만"},
+            {"fromMonths": 72, "toMonths": null, "days": 21, "label": "6년 이상"}
+          ],
+          "tenureBasis": "year-start",
+          "source": {
+            "law": "localService",
+            "article": "제7조제1항·제2항",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "재직기간별 연가 일수. 재직기간을 어느 날 기준으로 세는지는 이 규정에 없어, 그해 처음 연가가 생기는 날(보통 1월 1일, 임용한 해는 재직 1개월이 되는 날)의 재직기간으로 센 일수로 보여 드려요. 연도 중 구간이 바뀌어 늘어나는지는 준비 중이에요. 유사경력 3일 가산(제1항 단서)과 다음 해 1일 가산(제3항)은 반영하지 않아요. 해당하면 연가 화면의 '부여 일수 고치기'로 직접 고칠 수 있어요."
+          }
+        },
+        "leaveAdvance": {
+          "tiers": [
+            {"fromMonths": 0, "toMonths": 12, "days": 5},
+            {"fromMonths": 12, "toMonths": 24, "days": 6},
+            {"fromMonths": 24, "toMonths": 36, "days": 7},
+            {"fromMonths": 36, "toMonths": 48, "days": 8},
+            {"fromMonths": 48, "toMonths": null, "days": 10}
+          ],
+          "source": {
+            "law": "localService",
+            "article": "제7조의3",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "다음 재직기간의 연가를 미리 당겨 쓸 수 있는 최대 일수."
+          }
+        },
+        "leaveCompensation": {
+          "rate": 0.86,
+          "divisor": 30,
+          "maxDays": 20,
+          "payCondition": "소속 지방자치단체의 조례와 예산, 기관 방침",
+          "source": {
+            "law": "localAllowance",
+            "article": "제18조의5제1항·제3항",
+            "snapshot": "local-allowance-reg-articles.txt",
+            "also": [{"law": "localService", "article": "제7조제4항", "snapshot": "local-service-reg-leave.txt"}],
+            "note": "월봉급액의 86% × 1/30 × 연가보상일수. 보상 대상 일수는 20일 이내이고, 8시간 미만의 연가 잔여분은 보상하지 않고 이월·저축해요(복무규정 제7조제4항). 연가보상비는 소속 지방자치단체의 조례가 정하는 바에 따라 예산의 범위에서 지급해요(제1항)."
+          }
+        },
+        "leaveLongService": {
+          "status": "external",
+          "reason": "지방공무원 복무규정에는 장기재직휴가 조문이 없어요. 이 영에 없는 특별휴가는 조례로 정해요(제7조의7제1항). 소속 기관에 확인해 주세요."
+        },
+        "diligence": {
+          "diligence": {
+            "payMonths": [1, 7],
+            "periodMonths": 6,
+            "minMonthsToQualify": 1,
+            "minDaysForMonth": 15,
+            "tiers": [
+              {"underYears": 2, "rate": 0.1},
+              {"underYears": 5, "rate": 0.2},
+              {"underYears": 6, "rate": 0.25},
+              {"underYears": 7, "rate": 0.3},
+              {"underYears": 8, "rate": 0.35},
+              {"underYears": 9, "rate": 0.4},
+              {"underYears": 10, "rate": 0.45},
+              {"underYears": null, "rate": 0.5}
+            ],
+            "source": {
+              "law": "localAllowance",
+              "article": "제6조제1항·제2항·제4항, 별표 2 제1호",
+              "revised": "2025-01-03",
+              "snapshot": "local-allowance-reg-table2-diligence.txt",
+              "also": [{"law": "localAllowance", "article": "제6조", "snapshot": "local-allowance-reg-articles.txt"}],
+              "note": "1월 1일·7월 1일 현재 봉급표상 월봉급액 기준(별표 2 비고 가목), 1월·7월 보수지급일 지급. 신규 임용자는 지급대상기간(직전 6개월) 중 실제 근무 개월 수 ÷ 6(제2항). 근무연수는 매달 1일 현재 기준(제4항). 지급 자격은 제1항의 문언(지급대상기간 중 1월 이상 봉급이 지급된 공무원)대로 실제 1개월 이상으로 판정하고, 15일을 1월로 치는 것(제2항)은 지급액 계산에만 써요. 이 구분은 이 서비스의 조문 해석이에요."
+            }
+          },
+          "extra": {
+            "tiers": [
+              {"underYears": 5, "amount": 30000},
+              {"underYears": 10, "amount": 50000},
+              {"underYears": 15, "amount": 60000},
+              {"underYears": 20, "amount": 80000},
+              {"underYears": null, "amount": 100000}
+            ],
+            "additional": [
+              {"fromYears": 20, "toYears": 25, "amount": 10000},
+              {"fromYears": 25, "toYears": null, "amount": 30000}
+            ],
+            "source": {
+              "law": "localAllowance",
+              "article": "제6조제3항, 별표 2 제2호",
+              "revised": "2025-01-03",
+              "snapshot": "local-allowance-reg-table2-diligence.txt",
+              "note": "정근수당 가산금(월). 이 서비스의 금액 계산에는 아직 반영하지 않아요(실수령액은 추정하지 않아요)."
+            }
+          }
+        },
+        "holidayBonus": {
+          "rate": 0.6,
+          "basisTags": ["seollal", "chuseok"],
+          "source": {
+            "law": "localAllowance",
+            "article": "제18조의3",
+            "snapshot": "local-allowance-reg-articles.txt",
+            "note": "설날·추석날 현재 월봉급액의 60%. 보수지급일 또는 지급기준일 전후 15일 이내 소속기관장이 정하는 날 지급."
+          }
+        },
+        "seniorAllowance": {
+          "rate": 0.041,
+          "source": {
+            "law": "localAllowance",
+            "article": "제5조의2제1항",
+            "snapshot": "local-allowance-reg-articles.txt",
+            "note": "월봉급액의 4.1%. 합산액이 상위 직급 승진 시 월봉급액을 넘으면 차액만 지급."
+          }
+        },
+        "positionAllowance": {
+          "amountByGrade": {
+            "9": 175000,
+            "8": 175000,
+            "7": 180000,
+            "6": 185000,
+            "5": 250000,
+            "4": 400000,
+            "3": 500000,
+            "2": 650000,
+            "1": 750000
+          },
+          "source": {
+            "law": "localAllowance",
+            "article": "제18조의6, 별표 14",
+            "revised": "2026-06-23",
+            "snapshot": "local-allowance-reg-table14-position.txt",
+            "note": "직급보조비(월). 4급 부단체장처럼 직위로 따로 정한 행은 넣지 않았어요. 금액 계산에는 반영하지 않아요."
+          }
+        },
+        "payCalc": {
+          "prorate": {
+            "law": "localPay",
+            "article": "제21조제1항",
+            "snapshot": "local-pay-reg-articles.txt",
+            "note": "달 가운데 임용·승급하면 발령일을 기준으로 그 달 봉급을 일할계산해요(생애 봉급의 셈)."
+          },
+          "leaving": {
+            "law": "localPay",
+            "article": "제23조제1항제1호",
+            "snapshot": "local-pay-reg-articles.txt",
+            "note": "5년 이상 근속하고 그 달에 15일 이상 근무한 뒤 면직되면 그 달 봉급 전액(금고 이상의 형·파면·해임 제외). 그 밖에는 일할계산이에요(생애 봉급의 셈)."
+          }
+        },
+        "workHoursSource": {
+          "law": "localService",
+          "article": "제2조제1항·제2항",
+          "snapshot": "local-service-reg-leave.txt",
+          "note": "1주 40시간, 9시~18시, 점심 12~13시. 점심시간은 기관에서 1시간 범위로 달리 정할 수 있어요. 설정에서 근무시간을 직접 고칠 수 있어요."
+        },
+        "mealSource": {
+          "law": "localAllowance",
+          "article": "제18조",
+          "snapshot": "local-allowance-reg-articles.txt",
+          "note": "정액급식비(월 16만원). 이 서비스의 금액 계산에는 아직 반영하지 않아요(실수령액은 추정하지 않아요)."
+        },
+        "workHoursNote": "지방공무원 복무규정 제2조: 9시~18시, 점심 12~13시. 점심시간은 기관에서 1시간 범위로 달리 정할 수 있어요.",
+        "leaveNote": "하루는 8시간으로 셈해요(지각·조퇴·외출 누계 8시간 = 연가 1일, 지방공무원 복무규정 제7조의2제6항). 연가 일수는 연초 재직기간 기준이고, 연도 중 구간이 바뀌어 늘어나는 날은 준비 중이에요.",
+        "leaveUnits": {
+          "hoursPerDay": 8,
+          "halfDayHours": null,
+          "source": {
+            "law": "localService",
+            "article": "제7조제4항, 제7조의2제6항",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "누계 8시간은 연가 1일(제7조의2제6항), 8시간 미만의 연가 잔여분은 이월·저축(제7조제4항). 반일 연가 조문은 이 규정에 없어 반일 연가는 준비 중이에요."
+          }
+        },
+        "leaveFirstYear": {
+          "minDaysForMonth": 15,
+          "rounding": "half-up",
+          "source": {
+            "law": "localService",
+            "article": "제7조의2제2항·제3항제2호",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "연도 중 신규임용되거나 퇴직하는 해는 (그해 근무 개월 수 ÷ 12) × 연가 일수. 15일 이상은 1개월, 미만은 버림, 소수점 반올림. 개월 수는 임용일부터 달력의 달로 세요(이 서비스의 해석이에요)."
+          }
+        },
+        "leaveScreen": {
+          "recordSystem": "소속 기관 인사시스템",
+          "savingCarryOver": true,
+          "source": {
+            "law": "localService",
+            "article": "제7조의10",
+            "snapshot": "local-service-reg-leave.txt",
+            "note": "사용하지 않고 남은 연가는 그 해의 마지막 날을 기준으로 이월·저축할 수 있어요(제1항)."
+          }
+        },
+        "notes": []
       },
       "police": {
         "label": "경찰",

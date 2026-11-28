@@ -25,6 +25,7 @@ function seed(over: Partial<Profile>): UserData {
     hireDate: '2005-03-02',
     track: 'general',
     series: null,
+    seriesJikryu: null,
     payTable: 'table3',
     rank: '7',
     rankDate: '2018-03-01',
@@ -32,10 +33,18 @@ function seed(over: Partial<Profile>): UserData {
     nextStepDate: '2027-03-01',
     stepAsOf: '2026-11-25',
     overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+    priorService: null,
     ...over,
   };
   const data = newUserData(profile, defaultSettings(R), '2026-11-25T01:00:00.000Z', '2026-11-25');
-  data.leave.records.push({ id: 'a1', date: '2026-03-03', hours: 8, kind: 'day', memo: '' });
+  data.leave.records.push({
+    id: 'a1',
+    date: '2026-03-03',
+    hours: 8,
+    kind: 'day',
+    memo: '',
+    pool: 'annual',
+  });
   return data;
 }
 

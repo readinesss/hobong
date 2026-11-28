@@ -192,8 +192,8 @@
     }
     return { id: 'none', sub: '들지 않아요' };
   });
-  /** 특정직은 'auto' 가 호봉 소품이다(직종 소품은 직접 고를 때만 — look.ts resolveProp) */
-  const special = $derived(!!owner.track && owner.track !== 'general');
+  /** 직렬을 고르지 않는 직종(특정직)은 'auto' 가 호봉 소품이다(직종 소품은 직접 고를 때만 — look.ts resolveProp) */
+  const special = $derived(owner.bySeries === false);
   const ownTrackProp = $derived(trackPropOf(rules, owner.track));
   const propOptions = $derived<Option<string>[]>([
     {

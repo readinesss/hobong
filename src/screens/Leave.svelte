@@ -10,10 +10,12 @@
     josa,
     withRo,
   } from '../lib/app/format.ts';
+  import { cite as citeOf, lawName } from '../lib/app/cite.ts';
   import { app } from '../lib/app/state.svelte.ts';
   import { calendar, view } from '../lib/app/view.svelte.ts';
   import {
     addDays,
+    completedMonths,
     formatKorean,
     formatMonthDay,
     startOfMonth,
@@ -45,9 +47,28 @@
 
   const leave = $derived(view.leave);
   const hpd = $derived(leave.hoursPerDay);
-  const rules = $derived(view.rules.leave);
-  /** 이 직종의 연가 규정(연가보상비·미리 쓰기는 직종마다 다르다) */
+  /**
+   * 본문에 다는 짧은 근거: '국가공무원 복무규정 제15조' / '지방공무원 복무규정 제7조'(paragraph 면 '제17조제2항').
+   * 직종 해석 결과의 근거에서 읽는다(직종마다 근거 법령이 다르다 — 손으로 쓰지 않는다)
+   */
+  const lawOf = (law: string) => lawName(view.rules.laws, law);
+  const cite = (source: { law: string; article: string }, paragraph = false) =>
+    citeOf(view.rules.laws, source, paragraph);
+  /** 이 직종의 연가 규정(연가 단위·연가보상비·미리 쓰기는 직종마다 다르다) */
   const career = $derived(view.careerRules);
+  const rules = $derived(career.leave);
+  /**
+   * 반일 연가 단위를 원문으로 확인하지 못한 직종(지방 일반직): 오전·오후 반일 단추를 숨기고 '준비 중'으로 알린다.
+   * 직종을 바꾸기 전에 적은 반일 기록은 저장된 시간 그대로 보이고 센다
+   */
+  const halfDayOff = $derived<Unavailable | null>(
+    rules.units.halfDayHours === null
+      ? {
+          status: 'pending',
+          reason: `${lawOf(rules.units.source.law)}에는 반일 연가 조문이 없어요. 반나절을 쓰셨다면 쓴 시간만큼 시간 연가로 적어 주세요.`,
+        }
+      : null,
+  );
   /** 연가 화면 문구: 교원은 나이스, 저축·이월 연가 없음(교원휴가 예규 제10조). 없으면 일반 문구 */
   const screen = $derived(career.track.leaveScreen ?? null);
   const compensation = $derived(
@@ -58,7 +79,6 @@
   const annualOff = $derived(
     isAvailable(career.leave.annual) ? null : (career.leave.annual as unknown as Unavailable),
   );
-  const lawOf = (law: string) => view.rules.laws[law]?.name ?? law;
   /** 미리 쓰기 표의 기간 이름('1년 이상 2년 미만'). 데이터에 이름이 있으면 그대로 */
   function monthsText(months: number): string {
     if (months % 12 === 0) return `${months / 12}년`;
@@ -69,6 +89,16 @@
     if (tier.toMonths === null) return `${monthsText(tier.fromMonths)} 이상`;
     if (tier.fromMonths === 0) return `${monthsText(tier.toMonths)} 미만`;
     return `${monthsText(tier.fromMonths)} 이상 ${monthsText(tier.toMonths)} 미만`;
+  }
+
+  /**
+   * 연초 재직기간으로 센 직종(tenureBasis 'year-start')에서 올해 재직기간 구간이 바뀌는 날의 안내.
+   * 그날부터 늘어나는지는 원문으로 확인하지 못해 늘어날 일수의 숫자는 쓰지 않는다
+   */
+  function pendingChangeText(date: Ymd): string {
+    const span = monthsText(completedMonths(view.profile.hireDate, date));
+    const when = date <= view.today ? '됐어요' : '돼요';
+    return `${formatMonthDay(date, false)}에 재직 ${josa(span, '이', '가')} ${when}. 그날부터 올해 연가가 늘어나는지는 이 직종의 기준을 원문으로 확인하지 못해(준비 중), 연초 재직기간으로 센 ${withRo(formatLeaveHours(leave.grantedHours, hpd))} 보여 드려요. 기관 기준이 다르면 '부여 일수 고치기'로 맞춰 주세요.`;
   }
 
   function firstWorkdayFrom(date: Ymd): Ymd {
@@ -307,6 +337,12 @@
             )} 늘어요.
           </p>
         {/if}
+        {#if leave.pendingChange}
+          <!-- 연초 재직기간으로 센 직종(지방 일반직): 구간이 바뀌는 날은 알리되 늘어날 일수의 숫자는 보이지 않는다 -->
+          <p class="note" id="leave-pending-change">
+            {pendingChangeText(leave.pendingChange.date)}
+          </p>
+        {/if}
         {#if leave.needsManualGrant}
           <p class="note" id="leave-manual-grant">
             올해 연가 일수를 직접 넣어 주세요. 넣으면 남은 연가와 사용률을 셀 수 있어요.
@@ -317,9 +353,9 @@
         {/if}
         {#if leave.remainingHours < 0 && view.advanceLimit !== null}
           <p class="note warn">
-            부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요({advance
-              ? `${lawOf(advance.source.law)} ${advance.source.article}`
-              : '복무규정 제16조'}).
+            부여된 연가보다 많이 썼어요. 다음 재직기간의 연가를 미리 쓰는 한도는 지금 {view.advanceLimit}일이에요{advance
+              ? `(${lawOf(advance.source.law)} ${advance.source.article})`
+              : ''}.
           </p>
         {/if}
         <div class="btn-row">
@@ -389,13 +425,26 @@
           >
             1일
           </button>
-          <button type="button" class="btn" onclick={() => add('am')} disabled={!selectedIsWorkday}>
-            오전 반일
-          </button>
-          <button type="button" class="btn" onclick={() => add('pm')} disabled={!selectedIsWorkday}>
-            오후 반일
-          </button>
+          {#if !halfDayOff}
+            <button
+              type="button"
+              class="btn"
+              onclick={() => add('am')}
+              disabled={!selectedIsWorkday}
+            >
+              오전 반일
+            </button>
+            <button
+              type="button"
+              class="btn"
+              onclick={() => add('pm')}
+              disabled={!selectedIsWorkday}
+            >
+              오후 반일
+            </button>
+          {/if}
         </div>
+        {#if halfDayOff}<OffNote label="반일 연가" off={halfDayOff} id="leave-half-off" />{/if}
         <div class="hours">
           <Stepper
             id="leave-hours"
@@ -574,11 +623,15 @@
         이 직종의 연가 일수는 계산하지 않고 직접 넣은 값을 써요. 휴직·결근 공제와 병가·공가·특별휴가
         기록은 다루지 않아요.
       {:else}
-        연가 일수는 재직기간으로만 계산하고(복무규정 제15조), 휴직·결근 공제와 병가·공가·특별휴가
-        기록은 다루지 않아요.
+        연가 일수는 재직기간으로만 계산하고({isAvailable(career.leave.annual)
+          ? cite(career.leave.annual.source)
+          : ''}), 휴직·결근 공제와 병가·공가·특별휴가 기록은 다루지 않아요.
       {/if}
       {#if view.leaveProrated}
-        올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요(제17조제2항).
+        올해는 정년퇴직하는 해라 퇴직일까지 근무하는 개월 수만큼만 계산했어요({cite(
+          rules.firstYear.source,
+          true,
+        )}).
       {/if}
     </p>
     {#if view.leaveDayPrice !== null && compensation}
@@ -587,7 +640,7 @@
           ? MASKED_WON
           : `약 ${formatWon(view.leaveDayPrice)}`} (월 봉급 × {Math.round(compensation.rate * 100)}%
         ÷
-        {compensation.divisor}, 수당규정 제18조의5). 보상 일수와 지급 여부는 권장연가 등 기관 방침에
+        {compensation.divisor}, {cite(compensation.source)}). 보상 일수와 지급 여부는 {compensation.payCondition}에
         따라 달라요(최대 {compensation.maxDays}일).
       </p>
     {:else if view.leaveCompensationOff}
@@ -633,7 +686,7 @@
           ? '이 직종의 연가 일수는 아직 계산하지 않아요. 소속 기관 인사시스템에 나온 올해 연가 일수를 그대로 넣어 주세요.'
           : screen && !screen.savingCarryOver
             ? `성실 근무 가산 연가(총 2일 이내), 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen.recordSystem.replace(/\(.*\)$/, '')}에 나온 일수를 그대로 넣어 주세요.`
-            : '가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 e-사람에 나온 일수를 그대로 넣어 주세요.'}
+            : `가산 연가, 저축·이월 연가, 휴직에 따른 공제처럼 계산으로 알 수 없는 사정이 있으면 ${screen ? screen.recordSystem.replace(/\(.*\)$/, '') : 'e-사람'}에 나온 일수를 그대로 넣어 주세요.`}
       </p>
       <div class="grant">
         <Stepper id="grant-days" label="일" bind:value={grantDays} min={0} max={60} unit="일" />

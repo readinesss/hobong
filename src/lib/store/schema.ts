@@ -9,7 +9,7 @@
 import type { Ymd } from '../calc/date.ts';
 import type { RankKey, TrackId } from '../rules/types.ts';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const APP_ID = 'hobong';
 
 /** 일반직 직급 수(v3 까지 저장하던 grade, 별표 3 의 열). v4 부터 저장본은 계급 키(rank) 문자열을 쓴다 */
@@ -20,6 +20,12 @@ export type Grade = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
  * 규정 데이터와 무관한 코드 상수다 — 저장본 검사가 규정 데이터에 기대지 않게(부록 C).
  */
 export const GENERAL_RANKS: readonly RankKey[] = ['9', '8', '7', '6', '5', '4', '3', '2', '1'];
+
+/**
+ * 계급 키가 일반직과 같은 '1'~'9' 인 직종(국가 일반직·지방 일반직, v7). 저장본 검사가 쓰는 코드 상수다
+ * (규정 데이터에 기대지 않는다). 지방 일반직도 1~9급 사다리라 '순경' 같은 키는 거부한다.
+ */
+export const GENERAL_RANK_TRACKS: readonly TrackId[] = ['general', 'localGeneral'];
 
 /** 일반직이 고르는 봉급표(공무원보수규정 별표 3·4·8). 그 밖의 직종은 직종이 봉급표를 정하므로 저장하지 않는다 */
 export type GeneralPayTableId = 'table3' | 'table4' | 'table8';
@@ -60,8 +66,15 @@ export interface Profile {
    * 계산에는 쓰지 않고 호봉이 소품(테마)과, 사용자가 켠 곳의 이름 표시에만 쓴다.
    * 소속을 짐작하게 할 수 있어 이 브라우저(와 사용자가 내려받은 백업 파일)에만 둔다.
    * 일반직이 아니면 쓰지 않는다(값은 지우지 않는다 — 직종을 되돌리면 다시 쓴다).
+   * 어느 직렬 표(국가·지방)의 이름인지는 직종(규정 데이터의 seriesScope)이 정한다 — 저장 키는 이름 그대로(v7).
    */
   series: string | null;
+  /**
+   * 고른 직류(v7, 예: 행정 직렬의 '교육행정'). 고르지 않았거나 직렬과 같은 이름의 단일 직류면 null.
+   * 형식만 검사한다(SERIES_KEY_RE) — 목록에 없거나 그 직렬의 직류가 아니어도 지우지 않고 보이지만 않는다.
+   * 직렬보다 좁은 정보라 카드·결산 카드·공유 문구·소품 계산에는 쓰지 않는다(이 브라우저와 패키지에만).
+   */
+  seriesJikryu: string | null;
   /** 일반직이 고른 봉급표. 그 밖의 직종은 null */
   payTable: GeneralPayTableId | null;
   /**
@@ -89,6 +102,30 @@ export interface Profile {
     /** 계급정년에 이르는 날(직접 고침). 계급정년이 없는 계급이어도 지우지 않는다(계산에 안 쓴다) */
     rankLimitDate: Ymd | null;
   };
+  /**
+   * 임용 전 군 복무(v7, #34). 넣지 않았으면 null('없음·말하지 않음'). 입대·전역 날짜는 받지 않고 기간만 둔다.
+   * 형식만 검사한다(형태는 닫힌 목록, 개월 0~480·일 0~29, 합이 0 보다 큼). 임용일·생년월일·오늘과 견주지 않는다.
+   * 카드·결산 카드·공유 문구에는 쓰지 않는다.
+   */
+  priorService: PriorService | null;
+}
+
+/**
+ * 군 복무 형태(닫힌 목록 — 계산 키라 목록 밖이면 거부한다. 늘리면 저장 형식 버전을 올린다).
+ * 현역병·상근예비역 / 사회복무요원·대체복무요원 / 의무경찰·경비교도 / 부사관·장교 / 산업기능요원·전문연구요원 등
+ */
+export type PriorServiceKind = 'enlisted' | 'alternative' | 'conversion' | 'cadre' | 'special';
+export const PRIOR_SERVICE_KINDS: readonly PriorServiceKind[] = [
+  'enlisted',
+  'alternative',
+  'conversion',
+  'cadre',
+  'special',
+];
+export interface PriorService {
+  kind: PriorServiceKind;
+  months: number;
+  days: number;
 }
 
 export interface WorkHours {
@@ -188,6 +225,10 @@ export interface Settings {
 
 export type LeaveKind = 'day' | 'am' | 'pm' | 'hours';
 
+/** 연가 기록이 어느 몫에서 나갔는지(v7, #33): 그해 연가 / 저축연가 */
+export type LeavePool = 'annual' | 'saved';
+export const LEAVE_POOLS: readonly LeavePool[] = ['annual', 'saved'];
+
 export interface LeaveRecord {
   id: string;
   date: Ymd;
@@ -195,12 +236,52 @@ export interface LeaveRecord {
   hours: number;
   kind: LeaveKind;
   memo: string;
+  /** v7. 칸이 없는 기록은 'annual' 로 읽는다(기록 하나 때문에 장부 전체를 거부하지 않게) */
+  pool: LeavePool;
 }
+
+/**
+ * 저축연가 통장의 한 칸(v7, #33). 파생 값(남은 저축 등)은 저장하지 않는다.
+ * - opening: 처음 잔액(그 해 말까지 모인 것) · carry: 그 해 말에 저축한 것 · overtime: 시간외근무를 다음 달로 저축한 시간
+ */
+export type SavingsKind = 'opening' | 'carry' | 'overtime';
+export const SAVINGS_KINDS: readonly SavingsKind[] = ['opening', 'carry', 'overtime'];
+export interface SavingsEntry {
+  id: string;
+  kind: SavingsKind;
+  /** 정수, LIMITS.minLeaveYear~maxLeaveYear */
+  year: number;
+  /** overtime 이면 'YYYY-MM'(연도가 year 와 같다), 그 밖이면 null */
+  month: string | null;
+  /** 정수 1~LIMITS.maxSavingHours(overtime 은 1~LIMITS.maxOvertimeSavingHours) */
+  hours: number;
+  memo: string;
+}
+
+/**
+ * 한 해의 연가 정리 값(v7, #33). 모두 사용자가 넣는 값이고 null 은 '넣지 않음'.
+ * 네 칸이 모두 null 인 해는 저장본에 두지 않는다(검사가 버린다 — 거부하지 않는다).
+ */
+export interface LeaveYearPlan {
+  /** 보상하지 않는 일수(권장 연가 미보상 등, 정수 0~60). null = 모름 */
+  unpaidDays: number | null;
+  /** 기관의 보상 한도 일수(정수 0~60). null = 규정 상한 */
+  capDays: number | null;
+  /** 6월 30일 기준 보상을 받았는지('paid'·'none'). null = 모름 */
+  midYear: 'paid' | 'none' | null;
+  /** 고른 12월 보상 일수(정수 0~60). capDays 보다 커도 거부하지 않는다(계산이 그 해 한도로 자른다) */
+  compDays: number | null;
+}
+export const LEAVE_MID_YEAR_VALUES: readonly LeaveYearPlan['midYear'][] = ['paid', 'none', null];
 
 export interface LeaveData {
   records: LeaveRecord[];
   /** 연도('2026') → 직접 고친 부여 시간. 없으면 재직기간으로 자동 계산 */
   grantOverrideHours: Record<string, number>;
+  /** 저축연가 통장(v7). 칸이 없으면 [] */
+  savings: SavingsEntry[];
+  /** 연도('2026') → 그 해의 연가 정리 값(v7). 칸이 없으면 {} */
+  years: Record<string, LeaveYearPlan>;
 }
 
 export interface CharacterState {
@@ -284,4 +365,15 @@ export const LIMITS = {
   maxStepAny: 99,
   /** 음량(settings.sound) 범위 */
   maxVolume: 100,
+  /** 저축연가 통장 칸 수 상한(v7) */
+  maxSavings: 500,
+  /** 저축 한 칸의 시간 상한(200일 = 1,600시간). 시간외근무 저축은 한 칸 200시간까지 */
+  maxSavingHours: 1600,
+  maxOvertimeSavingHours: 200,
+  /** 연가 정리 값을 둘 수 있는 해의 수와, 그 안의 일수 상한(v7) */
+  maxLeaveYearPlans: 60,
+  maxLeaveYearDays: 60,
+  /** 임용 전 군 복무 기간(v7): 개월 0~480(40년), 일 0~29 */
+  maxPriorServiceMonths: 480,
+  maxPriorServiceDays: 29,
 } as const;

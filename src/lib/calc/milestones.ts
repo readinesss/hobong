@@ -23,7 +23,7 @@ import {
 } from './promotion.ts';
 import { effectiveRetirement } from './retirement.ts';
 import { nextRaiseDate, stepOn } from './step.ts';
-import { withRo } from '../app/format.ts';
+import { josa, withRo } from '../app/format.ts';
 import { rankSlug } from '../rules/career.ts';
 import { GENERAL_RANKS } from '../store/schema.ts';
 import { isAvailable, type LongLeaveTier } from '../rules/types.ts';
@@ -221,18 +221,29 @@ export function buildMilestones(
   }
 
   // 연가 일수가 늘어나는 날
+  // 'year-start'(지방 일반직 — 재직기간을 어느 날 기준으로 세는지 원문으로 확인하지 못했다)는 재직 N년이 되는 날
+  // 그해 일수가 늘어나는지 모른다. 연초 재직기간으로 센 일수가 그 구간이 되는 첫 1월 1일을 일정으로 둔다
+  // (연가 화면이 그날부터 그 일수를 보인다). 재직 N년이 되는 날은 문구에 날짜로만 밝히고 '준비 중'이라 말한다.
   const annual = c.leave.annual;
   if (isAvailable(annual)) {
     const leaveTiers = annual.tiers;
+    const yearStart = annual.tenureBasis === 'year-start';
     leaveTiers.forEach((tier, i) => {
       if (tier.fromMonths < 12) return;
       const before = tierDays(leaveTiers, tier.fromMonths - 1);
       const isLast = i === leaveTiers.length - 1;
+      const reached = periodCompleteDate(hireDate, tier.fromMonths);
+      const years = yearsLabel(tier.fromMonths);
+      const jan1 = `${yearOf(reached) + (reached.endsWith('-01-01') ? 0 : 1)}-01-01`;
       push({
         id: `leave-${tier.days}`,
-        date: periodCompleteDate(hireDate, tier.fromMonths),
+        date: yearStart ? jan1 : reached,
         title: `연가 ${tier.days}일`,
-        detail: `재직 ${yearsLabel(tier.fromMonths)}. 한 해 연가가 ${before}일에서 ${tier.days}일로 늘어나요.`,
+        detail: yearStart
+          ? reached === jan1
+            ? `재직 ${years}. 연초 재직기간으로 세면 한 해 연가가 ${before}일에서 ${tier.days}일이 돼요.`
+            : `재직 ${josa(years, '을', '를')} 넘긴 첫 1월 1일. 연초 재직기간으로 세면 한 해 연가가 ${before}일에서 ${tier.days}일이 돼요. 재직 ${josa(years, '이', '가')} 되는 ${formatKorean(reached, false)}부터 늘어나는지는 준비 중이에요.`
+          : `재직 ${years}. 한 해 연가가 ${before}일에서 ${tier.days}일로 늘어나요.`,
         icon: 'icon-palm',
         kind: 'leave',
         badge: isLast,
@@ -328,8 +339,9 @@ export function buildMilestones(
     // '할 수 있다' 규정임을 밝히는 문구는 규정 데이터(longService.discretionNote)에서 읽는다.
     const note = isAvailable(c.longService) ? c.longService.discretionNote : undefined;
     const discretion = note ? ` ${note}` : '';
-    // 명부 이름은 직종마다 다르다(일반직 승진후보자명부, 소방 승진대상자명부 등). 일반직만 이름을 쓴다
-    const roster = c.sel.track === 'general' ? '승진후보자명부' : '명부';
+    // 명부 이름은 직종마다 다르다(국가 '승진후보자명부', 지방 '승진후보자 명부', 소방 '승진대상자명부' 등).
+    // 규정 데이터(longService.rosterName)에 원문 글자가 있는 직종만 이름을 쓰고, 없으면 '명부'
+    const roster = (isAvailable(c.longService) ? c.longService.rosterName : undefined) ?? '명부';
     push({
       id: `long-service-${slug}`,
       date: longService.date,

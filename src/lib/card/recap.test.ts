@@ -34,6 +34,7 @@ const profile: Profile = {
   hireDate: '2022-09-01',
   track: 'general',
   series: null,
+  seriesJikryu: null,
   payTable: 'table3',
   rank: '9',
   rankDate: '2022-09-01',
@@ -41,6 +42,7 @@ const profile: Profile = {
   nextStepDate: '2027-01-01',
   stepAsOf: '2026-11-24',
   overrides: { longServiceDate: null, seniorDate: null, rankLimitDate: null },
+  priorService: null,
 };
 
 function input(over: Partial<RecapInput> = {}): RecapInput {
@@ -52,7 +54,7 @@ function input(over: Partial<RecapInput> = {}): RecapInput {
     periodMonths: 12,
     cal,
     rules: rulesFor,
-    records: [{ id: 'a', date: '2026-03-03', kind: 'day', hours: 8, memo: '' }],
+    records: [{ id: 'a', date: '2026-03-03', kind: 'day', hours: 8, memo: '', pool: 'annual' }],
     hoursPerDay: 8,
     visits: ['2026-11-24', '2026-11-25'],
     badges: [],
@@ -244,10 +246,38 @@ describe('결산 카드 그리기', () => {
 
     it(`${ratio}: 오늘 뒤 칸은 예정 연가·예정 승급을 칠하지 않는다`, () => {
       const records = [
-        { id: 'p1', date: '2026-12-21', kind: 'day' as const, hours: 8, memo: '' },
-        { id: 'p2', date: '2026-12-22', kind: 'am' as const, hours: 4, memo: '' },
-        { id: 'p3', date: '2026-12-23', kind: 'hours' as const, hours: 2, memo: '' },
-        { id: 'past', date: '2026-03-03', kind: 'day' as const, hours: 8, memo: '' },
+        {
+          id: 'p1',
+          date: '2026-12-21',
+          kind: 'day' as const,
+          hours: 8,
+          memo: '',
+          pool: 'annual' as const,
+        },
+        {
+          id: 'p2',
+          date: '2026-12-22',
+          kind: 'am' as const,
+          hours: 4,
+          memo: '',
+          pool: 'annual' as const,
+        },
+        {
+          id: 'p3',
+          date: '2026-12-23',
+          kind: 'hours' as const,
+          hours: 2,
+          memo: '',
+          pool: 'annual' as const,
+        },
+        {
+          id: 'past',
+          date: '2026-03-03',
+          kind: 'day' as const,
+          hours: 8,
+          memo: '',
+          pool: 'annual' as const,
+        },
       ];
       // 다음 승급일이 12월 1일(오늘 뒤)
       const over = { records, visits: [], profile: { ...profile, nextStepDate: '2026-12-01' } };
