@@ -391,3 +391,29 @@ export function makeSeedV7(profile: SeedProfileV4 = {}, v7: SeedV7 = {}): string
   env.data.leave.years = {};
   return JSON.stringify(env);
 }
+
+/** 진동 호출을 받아 적는 가짜 navigator.vibrate 를 심는다(진동이 없는 브라우저 엔진에서도 같은 검증을 한다) */
+export async function stubVibrate(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const calls: number[][] = [];
+    (window as unknown as { __vibes: number[][] }).__vibes = calls;
+    Object.defineProperty(Navigator.prototype, 'vibrate', {
+      configurable: true,
+      value: (pattern: number | number[]) => {
+        calls.push(Array.isArray(pattern) ? [...pattern] : [pattern]);
+        return true;
+      },
+    });
+    // 진동 버튼·스위치는 터치 기기에서만 보인다(데스크톱 프로젝트에서도 휴대폰처럼 검증한다)
+    Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
+      configurable: true,
+      get: () => 5,
+    });
+  });
+}
+
+/** 울린 진동 무늬들(멈춤 요청 vibrate(0) 은 뺀다) */
+export const vibes = (page: Page) =>
+  page.evaluate(() =>
+    (window as unknown as { __vibes: number[][] }).__vibes.filter((p) => p.some((ms) => ms > 0)),
+  );

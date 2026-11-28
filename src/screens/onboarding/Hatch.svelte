@@ -39,17 +39,21 @@
     nickname: string;
     /** 인사말 고르기 씨앗 */
     seed?: number;
+    /** 알이었을 때 여러 번 콕 눌러 줬는지(#39). 인사말이 그걸 기억한다(메모리에만 — 저장하지 않는다) */
+    poked?: boolean;
     /** 홈으로 넘어간다 */
     onend: () => void;
   }
 
-  let { look, nickname, seed = 0, onend }: Props = $props();
+  let { look, nickname, seed = 0, poked = false, onend }: Props = $props();
 
   // 이 화면은 깨어나는 한 번만 쓰인다: 처음 받은 값으로 장면과 인사말을 정한다
   const evolves = untrack(() => look.form.id !== characterRules.forms[0]?.id);
   const scene = hatchScene({ evolves });
   const greet = untrack(() =>
-    fillLine(pickLine(TALK.hatch.greet, seed), { nick: nickStem(nickname) }),
+    fillLine(pickLine(poked ? TALK.hatch.greetPoked : TALK.hatch.greet, seed), {
+      nick: nickStem(nickname),
+    }),
   );
 
   let done = $state(false);

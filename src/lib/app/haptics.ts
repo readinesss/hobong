@@ -43,6 +43,8 @@ export const CUE_HAPTICS: Readonly<Partial<Record<CueName, HapticName>>> = {
   'egg-react': 'tick',
   'egg-crack': 'crack',
   'egg-ready': 'ready',
+  // 알을 콕 눌렀다: 묶음에 한 번만 짧게(연타마다 울리지 않는다)
+  'egg-poke': 'tick',
   'egg-knock': 'knock',
   hatch: 'pop',
   'step-up': 'tick',

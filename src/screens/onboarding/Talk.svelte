@@ -7,7 +7,10 @@
    * - 낭독: 질문이 바뀌면 입력 칸으로 포커스를 옮기고, 질문 문장이 칸(묶음)의 이름, 맞장구·알 상태·남은 칸이 설명이다.
    *   날짜 질문은 포커스를 받는 연도 칸에 설명을 단다(묶음의 설명은 읽지 않는 낭독기가 있다).
    *   따로 알리는 영역(live)은 두지 않는다(포커스 낭독과 겹쳐 두 번 읽지 않게).
+   *   예외는 알 장난(#39)의 한 줄뿐이다: 손길 한 묶음이 끝날 때 한 번(polite), 질문이 바뀌면 기다리던 줄을 버린다.
    * - 알 그림은 장식(aria-hidden)이고, 소리·진동은 신호(emitCue)만 낸다.
+   * - 알은 '호봉이 알 콕 누르기' 단추(EggPoke)로 감싸 누르기·마우스 올리기에 반응한다. 알을 눌러도 입력 칸의 포커스·
+   *   적던 글자·스크롤·질문·진행은 그대로다(알 손길은 showEgg·settleScroll·focus 를 부르지 않는다).
    * - 맞장구는 그림과 맞춘다: 금 단계가 실제로 오른 답에만 '금이 갔어요'를 말하고, 아니면 그 칸의 몸짓(톡·흔들·갸웃·콩콩·까딱)을 말한다.
    *   움직임 줄이기에서는 몸짓을 말하지 않는다(알이 멈춰 있다).
    * - 고르는 질문(칩)에서도 Enter 는 [다음]이다(Space 는 고르기). 도움말은 한 줄로 두고 나머지는 [자세히]에 접는다
@@ -67,6 +70,7 @@
   import Stepper from '../../lib/ui/Stepper.svelte';
   import LookEditor from '../customize/LookEditor.svelte';
   import SeriesPicker from '../profile/SeriesPicker.svelte';
+  import EggPoke from './EggPoke.svelte';
   import EggStage, { REACTION_MOVE, type EggReaction } from './EggStage.svelte';
 
   interface Props {
@@ -85,6 +89,8 @@
     onexit: () => void;
     /** 지금 이 화면이 보이는지(가려져 있는 동안에는 탭 제목을 건드리지 않는다) */
     active?: boolean;
+    /** 알을 콕 누를 때마다 이번 첫 입력에서 누른 수(부화 인사가 기억한다. 저장하지 않는다) */
+    onpoke?: (total: number) => void;
   }
 
   let {
@@ -96,6 +102,7 @@
     onhatch,
     onexit,
     active = true,
+    onpoke,
   }: Props = $props();
 
   $effect(() => d.clampStep());
@@ -125,6 +132,7 @@
   const say = (lines: readonly string[]) => pickLine(lines, seed + (turn += 1));
 
   let egg = $state<ReturnType<typeof EggStage>>();
+  let poker = $state<ReturnType<typeof EggPoke>>();
   let section = $state<HTMLElement>();
   let panel = $state<HTMLElement>();
   let heading = $state<HTMLElement>();
@@ -309,6 +317,8 @@
     tried = false;
     oops = '';
     moreOpen = false;
+    // 알 장난의 낭독 줄이 새 질문의 포커스 낭독과 겹치지 않게
+    poker?.quiet();
     if (place !== 'greeting' && place !== 'summary') egg?.glance();
     await tick();
     if (options.focus === false) return;
@@ -680,14 +690,33 @@
     </div>
 
     <div class="scene" class:compact>
-      <div
-        class={compact ? 'egg-mini' : 'stage'}
-        class:small={!compact && eggScale < 4}
-        aria-hidden="true"
-        bind:this={eggBox}
+      <EggPoke
+        bind:this={poker}
+        {egg}
+        {stage}
+        {compact}
+        {eggScale}
+        wordy={!compact && eggScale >= 4}
+        {onpoke}
       >
-        <EggStage bind:this={egg} {stage} {ready} {paint} scale={eggScale} rows={eggRows} />
-      </div>
+        <!-- 단추 안이라 구문 내용(span)으로 둔다(보이는 모양은 CSS 의 display 가 정한다) -->
+        <span
+          class={compact ? 'egg-mini' : 'stage'}
+          class:small={!compact && eggScale < 4}
+          aria-hidden="true"
+          bind:this={eggBox}
+        >
+          <EggStage
+            bind:this={egg}
+            pokeable
+            {stage}
+            {ready}
+            {paint}
+            scale={eggScale}
+            rows={eggRows}
+          />
+        </span>
+      </EggPoke>
 
       <div class="bubble" class:side={compact} bind:this={bubbleEl}>
         <div class="stack says">

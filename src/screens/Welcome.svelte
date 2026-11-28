@@ -12,6 +12,7 @@
   import { resolveLook } from '../lib/character/look.ts';
   import { characterRules } from '../lib/character/rules.ts';
   import { emitCue } from '../lib/fx/cues.ts';
+  import { POKE } from '../lib/fx/poke.ts';
   import { rulesFor } from '../lib/rules/index.ts';
   import { defaultLook } from '../lib/store/defaults.ts';
   import type { CharacterLook, Profile } from '../lib/store/schema.ts';
@@ -20,6 +21,7 @@
   import Sprite from '../lib/ui/Sprite.svelte';
   import ImportDialog from './ImportDialog.svelte';
   import ProfileForm from './ProfileForm.svelte';
+  import EggPoke from './onboarding/EggPoke.svelte';
   import EggStage from './onboarding/EggStage.svelte';
   import Hatch from './onboarding/Hatch.svelte';
   import Talk from './onboarding/Talk.svelte';
@@ -248,6 +250,11 @@
   const formStage = $derived(eggStageFor(formFilled, FORM_KEYS.length));
   let formEgg = $state<ReturnType<typeof EggStage>>();
   let seenFilled = 0;
+  /** 알을 콕 누른 수(대화·폼). 많이 눌렀으면 깨어난 호봉이의 인사가 기억한다. 메모리에만 둔다(#39) */
+  let talkPokes = 0;
+  let formPokes = 0;
+  let poked = $state(false);
+  const countPokes = () => (poked = talkPokes + formPokes >= POKE.greetPokedAt);
   function onFormFocusOut() {
     const filled = formFilled;
     if (filled > seenFilled) {
@@ -449,6 +456,10 @@
           onform={goForm}
           onhatch={() => create(draft.toProfile(), draft.payday)}
           onexit={() => goIntro({ viaHistory: !guarded })}
+          onpoke={(n) => {
+            talkPokes = n;
+            countPokes();
+          }}
         />
       </div>
     {/if}
@@ -470,15 +481,27 @@
               {TALK.modes.talk}
             </button>
           </header>
-          <div class="mini-stage" aria-hidden="true">
-            <EggStage
-              bind:this={formEgg}
-              stage={formStage}
-              ready={formFilled === FORM_KEYS.length}
-              scale={2}
-              rows={30}
-            />
-          </div>
+          <!-- 폼을 내려도 위에 붙어 있는 알(누르면 반응한다. 붙어 있기는 단추가 맡는다) -->
+          <EggPoke
+            egg={formEgg}
+            stage={formStage}
+            sticky
+            onpoke={(n) => {
+              formPokes = n;
+              countPokes();
+            }}
+          >
+            <span class="mini-stage" aria-hidden="true">
+              <EggStage
+                bind:this={formEgg}
+                pokeable
+                stage={formStage}
+                ready={formFilled === FORM_KEYS.length}
+                scale={2}
+                rows={30}
+              />
+            </span>
+          </EggPoke>
           <div class="win-body" onfocusout={onFormFocusOut}>
             <ProfileForm
               {draft}
@@ -500,6 +523,7 @@
         look={hatchedLook}
         nickname={view.profile.nickname}
         {seed}
+        {poked}
         onend={() => app.finishHatch()}
       />
     {/if}
@@ -599,11 +623,8 @@
   .mode {
     margin: 0 -6px 0 auto;
   }
-  /* 한 번에 쓰기의 작은 알: 폼을 내려도 위에 붙어 반응이 보인다 */
+  /* 한 번에 쓰기의 작은 알: 폼을 내려도 위에 붙어 반응이 보인다(붙어 있기는 감싼 단추 EggPoke 가 맡는다) */
   .mini-stage {
-    position: sticky;
-    top: var(--safe-t);
-    z-index: 5;
     display: flex;
     justify-content: center;
     align-items: flex-end;

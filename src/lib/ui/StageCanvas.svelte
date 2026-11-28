@@ -24,7 +24,8 @@
   let { rows = 56, scale = 4, render, label }: Props = $props();
 
   const SPRITE = characterRules.canvas.w;
-  let wrap = $state<HTMLDivElement>();
+  /** 감싼 칸. span 이라 단추(알 콕 누르기) 안에도 둘 수 있다(모양은 display:flex) */
+  let wrap = $state<HTMLSpanElement>();
   let canvas = $state<HTMLCanvasElement>();
   let dpr = $state(1);
   let boxWidth = $state(0);
@@ -96,7 +97,7 @@
   });
 </script>
 
-<div
+<span
   bind:this={wrap}
   class="stage-canvas"
   style="height:{rows * unit}px"
@@ -106,7 +107,7 @@
 >
   <canvas bind:this={canvas} style="width:{cols * unit}px;height:{rows * unit}px" aria-hidden="true"
   ></canvas>
-</div>
+</span>
 
 <style>
   .stage-canvas {

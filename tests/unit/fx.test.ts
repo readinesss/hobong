@@ -895,6 +895,7 @@ describe('신호(cue)', () => {
     for (const name of [
       'egg-react',
       'egg-crack',
+      'egg-poke',
       'hatch',
       'step-up',
       'promotion',
@@ -1125,6 +1126,27 @@ describe('신호에 진동 얹기', () => {
     expect(vibrate).not.toHaveBeenCalled();
     expect(CUE_HAPTICS['egg-flinch']).toBeUndefined();
     unlink();
+  });
+
+  it('알을 콕 누르면(#39) 짧게 한 번(20ms) 울린다. 움직임 줄이기·진동 끔이면 울리지 않는다', () => {
+    const doc = fakeDocument();
+    const vibrate = fakeNavigator();
+    const unlink = linkHaptics();
+    // 울린 무늬만 센다(진동을 끌 때의 멈춤 요청 vibrate(0) 은 뺀다)
+    const buzzes = () => vibrate.mock.calls.filter(([pattern]) => pattern !== 0);
+    try {
+      emitCue('egg-poke', { stage: 0, combo: 1, hold: false });
+      expect(buzzes()).toEqual([[[20]]]);
+      setHapticsEnabled(false);
+      emitCue('egg-poke');
+      setHapticsEnabled(true);
+      doc.motion = 'reduced';
+      emitCue('egg-poke');
+      expect(buzzes()).toHaveLength(1);
+    } finally {
+      setHapticsEnabled(true);
+      unlink();
+    }
   });
 
   it('임용정보 패키지를 받으면 짧게 한 번 울린다(보따리가 통 튀는 그림과 함께)', () => {

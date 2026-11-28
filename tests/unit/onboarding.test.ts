@@ -163,6 +163,16 @@ describe('대사(data/talk.json)', () => {
     ...TALK.egg.stage,
     ...TALK.egg.crack.flat(),
     ...Object.values(TALK.egg.move).flat(),
+    // 알 콕 누르기(#39)의 문장(소리 글자 sfx 는 문장이 아니다)
+    ...TALK.egg.poke.tap.flat(),
+    ...TALK.egg.poke.few,
+    ...TALK.egg.poke.hop,
+    ...TALK.egg.poke.readyMany,
+    ...TALK.egg.poke.rest,
+    ...TALK.egg.poke.hold,
+    ...TALK.egg.poke.rub,
+    ...TALK.egg.poke.echo,
+    ...TALK.hatch.greetPoked,
     ...TALK.share.leads,
     TALK.share.card,
     ...Object.values(TALK.questions).flatMap((q) => [
@@ -224,6 +234,19 @@ describe('대사(data/talk.json)', () => {
     expect(TALK.oops.length).toBeGreaterThanOrEqual(2);
     expect(TALK.wit.length).toBeGreaterThanOrEqual(2);
     expect(TALK.hatch.greet.length).toBeGreaterThanOrEqual(2);
+    expect(TALK.hatch.greetPoked.length).toBeGreaterThanOrEqual(2);
+    const poke = TALK.egg.poke;
+    for (const lines of [
+      ...poke.tap,
+      poke.few,
+      poke.hop,
+      poke.readyMany,
+      poke.rest,
+      poke.hold,
+      poke.rub,
+      poke.echo,
+    ])
+      expect(lines.length, lines[0]).toBeGreaterThanOrEqual(2);
     for (const [id, q] of Object.entries(TALK.questions)) {
       expect(q.ack.length, id).toBeGreaterThanOrEqual(2);
       if ('skip' in q) expect(q.skip.length, id).toBeGreaterThanOrEqual(2);
