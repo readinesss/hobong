@@ -5,6 +5,9 @@
  */
 export type CardKind = 'character' | 'recap';
 
+/** '패키지를 받아 두세요' 띠를 이 탭에서 미룬 표시(띠의 [나중에], 또는 홈 패키지 안내의 [나중에]) */
+export const BACKUP_NUDGE_KEY = 'backup-nudge';
+
 class Session {
   cardKind = $state<CardKind>('character');
   /** 결산 카드에 올해 번 봉급을 넣는지(기본 끔) */

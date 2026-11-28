@@ -24,6 +24,7 @@
   import EggPoke from './onboarding/EggPoke.svelte';
   import EggStage from './onboarding/EggStage.svelte';
   import Hatch from './onboarding/Hatch.svelte';
+  import HapticsToggle from './onboarding/HapticsToggle.svelte';
   import Talk from './onboarding/Talk.svelte';
 
   /**
@@ -468,7 +469,7 @@
         <section class="win" id="welcome-form" aria-labelledby="welcome-form-title">
           <header class="win-title">
             <button type="button" class="btn ghost small back" onclick={() => goIntro()}>
-              <Icon name="icon-chevron-left" /> 뒤로
+              <Icon name="icon-chevron-left" /> <span class="back-text">뒤로</span>
             </button>
             <h1 id="welcome-form-title" tabindex="-1" bind:this={formHeading}>내 정보 넣기</h1>
             <button
@@ -480,6 +481,8 @@
               <Icon name="icon-chat" />
               {TALK.modes.talk}
             </button>
+            <!-- 칸을 떠날 때 알이 반응하며 울리므로 이 화면에도 진동 단추를 둔다(대화 화면과 같은 단추·같은 값) -->
+            <HapticsToggle bind:haptics />
           </header>
           <!-- 폼을 내려도 위에 붙어 있는 알(누르면 반응한다. 붙어 있기는 단추가 맡는다) -->
           <EggPoke
@@ -507,6 +510,11 @@
               {draft}
               askPayday
               submitLabel="알 깨우기"
+              ready={{
+                icon: 'icon-egg',
+                line: TALK.modes.formReady,
+                pending: TALK.modes.formPending,
+              }}
               onsubmit={(profile, payday) => create(profile, payday)}
             />
           </div>
@@ -621,7 +629,25 @@
     margin: 0 0 0 -6px;
   }
   .mode {
-    margin: 0 -6px 0 auto;
+    margin: 0 0 0 auto;
+  }
+  .mode:last-child {
+    margin-right: -6px;
+  }
+  /*
+    좁은 휴대폰에서 진동 단추까지 들어오면 제목('내 정보 넣기')이 잘린다: 그때만 [뒤로]는 화살표만 보인다
+    (글자는 낭독용으로 남긴다. 단추 이름은 그대로 '뒤로').
+  */
+  @media (max-width: 400px) {
+    .win-title:has(:global(.tool)) .back-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
   }
   /* 한 번에 쓰기의 작은 알: 폼을 내려도 위에 붙어 반응이 보인다(붙어 있기는 감싼 단추 EggPoke 가 맡는다) */
   .mini-stage {

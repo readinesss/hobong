@@ -726,6 +726,7 @@
               <input
                 type="checkbox"
                 checked={settings.haptics}
+                aria-describedby={anim.reduced ? 'set-haptics-reduced' : undefined}
                 onchange={(e) =>
                   toggle(e.currentTarget, { haptics: e.currentTarget.checked }, (s) => s.haptics)}
               />
@@ -734,6 +735,10 @@
                 진동 <span class="cap muted">승급·승진 연출에서 짧게 울려요</span>
               </span>
             </label>
+            {#if anim.reduced}
+              <!-- 움직임 줄이기면 진동도 울리지 않는다(haptics.ts). 켜 둔 값은 그대로 두고 까닭만 알린다(부록 P4) -->
+              <p class="cap muted" id="set-haptics-reduced">움직임 줄이기 중에는 울리지 않아요.</p>
+            {/if}
           {/if}
           <label class="switch">
             <input

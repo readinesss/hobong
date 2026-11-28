@@ -152,6 +152,41 @@ test.describe('임용정보 패키지 안내', () => {
     expect((await storedData(page))?.meta.lastBackupAt).not.toBeNull();
   });
 
+  test("안내가 답을 기다리는 동안에는 '패키지를 받아 두세요' 띠를 미룬다(같은 것을 두 번 권하지 않는다)", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await onboard(page);
+    // 첫 입력 뒤 아홉 번 바뀌었다(띠가 나올 만큼)
+    await page.evaluate(() => {
+      const env = JSON.parse(window.localStorage.getItem('hobong.data') ?? '{}');
+      env.data.meta.changesSinceBackup = 9;
+      window.localStorage.setItem('hobong.data', JSON.stringify(env));
+    });
+    await page.reload();
+    await tick(page, 2500);
+    const nudge = page.getByText('아직 임용정보 패키지를 받은 적이 없어요.');
+    await expect(guide(page)).toBeVisible();
+    await expect(nudge).toHaveCount(0);
+    // 다른 탭(연가)에서도 안내가 답을 기다리는 동안에는 띠가 없다
+    await page.evaluate(() => (window.location.hash = 'leave'));
+    await tick(page);
+    await expect(page.locator('#leave-summary')).toBeVisible();
+    await expect(nudge).toHaveCount(0);
+    await page.evaluate(() => (window.location.hash = 'home'));
+    await tick(page, 2500);
+    // 안내에서 '나중에'라고 답하면 이 탭에서는 띠도 미룬다(방금 답한 것을 바로 또 묻지 않는다)
+    await guide(page).getByRole('button', { name: '나중에' }).click();
+    await expect(guide(page)).toHaveCount(0);
+    await tick(page);
+    await expect(nudge).toHaveCount(0);
+    // 다음에 열면 안내 대신 띠가 권한다
+    await page.reload();
+    await tick(page, 2500);
+    await expect(guide(page)).toHaveCount(0);
+    await expect(nudge).toBeVisible();
+  });
+
   test('예전부터 쓰던 사람에게는 안내 창을 띄우지 않는다', async ({ page }) => {
     await openApp(page, { seed: makeSeed() });
     await tick(page, 2500);
@@ -216,6 +251,50 @@ test.describe('패키지로 이어하기', () => {
     });
     expect(data?.profile.series).toBe('간호');
     // 패키지로 이어 온 사람에게는 '패키지 받기' 안내를 띄우지 않는다
+    await expect(guide(page)).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+});
+
+test.describe('안내에서 받은 파일로 이어하기', () => {
+  test('홈 안내에서 받은 바로 그 파일로, 다른 기기(빈 브라우저)의 첫 화면에서 이어한다', async ({
+    page,
+  }) => {
+    await openApp(page);
+    await onboard(page);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      guide(page).getByRole('button', { name: '패키지 받기' }).click(),
+    ]);
+    const name = download.suggestedFilename();
+    expect(name).toBe('hobong-package-20261125.json');
+    const saved = await download.path();
+    const before = await storedData(page);
+    expect(before?.meta.lastBackupAt).not.toBeNull();
+
+    // 다른 기기: 이 브라우저의 저장소(사용자 데이터·이 기기 편의 값)를 모두 비우고 다시 연다
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+    await tick(page);
+    await expect(page.locator('#status')).toHaveCount(0);
+    await page.getByRole('button', { name: '패키지로 이어하기' }).click();
+    const dialog = page.getByRole('dialog', { name: '임용정보 패키지 불러오기' });
+    const chooser = page.waitForEvent('filechooser');
+    await dialog.getByRole('button', { name: '파일 고르기' }).click();
+    // 받은 그 파일(내용을 손대지 않고 받은 이름 그대로)
+    await (await chooser).setFiles(tempFile(name, readFileSync(saved, 'utf8')));
+    await expect(dialog).toContainText('김주무관');
+    await dialog.getByRole('button', { name: '불러오기', exact: true }).click();
+
+    // 질문도 부화도 없이 홈으로, 넣었던 값 그대로
+    await expect(page.locator('#welcome-hatch')).toHaveCount(0);
+    await expect(page.locator('#status')).toBeVisible();
+    await tick(page, 2500);
+    await expect(page.locator('#status')).toContainText('9급 3호봉');
+    const after = await storedData(page);
+    expect(after?.profile).toEqual(before?.profile);
+    expect(after?.character.look).toEqual(before?.character.look);
+    // 이어 온 사람에게는 '패키지 받기' 안내를 다시 띄우지 않는다
     await expect(guide(page)).toHaveCount(0);
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });

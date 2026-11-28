@@ -9,7 +9,22 @@ import {
   storedData,
   tick,
   wakeEgg,
+  APP_URL,
+  NOW,
 } from './helpers.ts';
+
+/**
+ * 저장본을 넣고, 시계를 세운 채(page.clock.pauseAt) 다시 연다. 연출의 단계 시각을 tick 으로만 흘려 본다
+ * (openApp 의 시계는 세우지 않아 실제 시간과 함께 흐른다 — 0.2초 간격의 단계를 보는 단언이 부하에서 흔들린다).
+ */
+async function openPaused(page: Page, seed: string, time: string): Promise<void> {
+  const at = Date.parse(time);
+  await page.clock.install({ time: new Date(at - 60_000) });
+  await page.goto(APP_URL);
+  await page.evaluate((value) => window.localStorage.setItem('hobong.data', value), seed);
+  await page.clock.pauseAt(new Date(at));
+  await page.reload();
+}
 
 test.describe('승급과 시간의 흐름', () => {
   test('승급일이 지나면 호봉이 오르고 승급 연출이 한 번 나온다', async ({ page }) => {
@@ -387,13 +402,91 @@ test.describe('승급·승진 연출', () => {
     );
     await expect(result).toContainText('5호봉에서 6호봉으로 올랐어요. 깃이 하나 더 자랐어요.');
     await expect(result).toContainText('안경');
-    // 새 소품이 생겼으니 전 → 후 그림 두 장
-    await expect(dialog.locator('#celebration-pair').getByRole('img')).toHaveCount(2);
+    // 새 소품이 생겼으니 전 → 후 그림 두 장. 같은 형태라 뒤 그림의 이름에 새 소품을 붙여 가른다
+    const pair = dialog.locator('#celebration-pair');
+    await expect(pair.getByRole('img')).toHaveCount(2);
+    await expect(pair.getByRole('img', { name: '전: 알봉이', exact: true })).toBeVisible();
+    await expect(pair.getByRole('img', { name: '후: 알봉이, 새로 생김: 안경' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: '확인' })).toBeFocused();
     await dialog.getByRole('button', { name: '확인' }).click();
     // 연출 창은 닫힌다(오랜만에 열었으므로 이어서 '다시 만나서 반가워요'가 뜬다)
     await expect(dialog).toHaveCount(0);
     expect((await storedData(page))?.character).toMatchObject({ lastRank: '9', lastStep: 6 });
+  });
+
+  test("새 소품이 생기는 승급: '깃 +1' 꼬리표가 '새로 생김' 꼬리표와 함께 남는다", async ({
+    page,
+  }) => {
+    // 6호봉에 안경이 생긴다. 시간표(1호봉·새 소품): 깃 닿음 1220ms → 비춤 1420~2420ms → 색종이
+    await openPaused(page, moving(makeSeed()), '2027-01-04T09:30:00+09:00');
+    const dialog = page.getByRole('dialog', { name: '승급했어요' });
+    await expect(dialog).toBeVisible();
+    const over = dialog.locator('.over');
+    await tick(page, 1300);
+    await expect(over.locator('.tag')).toHaveText(['깃 +1']);
+    // 비춤 단계: '깃 +1'은 그대로이고 그 아래에 '새로 생김'이 붙는다
+    await tick(page, 400);
+    await expect(over.locator('.tag')).toHaveText(['깃 +1', '새로 생김: 안경']);
+    await tick(page, 700);
+    await expect(over.locator('.tag')).toHaveText(['깃 +1', '새로 생김: 안경']);
+    await dialog.getByRole('button', { name: '건너뛰기' }).click();
+    await expect(dialog.locator('.over')).toHaveCount(0);
+  });
+
+  test('같은 형태에서 새 소품 없이 오르면 정지 그림은 장식이고, 바뀐 것은 글이 전한다', async ({
+    page,
+  }) => {
+    // 6호봉 → 7호봉(새 소품 없음). 움직임 줄이기(기본 저장본)라 끝 장면과 정지 그림이 바로 뜬다
+    await openApp(page, {
+      seed: makeSeed({ step: 6 }),
+      time: '2027-01-04T09:30:00+09:00',
+    });
+    const dialog = page.getByRole('dialog', { name: '승급했어요' });
+    const pair = dialog.locator('#celebration-pair');
+    await expect(pair).toBeVisible();
+    await expect(pair).toHaveAttribute('aria-hidden', 'true');
+    await expect(pair.getByRole('img')).toHaveCount(0);
+    await expect(dialog.locator('#celebration-result')).toContainText(
+      '6호봉에서 7호봉으로 올랐어요. 깃이 하나 더 자랐어요.',
+    );
+  });
+
+  test("열었더니 이미 올라 있으면(다른 기기·패키지로 7급이 된 저장본) '호봉이가 자랐어요'가 뜨고 닫힌다", async ({
+    page,
+  }) => {
+    // 마지막으로 본 것은 8급 솜봉이. 저장본의 계급은 이미 7급(깃봉이)
+    const env = JSON.parse(moving(makeSeedV4({ ...EIGHT, rank: '7', rankDate: '2026-07-01' }))) as {
+      data: { character: Record<string, unknown> };
+    };
+    env.data.character = { seenForms: ['chick'], lastRank: '8', lastStep: 6, lastForm: 'chick' };
+    await openPaused(page, JSON.stringify(env), NOW);
+    const dialog = page.getByRole('dialog', { name: '호봉이가 자랐어요' });
+    const skip = dialog.getByRole('button', { name: '건너뛰기' });
+    await expect(skip).toBeFocused();
+    await expect(dialog.getByRole('status')).toHaveCount(0);
+    // 이름판은 옛 형태 이름에서 시작한다
+    await expect(dialog.locator('.over')).toContainText('솜봉이');
+    // 진화 장면(3.3초)을 지나 스스로 끝 장면에 이른다
+    await tick(page, 4000);
+    const result = dialog.getByRole('status');
+    await expect(result).toHaveCount(1);
+    await expect(result).toContainText('솜봉이에서 깃봉이로 자랐어요.');
+    const pair = dialog.locator('#celebration-pair');
+    await expect(pair.getByRole('img', { name: '전: 솜봉이' })).toBeVisible();
+    await expect(pair.getByRole('img', { name: '후: 깃봉이' })).toBeVisible();
+    const ok = dialog.getByRole('button', { name: '확인' });
+    await expect(ok).toBeFocused();
+    await ok.click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect((await storedData(page))?.character).toMatchObject({
+      lastRank: '7',
+      lastStep: 6,
+      lastForm: 'fledgling',
+    });
+    // 다시 열어도 또 뜨지 않는다
+    await page.reload();
+    await tick(page);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
   test('연출은 끝까지 두면 스스로 끝 장면에 이르고, Esc 로도 건너뛴다', async ({ page }) => {

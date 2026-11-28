@@ -22,7 +22,15 @@ import {
 } from '../../src/lib/onboarding/questions.ts';
 import { careerLookup, rulesFor } from '../../src/lib/rules/index.ts';
 import { checkProfile } from '../../src/lib/store/validate.ts';
-import { fillLine, nickStem, pickLine, TALK } from '../../src/lib/talk.ts';
+import {
+  fillLine,
+  nickStem,
+  pickLine,
+  pickLineAfter,
+  repeatsOpening,
+  sentenceOpenings,
+  TALK,
+} from '../../src/lib/talk.ts';
 
 const general = { askPayTable: true, askSeries: true, askRank: true, series: null, hasProp: false };
 const special = { askPayTable: false, askSeries: false };
@@ -342,6 +350,71 @@ describe('대사(data/talk.json)', () => {
     expect(pickLine(['a', 'b', 'c'], 4)).toBe('b');
     expect(pickLine(['a', 'b', 'c'], -1)).toBe('c');
     expect(pickLine([], 3)).toBe('');
+  });
+});
+
+describe('이어 붙는 두 토막(맞장구 → 알 토막, 맞장구 → 확인 인사)', () => {
+  /** 질문의 맞장구·건너뜀 문장(닉네임 자리는 채운다) */
+  const ackWords = Object.values(TALK.questions)
+    .flatMap((q) => {
+      const r = q as Record<string, unknown>;
+      return ['ack', 'ackPending', 'ackMax', 'skip'].flatMap((k) =>
+        Array.isArray(r[k]) ? (r[k] as string[]) : [],
+      );
+    })
+    .map((line) => fillLine(line, { nick: '호봉' }));
+  /** 맞장구 뒤에 붙는 알 토막: 금 대사(단계마다)와 몸짓 대사 */
+  const eggGroups: string[][] = [
+    ...TALK.egg.crack.filter((g) => g.length > 0),
+    ...Object.values(TALK.egg.move),
+  ];
+  const SEEDS = Array.from({ length: 12 }, (_, i) => i);
+
+  it('같은 말로 시작하는지 군말·띄어쓰기·문장부호를 떼고 견준다(재현: 금 대사 뒤의 확인 인사)', () => {
+    expect(sentenceOpenings('좋아요! 깃 하나하나 세어 뒀어요. 이제 다 됐어요!')).toEqual([
+      '좋아요',
+      '깃하나하나세어뒀어요',
+      '다됐어요',
+    ]);
+    const before = '좋아요! 깃 하나하나 세어 뒀어요. 이제 다 됐어요! 알이 빛으로 둘러싸였어요.';
+    expect(repeatsOpening(before, '다 됐어요! 틀린 곳이 없는지 한 번만 봐 주세요.')).toBe(true);
+    expect(repeatsOpening(before, '이제 깨어날 준비가 됐어요. 한 번만 확인해 주세요.')).toBe(false);
+    expect(repeatsOpening('', '다 됐어요!')).toBe(false);
+    // 씨앗이 겹치는 변형을 가리키면 다음 차례로 넘어가고, 겹치지 않으면 pickLine 과 같다
+    const lines = TALK.summary.lines;
+    for (const seed of SEEDS) {
+      const picked = pickLineAfter(lines, seed, before);
+      expect(repeatsOpening(before, picked)).toBe(false);
+      expect(pickLineAfter(lines, seed, '좋아요.')).toBe(pickLine(lines, seed));
+    }
+    expect(pickLineAfter([], 1, before)).toBe('');
+  });
+
+  it('맞장구 뒤의 알 토막은 맞장구와 같은 말로 시작하지 않는다(모든 맞장구 × 알 토막 × 씨앗)', () => {
+    expect(ackWords.length).toBeGreaterThan(20);
+    for (const word of ackWords)
+      for (const group of eggGroups)
+        for (const seed of SEEDS) {
+          const line = pickLineAfter(group, seed, word);
+          expect(repeatsOpening(word, line), `${word} + ${line}`).toBe(false);
+        }
+  });
+
+  it("확인 인사는 위에 남은 맞장구와 같은 말로 시작하지 않는다('다 됐어요!'가 두 번 이어지지 않는다)", () => {
+    const acks = [
+      '',
+      ...ackWords,
+      ...ackWords.flatMap((word) =>
+        eggGroups.flatMap((group) =>
+          SEEDS.map((seed) => `${word} ${pickLineAfter(group, seed, word)}`),
+        ),
+      ),
+    ];
+    for (const ack of acks)
+      for (const seed of SEEDS) {
+        const line = pickLineAfter(TALK.summary.lines, seed, ack);
+        expect(repeatsOpening(ack, line), `${ack} → ${line}`).toBe(false);
+      }
   });
 });
 

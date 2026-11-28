@@ -23,7 +23,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import type { ProfileDraft } from '../../lib/app/draft.svelte.ts';
   import { formatLongDate, josa } from '../../lib/app/format.ts';
-  import { hapticsSupported, setHapticsEnabled } from '../../lib/app/haptics.ts';
+  import { setHapticsEnabled } from '../../lib/app/haptics.ts';
   import {
     GENERAL_PAY_TABLE_LABEL,
     paydayChipLabel,
@@ -60,7 +60,14 @@
   } from '../../lib/onboarding/questions.ts';
   import { TRACK_IDS, type RankKey } from '../../lib/rules/index.ts';
   import { GENERAL_PAY_TABLES, LIMITS, type CharacterLook } from '../../lib/store/schema.ts';
-  import { fillLine, newTalkSeed, nickStem, pickLine, TALK } from '../../lib/talk.ts';
+  import {
+    fillLine,
+    newTalkSeed,
+    nickStem,
+    pickLine,
+    pickLineAfter,
+    TALK,
+  } from '../../lib/talk.ts';
   import ChipRadio from '../../lib/ui/ChipRadio.svelte';
   import DateInput from '../../lib/ui/DateInput.svelte';
   import Icon from '../../lib/ui/Icon.svelte';
@@ -72,6 +79,7 @@
   import SeriesPicker from '../profile/SeriesPicker.svelte';
   import EggPoke from './EggPoke.svelte';
   import EggStage, { REACTION_MOVE, type EggReaction } from './EggStage.svelte';
+  import HapticsToggle from './HapticsToggle.svelte';
 
   interface Props {
     draft: ProfileDraft;
@@ -130,6 +138,9 @@
   const seed = newTalkSeed();
   let turn = 0;
   const say = (lines: readonly string[]) => pickLine(lines, seed + (turn += 1));
+  /** say 와 같되, 바로 앞에 붙는 토막(before)과 같은 말로 시작하는 변형은 건너뛴다(부록 P5) */
+  const sayAfter = (before: string, lines: readonly string[]) =>
+    pickLineAfter(lines, seed + (turn += 1), before);
 
   let egg = $state<ReturnType<typeof EggStage>>();
   let poker = $state<ReturnType<typeof EggPoke>>();
@@ -249,12 +260,7 @@
   const eggScale = $derived(viewHeight >= 600 ? 4 : 2);
   const eggRows = $derived(compact ? 34 : eggScale < 4 ? 30 : 44);
 
-  const canVibrate = hapticsSupported();
-  function toggleHaptics() {
-    haptics = !haptics;
-    setHapticsEnabled(haptics);
-  }
-  // 이 화면에 들어올 때의 값으로 맞춘다(한 번에 쓰기에서 돌아왔을 때 등)
+  // 진동 단추는 HapticsToggle(한 번에 쓰기와 함께 쓴다). 이 화면에 들어올 때의 값으로 맞춘다(한 번에 쓰기에서 돌아왔을 때 등)
   setHapticsEnabled(untrack(() => haptics));
 
   // ── 문장 ──────────────────────────────────────────────────────────────
@@ -266,7 +272,8 @@
     return q.ask;
   });
   const greeting = pickLine(TALK.greeting.lines, seed);
-  const summaryLine = pickLine(TALK.summary.lines, seed);
+  /** 확인 인사: 위에 남아 있는 맞장구(금 대사 '이제 다 됐어요!' 등)와 같은 말로 시작하지 않게 고른다(부록 P5) */
+  const summaryLine = $derived(pickLineAfter(TALK.summary.lines, seed, ack));
   /** 알 상태 + 남은 칸(입력 칸의 설명으로만 읽힌다) */
   const stateText = $derived(
     `${TALK.egg.stage[stage] ?? ''} ${
@@ -371,12 +378,12 @@
     const word = wordOf(id);
     if (risen !== null) {
       const lines: readonly string[] = TALK.egg.crack[risen] ?? [];
-      return `${word} ${say(lines)}`.trim();
+      return `${word} ${sayAfter(word, lines)}`.trim();
     }
     if (env.reduced || id === 'track') return word;
     const moves: Partial<Record<string, readonly string[]>> = TALK.egg.move;
     const lines = moves[REACTION_MOVE[REACTIONS[id]]];
-    return lines ? `${word} ${say(lines)}` : word;
+    return lines ? `${word} ${sayAfter(word, lines)}` : word;
   }
 
   /** 답을 받아들이고 다음으로 간다. skipped 면 선택 칸을 건너뛴 것 */
@@ -653,18 +660,7 @@
     <h1 id="talk-title" tabindex="-1" bind:this={heading}>
       {at === 'summary' ? TALK.summary.title : '호봉이와 첫 만남'}
     </h1>
-    {#if canVibrate}
-      <button
-        type="button"
-        class="btn ghost small tool"
-        aria-pressed={haptics}
-        aria-label="진동"
-        title={haptics ? TALK.egg.hapticsOn : TALK.egg.hapticsOff}
-        onclick={toggleHaptics}
-      >
-        <Icon name={haptics ? 'icon-vibrate' : 'icon-vibrate-off'} />
-      </button>
-    {/if}
+    <HapticsToggle bind:haptics />
   </header>
 
   <div class="win-body stack wide" bind:this={panel}>
@@ -1187,16 +1183,10 @@
 {/if}
 
 <style>
-  .back,
-  .tool {
+  .back {
     flex: none;
     color: var(--title-ink);
-  }
-  .back {
     margin: 0 0 0 -6px;
-  }
-  .tool {
-    margin: 0 -6px 0 auto;
   }
   .top {
     display: flex;

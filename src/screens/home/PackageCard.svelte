@@ -9,11 +9,13 @@
    * - 낭독: 받은 뒤 포커스는 제목('챙겼어요!')으로 가고, 파일 이름 안내 한 줄만 알림 영역(role=status)이다.
    *   알림(토스트)은 따로 띄우지 않는다(같은 말을 두 번 읽지 않게).
    * - 암호 걸기는 1차의 암호 대화상자를 그대로 쓴다. 여기서 고른 값은 저장하지 않는다.
+   * - 이 안내가 답을 기다리는 동안 '패키지를 받아 두세요' 띠(Notices)는 미룬다. [나중에]를 고르면 이 탭에서는 띠도 미룬다.
    */
   import { tick } from 'svelte';
   import { nav } from '../../lib/app/nav.svelte.ts';
   import { downloadPackage } from '../../lib/app/package.ts';
   import { prefs } from '../../lib/app/prefs.svelte.ts';
+  import { BACKUP_NUDGE_KEY, session } from '../../lib/app/session.svelte.ts';
   import { app } from '../../lib/app/state.svelte.ts';
   import { view } from '../../lib/app/view.svelte.ts';
   import { sparkle } from '../../lib/fx/sparkle.ts';
@@ -119,6 +121,8 @@
 
   function later() {
     prefs.set({ packageGuide: 'later' });
+    // 방금 '나중에'라고 답했으니 이 탭에서는 '패키지를 받아 두세요' 띠도 띄우지 않는다(부록 P2)
+    session.dismiss(BACKUP_NUDGE_KEY);
     app.toast(P.laterToast, 'info', 'icon-package', 5000);
     void focusMain();
   }

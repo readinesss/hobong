@@ -3,19 +3,29 @@
   import { app } from '../lib/app/state.svelte.ts';
   import { view } from '../lib/app/view.svelte.ts';
   import { focusAfterDismiss } from '../lib/app/dismiss.ts';
-  import { session } from '../lib/app/session.svelte.ts';
+  import { BACKUP_NUDGE_KEY, session } from '../lib/app/session.svelte.ts';
   import { formatKorean } from '../lib/calc/date.ts';
   import { pendingTrackText } from '../lib/app/track.ts';
+  import { prefs } from '../lib/app/prefs.svelte.ts';
   import { tick } from 'svelte';
   import DismissButton from '../lib/ui/DismissButton.svelte';
 
   /** 이 횟수만큼 바뀌면 백업을 권한다 */
   const NUDGE_AFTER = 8;
-  let dismissed = $state(false);
 
   const changes = $derived(app.data?.meta.changesSinceBackup ?? 0);
   const neverBackedUp = $derived((app.data?.meta.lastBackupAt ?? null) === null);
-  const showNudge = $derived(!dismissed && changes >= NUDGE_AFTER && nav.tab !== 'settings');
+  /**
+   * 홈의 패키지 안내(PackageCard)가 아직 답을 기다리는 동안에는 띠를 미룬다(같은 것을 두 번 권하지 않게: 부록 P2).
+   * 안내에서 [나중에]를 고르면 이 탭에서는 띠도 '나중에'로 친다(BACKUP_NUDGE_KEY). 다음에 열 때부터 띠가 나온다.
+   */
+  const guidePending = $derived(prefs.packageGuide === 'pending' && neverBackedUp);
+  const showNudge = $derived(
+    !session.isDismissed(BACKUP_NUDGE_KEY) &&
+      !guidePending &&
+      changes >= NUDGE_AFTER &&
+      nav.tab !== 'settings',
+  );
 
   // 알리기만 하는 띠는 닫을 수 있다(이 탭에서만 기억). 내용이 바뀌면 키가 바뀌어 다시 보인다.
   // 데이터를 지키는 띠(다른 탭·저장 막힘·저장 실패)는 닫을 수 없다.
@@ -214,7 +224,7 @@
         type="button"
         class="btn small"
         onclick={() => {
-          dismissed = true;
+          session.dismiss(BACKUP_NUDGE_KEY);
           void focusAfterDismiss();
         }}
       >

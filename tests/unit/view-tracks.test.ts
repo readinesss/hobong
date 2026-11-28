@@ -772,9 +772,16 @@ describe('퇴직 예정 달(#30 묶음 2, 저장 형식 v6)', () => {
     expect(view.lifeDiligenceLeft).toBeNull();
   });
 
-  it('모든 직종 시드 × 정한 달 여럿: 읽을 때 예외가 없고 금액은 지갑 창과 같다', () => {
-    for (const sel of sels) {
-      for (const month of ['2026-10', '2026-11', '2030-03', '2040-12', '2099-01']) {
+  /*
+   * 직종 시드 98개 × 정한 달 5개 = 490번, view 의 값 50여 개를 모두 읽는다(한 번에 약 7ms, 모두 단독 약 3초).
+   * 잰 결과 느린 값이 하나가 아니라 여럿에 고루 퍼져 있고(recap·lifePaydays·bridges·yearGrid 가 각 7~13%),
+   * 이 검사 환경(node)의 $derived 는 담아 두지 않아 저장본을 그대로 두고 정한 달만 바꿔도 빨라지지 않았다.
+   * 그래서 읽는 범위·단언은 그대로 두고 정한 달마다 테스트를 나눈다(하나에 약 0.8초 — 부하에서도 5초 제한에 여유).
+   */
+  it.each(['2026-10', '2026-11', '2030-03', '2040-12', '2099-01'])(
+    '모든 직종 시드 × 정한 달 여럿(%s): 읽을 때 예외가 없고 금액은 지갑 창과 같다',
+    (month) => {
+      for (const sel of sels) {
         at(T);
         const data = withPlan(sel, month);
         data.character.lastRank = sel.rank ?? null;
@@ -789,8 +796,8 @@ describe('퇴직 예정 달(#30 묶음 2, 저장 형식 v6)', () => {
         }
         expect((v.lifeEnd as { planHeld: boolean }).planHeld, label).toBe(!view.retired);
       }
-    }
-  });
+    },
+  );
 });
 
 describe('퇴직 예정 달 저장(app.setRetirePlan)', () => {

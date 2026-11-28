@@ -846,6 +846,70 @@ test.describe('진동', () => {
     await expect(page.locator('#talk-ack')).not.toContainText(moving);
   });
 
+  test("'한 번에 쓰기' 화면에도 같은 진동 단추가 있다: 끄면 칸을 떠날 때 울리지 않고, 대화 화면과 값을 함께 쓴다", async ({
+    page,
+  }) => {
+    await stubVibrate(page);
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '한 번에 쓰기' }).click();
+    const form = page.locator('#welcome-form');
+    const toggle = form.getByRole('button', { name: '진동', exact: true });
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    // 켜져 있으면 칸을 떠날 때(채운 칸이 늘었으면) 울린다
+    await form.getByLabel('닉네임').fill('김주무관');
+    await form.getByLabel('생년월일 연도').focus();
+    expect(await vibes(page)).toEqual([[20, 40, 20]]);
+    // 끄면 울리지 않는다
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await form.getByLabel('임용일 연도').focus();
+    expect(await vibes(page)).toHaveLength(1);
+    // 대화 화면으로 가도 같은 값(꺼짐)이다
+    await form.getByRole('button', { name: '하나씩 묻기' }).click();
+    await expect(
+      page.locator('#welcome-talk').getByRole('button', { name: '진동', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test("움직임 줄이기 중에는 진동 단추를 숨기고, 설정의 스위치는 '울리지 않아요'를 함께 알린다", async ({
+    page,
+  }) => {
+    await stubVibrate(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '시작할게요' }).click();
+    await expect(page.getByRole('textbox', { name: '뭐라고 불러 드릴까요?' })).toBeFocused();
+    await expect(page.getByRole('button', { name: '진동', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: '한 번에 쓰기' }).click();
+    await expect(page.locator('#welcome-form')).toBeVisible();
+    await expect(page.getByRole('button', { name: '진동', exact: true })).toHaveCount(0);
+
+    // 설정: 앱의 움직임 줄이기를 켜고 끄면 진동 스위치의 안내가 따라 바뀐다(켜 둔 값은 그대로)
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const env = JSON.parse(makeSeedV5()) as { data: { settings: { reduceMotion: boolean } } };
+    env.data.settings.reduceMotion = false;
+    await page.evaluate(
+      (value) => window.localStorage.setItem('hobong.data', value),
+      JSON.stringify(env),
+    );
+    await page.goto(`${page.url().split('#')[0]}#settings`);
+    await page.reload();
+    await tick(page);
+    const haptics = page.locator('#set-haptics').getByRole('checkbox');
+    await expect(haptics).toBeChecked();
+    await expect(page.locator('#set-haptics-reduced')).toHaveCount(0);
+    await page.getByRole('checkbox', { name: /움직임 줄이기/ }).check();
+    await expect(page.locator('#set-haptics-reduced')).toHaveText(
+      '움직임 줄이기 중에는 울리지 않아요.',
+    );
+    await expect(haptics).toHaveAccessibleDescription('움직임 줄이기 중에는 울리지 않아요.');
+    await expect(haptics).toBeChecked();
+  });
+
   test('데스크톱처럼 vibrate 함수만 있고 터치가 없는 기기에서는 진동 버튼·스위치를 보이지 않는다', async ({
     page,
   }) => {
@@ -912,5 +976,111 @@ test.describe('진동', () => {
     await tick(page);
     await expect(page.locator('#set-profile')).toBeVisible();
     await expect(page.locator('#set-haptics')).toHaveCount(0);
+  });
+});
+
+test.describe("'한 번에 쓰기'의 [알 깨우기]", () => {
+  test('처음부터 눌리고(빠진 칸으로 데려간다), 다 채운 순간 알 아이콘·금빛 반짝이·한 줄로 살아난다', async ({
+    page,
+  }) => {
+    await openApp(page);
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '한 번에 쓰기' }).click();
+    const form = page.locator('#welcome-form');
+    const wake = form.getByRole('button', { name: '알 깨우기' });
+    const line = form.locator('#pf-ready');
+    // 비활성 단추는 쓰지 않는다: 처음부터 눌린다
+    await expect(wake).toBeEnabled();
+    await expect(wake).not.toHaveClass(/\bready\b/);
+    await expect(wake.locator('svg')).toHaveCount(0);
+    await expect(line).toContainText('채울 칸으로 데려다 드릴게요');
+    // 채우는 동안의 안내는 알림 영역에 없다(바뀐 한 줄만 읽는다)
+    await expect(line.getByRole('status')).toHaveText('');
+    // 누르면 빠진 칸(닉네임)으로 데려간다
+    await wake.click();
+    await tick(page, 100);
+    await expect(form.getByLabel('닉네임')).toBeFocused();
+    await expect(wake).not.toHaveClass(/\bready\b/);
+
+    await form.getByLabel('닉네임').fill('김주무관');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await fillDate(page, '임용일', '2024-03-04');
+    await form.getByLabel('현재 호봉', { exact: true }).fill('3');
+    await expect(wake).not.toHaveClass(/\bready\b/);
+    await fillDate(page, '다음 승급일', '2027-03-01');
+    // 다 채운 순간: 아이콘이 붙고 귀퉁이에 금빛 반짝이가 붙으며, 한 줄이 바뀌어 한 번 읽힌다. 단추 이름은 그대로다
+    await expect(wake).toHaveClass(/\bready\b/);
+    await expect(wake.locator('svg')).toHaveCount(1);
+    await expect(wake).toHaveAccessibleName('알 깨우기');
+    await expect(line.getByRole('status')).toHaveText('다 채웠어요! 누르면 알이 깨어나요.');
+    await expect(line).not.toContainText('채울 칸으로');
+    // 하나를 비우면 다시 기다리는 모습으로
+    await form.getByLabel('닉네임').fill('');
+    await expect(wake).not.toHaveClass(/\bready\b/);
+    await expect(line.getByRole('status')).toHaveText('');
+    await form.getByLabel('닉네임').fill('김주무관');
+    await wake.click();
+    await expect(page.getByRole('button', { name: '건너뛰기' })).toBeVisible();
+  });
+});
+
+test.describe('움직임 줄이기에서 답할 때의 알', () => {
+  /** 알 그림(2D 캔버스)을 그림으로 옮긴다 */
+  const picture = (page: Page, scope: string) =>
+    page
+      .locator(scope)
+      .getByRole('button', { name: '호봉이 알 콕 누르기' })
+      .locator('canvas')
+      .evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+
+  /** 시계를 조금씩 돌리며 그림이 그대로인지 본다(몸짓·흔들림·들썩임이 없다) */
+  async function expectStill(page: Page, scope: string): Promise<void> {
+    const first = await picture(page, scope);
+    for (let i = 0; i < 8; i += 1) {
+      await page.clock.runFor(250);
+      expect(await picture(page, scope)).toBe(first);
+    }
+  }
+
+  test('대화: 답해도 알은 몸짓 없이 멈춰 있다(금 단계만 그림이 바뀐다)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openApp(page);
+    await page.clock.pauseAt(new Date(Date.parse(NOW) + 60_000));
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '시작할게요' }).click();
+    const nick = page.getByRole('textbox', { name: '뭐라고 불러 드릴까요?' });
+    await expect(nick).toBeFocused();
+    const before = await picture(page, '#welcome-talk');
+    await expectStill(page, '#welcome-talk');
+    await nick.fill('김주무관');
+    await next(page).click();
+    await expect(page.getByLabel('생년월일 연도')).toBeFocused();
+    // 금이 간 그림 한 장으로 바뀌고, 그 뒤로는 움직이지 않는다
+    expect(await picture(page, '#welcome-talk')).not.toBe(before);
+    await expectStill(page, '#welcome-talk');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await next(page).click();
+    await expect(page.getByLabel('임용일 연도')).toBeFocused();
+    await expectStill(page, '#welcome-talk');
+  });
+
+  test('한 번에 쓰기: 칸을 떠나도, 다 채워 기다릴 때도 알이 멈춰 있다', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openApp(page);
+    await page.clock.pauseAt(new Date(Date.parse(NOW) + 60_000));
+    await page.getByRole('button', { name: '새로 시작' }).click();
+    await page.getByRole('button', { name: '한 번에 쓰기' }).click();
+    const form = page.locator('#welcome-form');
+    await form.getByLabel('닉네임').fill('김주무관');
+    await form.getByLabel('생년월일 연도').focus();
+    await expectStill(page, '#welcome-form');
+    await fillDate(page, '생년월일', '1996-04-12');
+    await fillDate(page, '임용일', '2024-03-04');
+    await form.getByLabel('현재 호봉', { exact: true }).fill('3');
+    await fillDate(page, '다음 승급일', '2027-03-01');
+    // 마지막 칸을 떠나면 '다 채움' 반응(움직임 그대로면 폴짝 뛰고 기다리며 들썩인다)
+    await form.getByLabel('닉네임').focus();
+    await expect(form.getByRole('button', { name: '알 깨우기' })).toHaveClass(/\bready\b/);
+    await expectStill(page, '#welcome-form');
   });
 });

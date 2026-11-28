@@ -76,8 +76,11 @@
   let still = $state(false);
   /** 숫자판에 지금 보이는 호봉 */
   let rolled = $state(ev.fromStep);
-  /** 무대 위 꼬리표('깃 +1', '새로 생김: 머그컵') */
-  let tag = $state('');
+  /**
+   * 무대 위 꼬리표('깃 +1', '새로 생김: 머그컵'). 새 소품이 생기면 '깃 +1' 아래에 하나 더 붙는다
+   * ('깃 +1'이 0.2초 만에 '새로 생김'으로 바뀌어 깃이 자란 것이 묻히지 않게: 부록 P1)
+   */
+  let tags = $state<string[]>([]);
   /** 이름판(승진·성장): 형태 이름 또는 계급 이름 */
   let plate = $state('');
   let canvas = $state<ReturnType<typeof StageCanvas>>();
@@ -153,7 +156,7 @@
       // 뒤의 홈(상태창)도 이제 새 호봉·모습으로 바뀐다
       app.revealCelebration();
       rolled = ev.toStep;
-      tag = '';
+      tags = [];
       plate = plateText(true);
       return;
     }
@@ -180,10 +183,10 @@
       });
       spawn();
     } else if (name === 'land') {
-      tag = `깃 +${Math.max(1, grown)}`;
+      tags = [`깃 +${Math.max(1, grown)}`];
     } else if (name === 'spot') {
       const first = unlocked[0];
-      tag = first ? `새로 생김: ${first.name}` : tag;
+      if (first) tags = [...tags, `새로 생김: ${first.name}`];
     } else if (name === 'confetti') {
       emitBurst(field, {
         x: CENTER.x,
@@ -393,6 +396,19 @@
   });
   /** '전 → 후' 정지 그림: 모습이 달라졌거나, 움직임 줄이기여서 연출을 보지 못했을 때 */
   const showPair = $derived(done && (still || evolves || unlocked.length > 0));
+  /**
+   * 정지 그림의 낭독 이름. 형태가 바뀌면 두 형태 이름, 같은 형태에서 새 소품이 생기면 뒤 그림에 그 소품을 붙인다.
+   * 이름으로 가를 것이 없으면(같은 형태·새 소품 없음) 두 그림을 장식으로 두고 바뀐 것은 위의 글이 전한다(부록 P1).
+   */
+  const pairNames = $derived.by((): [string, string] | null => {
+    if (evolves) return [`전: ${before.form.name}`, `후: ${after.form.name}`];
+    if (unlocked.length > 0)
+      return [
+        `전: ${before.form.name}`,
+        `후: ${before.form.name}, 새로 생김: ${unlocked.map((u) => u.name).join(', ')}`,
+      ];
+    return null;
+  });
   const rolls = ev.kind === 'step';
 </script>
 
@@ -418,7 +434,11 @@
           {:else if plate}
             {#key plate}<p class="plate name">{plate}</p>{/key}
           {/if}
-          {#if tag}{#key tag}<p class="tag gold pop-in">{tag}</p>{/key}{/if}
+          {#if tags.length > 0}
+            <div class="tags">
+              {#each tags as text (text)}<p class="tag gold pop-in">{text}</p>{/each}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -445,10 +465,10 @@
         {/if}
       </div>
       {#if showPair}
-        <p class="pair" id="celebration-pair">
-          <Sprite look={before} scale={2} animate={false} label="전: {before.form.name}" />
+        <p class="pair" id="celebration-pair" aria-hidden={pairNames ? undefined : 'true'}>
+          <Sprite look={before} scale={2} animate={false} label={pairNames?.[0]} />
           <span aria-hidden="true">→</span>
-          <Sprite look={after} scale={2} animate={false} label="후: {after.form.name}" />
+          <Sprite look={after} scale={2} animate={false} label={pairNames?.[1]} />
         </p>
       {/if}
     {:else}
@@ -539,6 +559,11 @@
     to {
       transform: none;
     }
+  }
+  .tags {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
   }
   .pair {
     display: flex;

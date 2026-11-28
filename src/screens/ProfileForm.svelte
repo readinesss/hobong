@@ -9,6 +9,7 @@
   import type { ProfileErrors } from '../lib/store/validate.ts';
   import ChipRadio from '../lib/ui/ChipRadio.svelte';
   import DateInput from '../lib/ui/DateInput.svelte';
+  import Icon from '../lib/ui/Icon.svelte';
   import Stepper from '../lib/ui/Stepper.svelte';
   import SeriesPicker from './profile/SeriesPicker.svelte';
 
@@ -23,6 +24,12 @@
      */
     draft?: ProfileDraft;
     submitLabel: string;
+    /**
+     * 다 채운 순간 [제출] 단추가 살아나는 변화(첫 입력의 [알 깨우기]: 부록 P3). 주지 않으면 단추가 늘 그대로다.
+     * 단추는 처음부터 눌린다(비활성 단추는 쓰지 않는다: 누르면 빠진 칸으로 데려간다). 다 채우면 아이콘이 붙고
+     * 귀퉁이에 금빛 반짝이가 붙으며, 단추 위의 한 줄이 pending → line 으로 바뀐다(바뀐 한 줄만 알림 영역이 한 번 읽는다).
+     */
+    ready?: { icon: string; line: string; pending: string };
     /** celebrate: 고칠 때 계급이 올랐고 사용자가 '승진했어요'를 켜 두었는지 */
     onsubmit: (profile: Profile, payday: number, options: { celebrate: boolean }) => void;
     oncancel?: () => void;
@@ -34,6 +41,7 @@
     askPayday = false,
     draft,
     submitLabel,
+    ready,
     onsubmit,
     oncancel,
   }: Props = $props();
@@ -457,15 +465,60 @@
     </div>
   {/if}
 
+  {#if ready}
+    <!-- 다 채웠을 때의 한 줄만 알림 영역에 넣는다(채우는 동안의 안내는 읽어 주지 않는다) -->
+    <p class="cap ready-line" class:muted={!d.valid} id="pf-ready">
+      <span role="status">{d.valid ? ready.line : ''}</span>
+      {#if !d.valid}{ready.pending}{/if}
+    </p>
+  {/if}
   <div class="btn-row end">
     {#if oncancel}
       <button type="button" class="btn" onclick={oncancel}>취소</button>
     {/if}
-    <button type="submit" class="btn primary">{submitLabel}</button>
+    <button type="submit" class="btn primary" class:ready={ready && d.valid}>
+      {#if ready && d.valid}<span class="pop-in ready-icon"><Icon name={ready.icon} /></span>{/if}
+      {submitLabel}
+    </button>
   </div>
 </form>
 
 <style>
+  .ready-line {
+    text-align: right;
+  }
+  /*
+    다 채운 [알 깨우기]: 단추 오른쪽 위 귀퉁이에 금빛 반짝이 한 점(먹색 테두리)이 붙는다. 깜빡이지 않고 그대로 있다.
+    둘레 테(outline·box-shadow 링)는 쓰지 않는다: 야근 모드의 포커스 링(금색)과 헷갈린다.
+  */
+  .btn.ready::before {
+    --p: var(--u);
+    --ink: #1a1c2c;
+    content: '';
+    position: absolute;
+    top: calc(var(--p) * -1);
+    right: calc(var(--p) * -1);
+    width: var(--p);
+    height: var(--p);
+    background: var(--gold);
+    pointer-events: none;
+    box-shadow:
+      0 calc(var(--p) * -1) var(--gold),
+      0 var(--p) var(--gold),
+      calc(var(--p) * -1) 0 var(--gold),
+      var(--p) 0 var(--gold),
+      0 calc(var(--p) * -2) var(--ink),
+      0 calc(var(--p) * 2) var(--ink),
+      calc(var(--p) * -2) 0 var(--ink),
+      calc(var(--p) * 2) 0 var(--ink),
+      calc(var(--p) * -1) calc(var(--p) * -1) var(--ink),
+      var(--p) calc(var(--p) * -1) var(--ink),
+      calc(var(--p) * -1) var(--p) var(--ink),
+      var(--p) var(--p) var(--ink);
+  }
+  .ready-icon {
+    display: inline-flex;
+  }
   /* 호봉 스테퍼(−, 입력, '호봉', +)는 190px 쯤 필요하다. 좁으면 한 열로 떨어진다. */
   .grid2 {
     display: grid;
